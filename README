@@ -1,0 +1,11 @@
+== krypt-core
+
+The C implementation of the krypt-core API.
+
+== krypt
+
+For more information about krypt, please have a
+look at the project and its wiki at
+
+https://github.com/emboss/krypt
+
