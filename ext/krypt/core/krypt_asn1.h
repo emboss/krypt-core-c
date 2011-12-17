@@ -10,19 +10,19 @@
 * See the file 'LICENSE' for further details.
 */
 
-#include "krypt-core.h"
+#if !defined(_KRYPT_ASN1_H)
+#define _KRYPT_ASN1_H_
 
-VALUE mKrypt;
+extern VALUE mAsn1;
+extern VALUE cAsn1Parser;
+extern VALUE cAsn1Header;
 
-void 
-Init_kryptcore(void)
-{
-    mKrypt = rb_define_module("Krypt");
-    rb_global_variable(&mKrypt);
+extern VALUE eAsn1Error;
+extern VALUE eParseError;
+extern VALUE eSerializeError;
 
-    eKryptError = rb_define_class_under(mKrypt, "KryptError", rb_eStandardError);
+void Init_krypt_asn1(void);
 
-    /* Init components */
-    Init_krypt_asn1();
-}
+#endif /* _KRYPT_ASN1_H */
+
 

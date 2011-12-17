@@ -21,8 +21,13 @@ extern "C" {
 
 #include <ruby.h>
 #include <ruby/io.h>
-
+    
 extern VALUE mKrypt;
+
+extern VALUE eKryptError;
+
+/** krypt-core headers **/
+#include "krypt_asn1.h"
 
 void Init_krypt_core(void);
 
