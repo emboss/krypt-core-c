@@ -17,7 +17,7 @@ struct krypt_byte_ary_st {
     long len;
 };
 
-static int int_bytes_read(krypt_instream *in, unsigned char* buf, int len);
+static int int_bytes_read(krypt_instream *in, int len);
 static int int_bytes_free(krypt_instream *in);
 
 static krypt_instream_interface interface_bytes = {
@@ -29,31 +29,35 @@ static krypt_instream_interface interface_bytes = {
 krypt_instream *
 krypt_instream_new_bytes(unsigned char *bytes, long len)
 {
-    krypt_instream *ret;
+    krypt_instream *in;
     struct krypt_byte_ary_st *byte_ary;
 
-    ret = krypt_instream_new(&interface_bytes);
+    in = krypt_instream_new(&interface_bytes);
     byte_ary = (struct krypt_byte_ary_st *)xmalloc(sizeof(struct krypt_byte_ary_st));
     byte_ary->p = bytes;
     byte_ary->len = len;
-    ret->ptr = (void *)byte_ary;
-    return ret;
+    in->ptr = (void *)byte_ary;
+    in->buf = xmalloc(KRYPT_IO_BUF_SIZE);
+    in->buf_len = KRYPT_IO_BUF_SIZE;
+    return in;
 }
 
 static int
-int_bytes_read(krypt_instream *in, unsigned char* buf, int len)
+int_bytes_read(krypt_instream *in, int len)
 {
     struct krypt_byte_ary_st *src;
     int to_read;
 
-    if (!buf) return 0;
+    if (!in->buf) return 0;
+    if (len > in->buf_len)
+	len = in->buf_len;
 
     src = (struct krypt_byte_ary_st *)in->ptr;
 
     if (in->num_read == src->len)
 	return -1;
 
-    if (src->len - len < in->num_read) {
+    if (src->len - in->buf_len < in->num_read) {
 	rb_raise(eParseError, "Premature end of stream.");
     }
     if (src->len - in->num_read < len)
@@ -61,7 +65,7 @@ int_bytes_read(krypt_instream *in, unsigned char* buf, int len)
     else
 	to_read = len;
 
-    memcpy(src->p, buf, to_read);
+    memcpy(src->p, in->buf, to_read);
     src->p += to_read;
     in->num_read += to_read;
     return to_read;
@@ -73,6 +77,7 @@ int_bytes_free(krypt_instream *in)
     if (!in)
 	return 0;
     xfree(in->ptr);
+    xfree(in->buf);
     return 1;
 }
 

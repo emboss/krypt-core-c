@@ -14,7 +14,7 @@
 #include <errno.h>
 #include "krypt-core.h"
 
-static int int_fd_read(krypt_instream *in, unsigned char* buf, int len);
+static int int_fd_read(krypt_instream *in, int len);
 static int int_fd_free(krypt_instream *in);
 
 static krypt_instream_interface interface_fd = {
@@ -27,22 +27,27 @@ krypt_instream *
 krypt_instream_new_fd(int fd)
 {
     krypt_instream *in;
+
     in = krypt_instream_new(&interface_fd);
     in->ptr = (void *)&fd;
+    in->buf = xmalloc(KRYPT_IO_BUF_SIZE);
+    in->buf_len = KRYPT_IO_BUF_SIZE;
     return in;
 }
 
 static int
-int_fd_read(krypt_instream *in, unsigned char* buf, int len)
+int_fd_read(krypt_instream *in, int len)
 {
     int fd;
 
-    if (!buf) return 0;
+    if (!in->buf) return 0;
+    if (len > in->buf_len)
+	len = in->buf_len;
 
     fd = *((int *)in->ptr);
     krypt_clear_sys_error();
     /* no need to increase in->num_read */
-    return krypt_read(fd, (void *)buf, (size_t)len);
+    return krypt_read(fd, in->buf, (size_t)len);
 }
 
 static int
@@ -50,6 +55,7 @@ int_fd_free(krypt_instream *in)
 {
     if (!in)
 	return 0;
+    xfree(in->buf);
     return 1; /* do not close the fd, should be done explicitly */
 }
 
