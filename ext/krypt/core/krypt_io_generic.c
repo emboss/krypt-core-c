@@ -34,7 +34,8 @@ krypt_instream_new_io_generic(VALUE io)
     cbuf = (unsigned char *)xmalloc(KRYPT_IO_BUF_SIZE);
     in->buf = cbuf;
     buf = rb_str_new((const char *)cbuf, KRYPT_IO_BUF_SIZE);
-    rb_global_variable(&buf);
+    /* exclude it from GC */
+    rb_gc_register_address(&buf);
     in->util = (void *)&buf;
     in->buf_len = KRYPT_IO_BUF_SIZE;
     return in;
