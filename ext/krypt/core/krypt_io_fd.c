@@ -30,7 +30,7 @@ krypt_instream_new_fd(int fd)
 
     in = krypt_instream_new(&interface_fd);
     in->ptr = (void *)&fd;
-    in->buf = xmalloc(KRYPT_IO_BUF_SIZE);
+    in->buf = (unsigned char *)xmalloc(KRYPT_IO_BUF_SIZE);
     in->buf_len = KRYPT_IO_BUF_SIZE;
     return in;
 }

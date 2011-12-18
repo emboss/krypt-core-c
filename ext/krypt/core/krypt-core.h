@@ -10,7 +10,7 @@
 * See the file 'LICENSE' for further details.
 */
 
-#if !defined(_KRYPT_CORE_H)
+#if !defined(_KRYPT_CORE_H_)
 #define _KRYPT_CORE_H_
 
 #include RUBY_EXTCONF_H
@@ -39,6 +39,6 @@ void Init_krypt_core(void);
 }
 #endif
 
-#endif /* _KRYPT_CORE_H */
+#endif /* _KRYPT_CORE_H_ */
 
 

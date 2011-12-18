@@ -10,7 +10,7 @@
 * See the file 'LICENSE' for further details.
 */
 
-#if !defined(_KRYPT_ASN1_H)
+#if !defined(_KRYPT_ASN1_H_)
 #define _KRYPT_ASN1_H_
 
 extern VALUE mAsn1;
@@ -21,20 +21,9 @@ extern VALUE eAsn1Error;
 extern VALUE eParseError;
 extern VALUE eSerializeError;
 
-typedef struct krypt_asn1_header_st {
-    int tag;
-    int tag_class;
-    int is_constructed;
-    int is_infinite;
-    int header_len;
-    int len;
-} krypt_asn1_header;
-
-void krypt_asn1_next_header(krypt_instream *in, krypt_asn1_header *out);
-
 void Init_krypt_asn1(void);
 void Init_krypt_asn1_parser(void);
 
-#endif /* _KRYPT_ASN1_H */
+#endif /* _KRYPT_ASN1_H_ */
 
 

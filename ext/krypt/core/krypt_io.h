@@ -10,7 +10,7 @@
 * See the file 'LICENSE' for further details.
 */
 
-#if !defined(_KRYPT_IO_H)
+#if !defined(_KRYPT_IO_H_)
 #define _KRYPT_IO_H_
 
 #define KRYPT_IO_BUF_SIZE 8092
@@ -30,7 +30,7 @@ typedef struct krypt_instream_interface_st {
 struct krypt_instream_st {
     krypt_instream_interface *methods;
     void *ptr;
-    void *buf; /* read buffer */
+    unsigned char *buf; /* read buffer */
     int buf_len;
     void *util;
     long num_read;
@@ -43,6 +43,8 @@ int krypt_instream_free(krypt_instream *in);
 krypt_instream *krypt_instream_new_fd(int fd);
 krypt_instream *krypt_instream_new_bytes(unsigned char *bytes, long len);
 krypt_instream *krypt_instream_new_io_generic(VALUE io);
+krypt_instream * krypt_instream_new_value(VALUE value);
 
-#endif /* _KRYPT_IO_H */
+
+#endif /* _KRYPT_IO_H_ */
 

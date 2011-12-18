@@ -37,7 +37,7 @@ krypt_instream_new_bytes(unsigned char *bytes, long len)
     byte_ary->p = bytes;
     byte_ary->len = len;
     in->ptr = (void *)byte_ary;
-    in->buf = xmalloc(KRYPT_IO_BUF_SIZE);
+    in->buf = (unsigned char *)xmalloc(KRYPT_IO_BUF_SIZE);
     in->buf_len = KRYPT_IO_BUF_SIZE;
     return in;
 }

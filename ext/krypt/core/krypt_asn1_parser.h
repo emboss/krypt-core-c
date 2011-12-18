@@ -10,7 +10,7 @@
 * See the file 'LICENSE' for further details.
 */
 
-#if !defined(_KRYPT_ASN1_PARSER_H)
+#if !defined(_KRYPT_ASN1_PARSER_H_)
 #define _KRYPT_ASN1_PARSER_H_
 
 extern VALUE mAsn1;
@@ -23,6 +23,6 @@ extern VALUE eSerializeError;
 
 void Init_krypt_asn1(void);
 
-#endif /* _KRYPT_ASN1_H */
+#endif /* _KRYPT_ASN1_H_ */
 
 

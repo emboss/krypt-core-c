@@ -61,3 +61,37 @@ krypt_instream_free(krypt_instream *in)
     return 1;
 }
 
+static krypt_instream *
+int_instream_new_file(VALUE value)
+{
+    rb_io_t *fptr;
+
+    GetOpenFile(value, fptr);
+    rb_io_check_readable(fptr);
+    return krypt_instream_new_fd(fptr->fd);
+}
+
+krypt_instream *
+krypt_instream_new_value(VALUE value)
+{
+    int type;
+
+    type = TYPE(value);
+
+    if (type == T_STRING) {
+	return krypt_instream_new_bytes((unsigned char *)RSTRING_PTR(value), RSTRING_LEN(value));
+    }
+    else {
+	if (type == T_FILE) {
+	    return int_instream_new_file(value);
+	}
+	else if (rb_respond_to(value, ID_READ)) {
+	    return krypt_instream_new_io_generic(value);
+	}
+	else {
+	    StringValue(value);
+	    return krypt_instream_new_bytes((unsigned char *)RSTRING_PTR(value), RSTRING_LEN(value));
+	}
+    }
+}
+

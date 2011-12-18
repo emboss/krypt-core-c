@@ -11,6 +11,7 @@
 */
 
 #include "krypt-core.h"
+#include "krypt_asn1-internal.h"
 
 void
 Init_krypt_asn1(void)
