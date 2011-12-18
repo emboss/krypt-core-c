@@ -14,6 +14,8 @@
 
 VALUE mKrypt;
 
+ID ID_READ, ID_WRITE;
+
 void 
 Init_kryptcore(void)
 {
@@ -21,6 +23,9 @@ Init_kryptcore(void)
     rb_global_variable(&mKrypt);
 
     eKryptError = rb_define_class_under(mKrypt, "KryptError", rb_eStandardError);
+
+    ID_READ = rb_intern("read");
+    ID_WRITE = rb_intern("write");
 
     /* Init components */
     Init_krypt_asn1();

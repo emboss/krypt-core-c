@@ -11,13 +11,15 @@
 */
 
 #include "krypt-core.h"
-#include "krypt_io.h"
+
+ID ID_READ, ID_WRITE, ID_CLOSE;
 
 static int
 krypt_instream_set(krypt_instream *in, krypt_instream_interface *methods)
 {
     in->methods = methods;
     in->ptr = NULL;
+    in->util = NULL;
     in->num_read = 0;
     return 1;
 }
@@ -48,22 +50,14 @@ krypt_instream_read(krypt_instream *in, unsigned char *buf, int len)
 }
 
 int
-krypt_instream_close(krypt_instream *in)
-{
-    if (!in || !in->methods || !in->methods->close)
-	rb_raise(eParseError, "Cannot close stream");
-    return in->methods->close(in);
-}
-
-int
 krypt_instream_free(krypt_instream *in)
 {
     if (!in)
 	return 0;
 
-    if (!in->methods || !in->methods->dtor)
+    if (!in->methods || !in->methods->free)
 	return 1;
-    in->methods->dtor(in);
+    in->methods->free(in);
     xfree(in);
     return 1;
 }

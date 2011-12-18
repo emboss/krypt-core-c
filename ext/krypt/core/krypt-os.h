@@ -16,7 +16,6 @@
 #ifdef WIN32
 #define krypt_last_sys_error()	GetLastError()
 #define krypt_clear_sys_error()	SetLastError(0)
-#endif
 #else
 #define krypt_last_sys_error()	errno
 #define krypt_clear_sys_error()	errno=0
@@ -36,5 +35,6 @@
 #define	krypt_write	write
 #define	krypt_lseek	lseek
 #define	krypt_close	close
+#endif
 
 #endif /* _KRYPT_OS_H_ */

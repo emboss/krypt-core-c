@@ -10,58 +10,45 @@
 * See the file 'LICENSE' for further details.
 */
 
-#include <stdio.h>
+#include <unistd.h>
 #include <errno.h>
 #include "krypt-core.h"
-#include "krypt_io.h"
-#include "krypt-os.h"
 
 static int int_fd_read(krypt_instream *in, unsigned char* buf, int len);
-static int int_fd_close(krypt_instream *in);
-static int int_fd_dtor(krypt_instream *in);
+static int int_fd_free(krypt_instream *in);
 
 static krypt_instream_interface interface_fd = {
     INSTREAM_TYPE_FD,
     int_fd_read,
-    int_fd_close,
-    int_fd_dtor
+    int_fd_free
 };
 
 krypt_instream *
 krypt_instream_new_fd(int fd)
 {
-    krypt_instream *ret;
-    ret = krypt_instream_new(interface_fd);
+    krypt_instream *in;
+    in = krypt_instream_new(&interface_fd);
     in->ptr = (void *)&fd;
-    return ret;
+    return in;
 }
 
 static int
 int_fd_read(krypt_instream *in, unsigned char* buf, int len)
 {
-    int fd;
-    int read = 0;
-    if (buf) {
-    	fd = *((int *)in->ptr);
-	krypt_clear_sys_error();
-	read = krypt_read(fd, buf, len);
-    }
-    return read;
+    int fd, r = 0;
+
+    if (!buf) return 0;
+
+    fd = *((int *)in->ptr);
+    krypt_clear_sys_error();
+    r = krypt_read(fd, (void *)buf, (size_t)len);
+    if (r > 0)
+	in->num_read += r;
+    return r;
 }
 
 static int
-int_fd_close(krypt_instream *in)
-{
-    int val;
-    val = krypt_close(in);
-    if (val < 0)
-	return 0;
-    else
-	return 1;
-}
-
-static int
-int_fd_dtor(krypt_instream *in)
+int_fd_free(krypt_instream *in)
 {
     if (!in)
 	return 0;
