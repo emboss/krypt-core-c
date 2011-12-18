@@ -40,13 +40,10 @@ krypt_instream_new(krypt_instream_interface *type)
 int 
 krypt_instream_read(krypt_instream *in, unsigned char *buf, int len)
 {
-    int i;
     if (!in || !in->methods || !in->methods->read)
 	rb_raise(eParseError, "Stream not initialized properly");
 
-    i = in->methods->read(in, buf, len);
-    in->num_read += (unsigned long)i;
-    return i;
+    return in->methods->read(in, buf, len);
 }
 
 int

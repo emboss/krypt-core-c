@@ -12,6 +12,8 @@
 
 #include "krypt-core.h"
 
+#define BUF_SIZE 8092
+
 static int int_io_read(krypt_instream *in, unsigned char* buf, int len);
 static int int_io_free(krypt_instream *in);
 
@@ -25,6 +27,7 @@ krypt_instream *
 krypt_instream_new_io_generic(VALUE io)
 {
     krypt_instream *in;
+
     in = krypt_instream_new(&interface_io_generic);
     in->ptr = (void *)&io;
     return in;
@@ -45,16 +48,28 @@ int_io_rb_read(krypt_instream *in, VALUE buf, VALUE len)
 	return RSTRING_LENINT(read);
 }
 
+static VALUE
+int_get_buf(krypt_instream *in, unsigned char *buf, int len)
+{
+    VALUE *pbuf;
+    pbuf = (VALUE *)in->util;
+    if (!pbuf) {
+	VALUE vbuf;
+	vbuf = rb_str_new((const char *)buf, len);
+	rb_global_variable(&vbuf);
+	in->util = (void *)&vbuf;
+	pbuf = &vbuf;
+    }
+    return *pbuf;
+}
+
 static int
 int_io_read(krypt_instream *in, unsigned char* buf, int len)
 {
     VALUE vbuf, vlen;
     int read;
 
-    /* TODO: temporary VALUE buffer */
-    rb_raise(rb_eNotImpError, "Not implemented yet");
-
-    vbuf = *((VALUE *)in->util);
+    vbuf = int_get_buf(in, buf, len);
     vlen = INT2NUM(len);
     read = int_io_rb_read(in, vbuf, vlen);
     if (read > 0)
@@ -65,8 +80,13 @@ int_io_read(krypt_instream *in, unsigned char* buf, int len)
 static int
 int_io_free(krypt_instream *in)
 {
+    VALUE *buf;
+
     if (!in)
 	return 0;
-    return 1; /* GC takes care of the IO */
+
+    buf = (VALUE *)in->util;
+    rb_gc_unregister_address(buf); /* give it free for GC */
+    return 1; 
 }
 

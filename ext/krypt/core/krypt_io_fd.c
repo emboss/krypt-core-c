@@ -35,16 +35,14 @@ krypt_instream_new_fd(int fd)
 static int
 int_fd_read(krypt_instream *in, unsigned char* buf, int len)
 {
-    int fd, r = 0;
+    int fd;
 
     if (!buf) return 0;
 
     fd = *((int *)in->ptr);
     krypt_clear_sys_error();
-    r = krypt_read(fd, (void *)buf, (size_t)len);
-    if (r > 0)
-	in->num_read += r;
-    return r;
+    /* no need to increase in->num_read */
+    return krypt_read(fd, (void *)buf, (size_t)len);
 }
 
 static int
