@@ -13,18 +13,24 @@
 #include "krypt-core.h"
 #include "krypt_asn1-internal.h"
 
+VALUE mAsn1;
+VALUE eAsn1Error, eParseError, eSerializeError;
+
+ID sTC_UNIVERSAL, sTC_APPLICATION, sTC_CONTEXT_SPECIFIC, sTC_PRIVATE;
+
 void
 Init_krypt_asn1(void)
-{
+{ 
+    sTC_UNIVERSAL = rb_intern("UNIVERSAL");
+    sTC_APPLICATION = rb_intern("APPLICATION");
+    sTC_CONTEXT_SPECIFIC = rb_intern("CONTEXT_SPECIFIC");
+    sTC_PRIVATE = rb_intern("PRIVATE");
+
     mAsn1 = rb_define_module_under(mKrypt, "Asn1");
-    rb_global_variable(&mAsn1);
 
     eAsn1Error = rb_define_class_under(mAsn1, "Asn1Error", eKryptError);
-    rb_global_variable(&eAsn1Error);
     eParseError = rb_define_class_under(mAsn1, "ParseError", eAsn1Error);
-    rb_global_variable(&eParseError);
     eSerializeError = rb_define_class_under(mAsn1, "SerializeError", eAsn1Error);
-    rb_global_variable(&eSerializeError);
 
     Init_krypt_asn1_parser();
 }

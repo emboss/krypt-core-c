@@ -23,6 +23,10 @@ extern "C" {
 #include <ruby/io.h>
 #include "krypt-os.h"
 
+#ifndef InitVM
+#define InitVM(ext) {void InitVM_##ext(void);InitVM_##ext();}
+#endif
+
 extern VALUE mKrypt;
 
 extern VALUE eKryptError;

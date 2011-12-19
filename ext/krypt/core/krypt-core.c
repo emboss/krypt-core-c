@@ -13,6 +13,7 @@
 #include "krypt-core.h"
 
 VALUE mKrypt;
+VALUE eKryptError;
 
 ID ID_READ, ID_WRITE;
 
@@ -20,7 +21,6 @@ void
 Init_kryptcore(void)
 {
     mKrypt = rb_define_module("Krypt");
-    rb_global_variable(&mKrypt);
 
     eKryptError = rb_define_class_under(mKrypt, "KryptError", rb_eStandardError);
 

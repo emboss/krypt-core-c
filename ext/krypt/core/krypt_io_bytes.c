@@ -21,7 +21,7 @@ static int int_bytes_read(krypt_instream *in, int len);
 static int int_bytes_free(krypt_instream *in);
 
 static krypt_instream_interface interface_bytes = {
-    INSTREAM_TYPE_FD,
+    INSTREAM_TYPE_BYTES,
     int_bytes_read,
     int_bytes_free
 };

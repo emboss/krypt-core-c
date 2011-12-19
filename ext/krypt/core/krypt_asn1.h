@@ -21,6 +21,11 @@ extern VALUE eAsn1Error;
 extern VALUE eParseError;
 extern VALUE eSerializeError;
 
+extern ID sTC_UNIVERSAL;
+extern ID sTC_APPLICATION;
+extern ID sTC_CONTEXT_SPECIFIC;
+extern ID sTC_PRIVATE;
+
 void Init_krypt_asn1(void);
 void Init_krypt_asn1_parser(void);
 

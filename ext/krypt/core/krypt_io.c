@@ -61,16 +61,6 @@ krypt_instream_free(krypt_instream *in)
     return 1;
 }
 
-static krypt_instream *
-int_instream_new_file(VALUE value)
-{
-    rb_io_t *fptr;
-
-    GetOpenFile(value, fptr);
-    rb_io_check_readable(fptr);
-    return krypt_instream_new_fd(fptr->fd);
-}
-
 krypt_instream *
 krypt_instream_new_value(VALUE value)
 {
@@ -83,10 +73,19 @@ krypt_instream_new_value(VALUE value)
     }
     else {
 	if (type == T_FILE) {
-	    return int_instream_new_file(value);
+	    return krypt_instream_new_file_io(value);
 	}
 	else if (rb_respond_to(value, ID_READ)) {
-	    return krypt_instream_new_io_generic(value);
+	    ID id_string;
+	    id_string = rb_intern("string");
+	    if (rb_respond_to(value, id_string)) { /* StringIO */
+		VALUE str;
+		str = rb_funcall(value, id_string, 0);
+		return krypt_instream_new_bytes((unsigned char *)RSTRING_PTR(str), RSTRING_LEN(str));
+	    }
+	    else {
+    		return krypt_instream_new_io_generic(value);
+	    }
 	}
 	else {
 	    StringValue(value);
