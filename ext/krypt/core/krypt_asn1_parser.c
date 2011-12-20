@@ -130,10 +130,8 @@ static VALUE
 krypt_asn1_parser_next(VALUE self, VALUE io)
 {
     krypt_instream *in;
-    krypt_asn1_header header;
+    krypt_asn1_header header = { 0 };
     VALUE rb_header;
-
-    memset(&header, '\0', sizeof(header));
 
     in = int_krypt_instream_new(io);
     if (!krypt_asn1_next_header(in, &header))
