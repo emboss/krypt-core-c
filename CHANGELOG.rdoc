@@ -1,3 +1,6 @@
+=== 0.1.0 / 2011-12-19 [emboss]
+* Fixed krypt_instream implementation for StringIO
+
 === 0.1.0 / 2011-12-18 [emboss]
 * Add krypt_instream, one part of the IO abstraction layer
 
