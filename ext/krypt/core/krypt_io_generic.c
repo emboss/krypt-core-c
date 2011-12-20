@@ -81,8 +81,9 @@ int_io_free(krypt_instream *in)
 	return 0;
 
     buf = (VALUE)in->util;
-    /* give it free for GC, also frees the byte array */
-    rb_gc_unregister_address(&buf); 
+    /* give it free for GC */
+    rb_gc_unregister_address(&buf);
+    xfree(in->buf);
     return 1; 
 }
 
