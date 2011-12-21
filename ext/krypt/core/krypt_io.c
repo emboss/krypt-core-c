@@ -73,7 +73,7 @@ krypt_instream_new_value(VALUE value)
     }
     else {
 	if (type == T_FILE) {
-	    return krypt_instream_new_file_io(value);
+	    return krypt_instream_new_fd_io(value);
 	}
 	else if (rb_respond_to(value, ID_READ)) {
 	    ID id_string;

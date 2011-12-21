@@ -116,7 +116,7 @@ int_krypt_instream_new(VALUE io)
     type = TYPE(io);
 
     if (type == T_FILE) {
-	return krypt_instream_new_file_io(io);
+	return krypt_instream_new_fd_io(io);
     }
     else if (rb_respond_to(io, ID_READ)) {
 	return krypt_instream_new_io_generic(io);

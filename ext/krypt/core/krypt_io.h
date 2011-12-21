@@ -15,7 +15,7 @@
 
 #define KRYPT_IO_BUF_SIZE 8092
 
-#define INSTREAM_TYPE_FILE       0
+#define INSTREAM_TYPE_FD         0
 #define INSTREAM_TYPE_BYTES      1
 #define INSTREAM_TYPE_IO_GENERIC 2
 
@@ -40,8 +40,8 @@ krypt_instream *krypt_instream_new(krypt_instream_interface *type);
 int krypt_instream_read(krypt_instream *in, int len);
 int krypt_instream_free(krypt_instream *in);
 
-krypt_instream *krypt_instream_new_file(FILE *fp);
-krypt_instream *krypt_instream_new_file_io(VALUE io);
+krypt_instream *krypt_instream_new_fd(int fd);
+krypt_instream *krypt_instream_new_fd_io(VALUE io);
 krypt_instream *krypt_instream_new_bytes(unsigned char *bytes, long len);
 krypt_instream *krypt_instream_new_io_generic(VALUE io);
 krypt_instream * krypt_instream_new_value(VALUE value);
