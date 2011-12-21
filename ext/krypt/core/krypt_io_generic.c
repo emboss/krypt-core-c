@@ -26,18 +26,16 @@ krypt_instream *
 krypt_instream_new_io_generic(VALUE io)
 {
     krypt_instream *in;
-    unsigned char *cbuf;
     VALUE buf;
 
     in = krypt_instream_new(&interface_io_generic);
     in->ptr = (void *)io;
-    cbuf = (unsigned char *)xmalloc(KRYPT_IO_BUF_SIZE);
-    in->buf = cbuf;
+    in->buf = NULL;
+    in->buf_len = 0;
     buf = rb_str_new2("");
     /* exclude it from GC */
     rb_gc_register_address(&buf);
     in->util = (void *)buf;
-    in->buf_len = KRYPT_IO_BUF_SIZE;
     return in;
 }
 
@@ -51,12 +49,15 @@ int_io_rb_read(krypt_instream *in, VALUE buf, VALUE len)
     io = (VALUE)in->ptr;
     read = rb_funcall(io, ID_READ, 2, len, buf);
     if (read == Qnil) {
+	in->buf = NULL;
+	in->buf_len = 0;
 	return -1;
     }
     else {
 	int r;
 	r = RSTRING_LENINT(read);
-	memcpy(in->buf, RSTRING_PTR(read), r);
+	in->buf = (unsigned char *)RSTRING_PTR(read);
+	in->buf_len = r;
 	return r;
     }
 }
@@ -67,7 +68,7 @@ int_io_read(krypt_instream *in, int len)
     VALUE buf, vlen;
 
     buf = (VALUE)in->util;
-    vlen = INT2NUM(len > in->buf_len ? in->buf_len : len);
+    vlen = INT2NUM(len);
     /* no need to update in->num_read */
     return int_io_rb_read(in, buf, vlen);
 }
@@ -83,7 +84,6 @@ int_io_free(krypt_instream *in)
     buf = (VALUE)in->util;
     /* give it free for GC */
     rb_gc_unregister_address(&buf);
-    xfree(in->buf);
     return 1; 
 }
 
