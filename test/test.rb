@@ -18,10 +18,7 @@ end
 def parse_once_value(io)
   parser = Krypt::Asn1::Parser.new
   while header = parser.next(io) do 
-    puts "Tag: #{header.tag}"
-    puts "Tag class: #{header.tag_class}"
-    puts "Header Length: #{header.header_length}"
-    puts "Length: #{header.length}"
+    puts header
     unless header.constructed?
       p header.value
     end

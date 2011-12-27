@@ -148,8 +148,27 @@ krypt_asn1_header_value_io(int argc, VALUE *argv, VALUE self)
 static VALUE
 krypt_asn1_header_to_s(VALUE self)
 {
-    rb_raise(rb_eNotImpError, "Not implemented yet");
-    return Qnil;
+    VALUE str;
+    krypt_asn1_parsed_header *header;
+    ID to_s;
+
+    int_krypt_asn1_parsed_header_get(self, header);
+    to_s = rb_intern("to_s");
+
+    str = rb_str_new2("Tag: ");
+    rb_str_append(str, rb_funcall(header->tag, to_s, 0));
+    rb_str_append(str, rb_str_new2(" Tag Class: "));
+    rb_str_append(str, rb_funcall(header->tag_class, to_s, 0));
+    rb_str_append(str, rb_str_new2(" Length: "));
+    rb_str_append(str, rb_funcall(header->length, to_s, 0));
+    rb_str_append(str, rb_str_new2(" Header Length: "));
+    rb_str_append(str, rb_funcall(header->header_length, to_s, 0));
+    rb_str_append(str, rb_str_new2(" Constructed: "));
+    rb_str_append(str, rb_funcall(header->constructed, to_s, 0));
+    rb_str_append(str, rb_str_new2(" Infinite Length: "));
+    rb_str_append(str, rb_funcall(header->infinite, to_s, 0));
+
+    return str;
 }
 
 /* End Header code */

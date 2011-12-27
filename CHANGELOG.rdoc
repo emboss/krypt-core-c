@@ -1,5 +1,8 @@
 === 0.1.0 / 2011-12-26 [emboss]
-* Implemented Header#skip_value and Header#value
+* Implement Header#to_s
+
+=== 0.1.0 / 2011-12-26 [emboss]
+* Implement Header#skip_value and Header#value
 
 === 0.1.0 / 2011-12-19 [emboss]
 * Corrected krypt_instream implementation for file descriptors
