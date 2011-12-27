@@ -23,6 +23,6 @@ extern VALUE eSerializeError;
 
 void Init_krypt_asn1(void);
 
-#endif /* _KRYPT_ASN1_H_ */
+#endif /* _KRYPT_ASN1_PARSER_H_ */
 
 

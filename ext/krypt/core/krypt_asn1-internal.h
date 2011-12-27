@@ -31,8 +31,13 @@ typedef struct krypt_asn1_header_st {
     int length;
 } krypt_asn1_header;
 
+krypt_asn1_header *krypt_asn1_header_new(void);
+
 ID krypt_asn1_tag_class_for(int tag_class);
 int krypt_asn1_next_header(krypt_instream *in, krypt_asn1_header *out);
+void krypt_asn1_skip_value(krypt_instream *in, krypt_asn1_header *last);
+int krypt_asn1_get_value(krypt_instream *in, krypt_asn1_header *last, unsigned char **out);
+krypt_instream *krypt_asn1_get_value_stream(krypt_instream *in, krypt_asn1_header *last);
 
 #endif /* _KRYPT_ASN1_INTERNAL_H_ */
 

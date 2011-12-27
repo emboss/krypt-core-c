@@ -12,6 +12,9 @@
 
 #include "krypt-core.h"
 
+#define int_check_stream_has(in, m) 		if (!(in) || !(in)->methods || !(in)->methods->m) \
+						    rb_raise(eParseError, "Stream not initialized properly")
+
 ID ID_READ, ID_WRITE, ID_CLOSE;
 
 static int
@@ -42,23 +45,23 @@ krypt_instream_new(krypt_instream_interface *type)
 int 
 krypt_instream_read(krypt_instream *in, int len)
 {
-    if (!in || !in->methods || !in->methods->read)
-	rb_raise(eParseError, "Stream not initialized properly");
-
+    int_check_stream_has(in, read);
     return in->methods->read(in, len);
 }
 
-int
+void
+krypt_instream_seek(krypt_instream *in, int offset, int whence)
+{
+    int_check_stream_has(in, seek);
+    in->methods->seek(in, offset, whence);
+}
+
+void
 krypt_instream_free(krypt_instream *in)
 {
-    if (!in)
-	return 0;
-
-    if (!in->methods || !in->methods->free)
-	return 1;
+    int_check_stream_has(in, free);
     in->methods->free(in);
     xfree(in);
-    return 1;
 }
 
 krypt_instream *

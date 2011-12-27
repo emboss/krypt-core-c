@@ -29,5 +29,13 @@ Init_kryptcore(void)
 
     /* Init components */
     Init_krypt_asn1();
+
+    /* Init per VM */
+    InitVM(kryptcore);
 }
 
+void
+InitVM_kryptcore(void)
+{
+    Init_krypt_io_generic();
+}

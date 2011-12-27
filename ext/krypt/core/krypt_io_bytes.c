@@ -18,11 +18,13 @@ struct krypt_byte_ary_st {
 };
 
 static int int_bytes_read(krypt_instream *in, int len);
-static int int_bytes_free(krypt_instream *in);
+static void int_bytes_seek(krypt_instream *in, int offset, int whence);
+static void int_bytes_free(krypt_instream *in);
 
 static krypt_instream_interface interface_bytes = {
     INSTREAM_TYPE_BYTES,
     int_bytes_read,
+    int_bytes_seek,
     int_bytes_free
 };
 
@@ -48,6 +50,8 @@ int_bytes_read(krypt_instream *in, int len)
     struct krypt_byte_ary_st *src;
     int to_read;
 
+    krypt_instream_ensure(in);
+
     if (!in->buf) return 0;
     if (len > in->buf_len)
 	len = in->buf_len;
@@ -71,13 +75,46 @@ int_bytes_read(krypt_instream *in, int len)
     return to_read;
 }
 
-static int
+static void
+int_bytes_set_pos(struct krypt_byte_ary_st *src, int offset, long num_read)
+{
+    if (num_read + offset < 0 || num_read + offset >= src->len)
+	rb_raise(eParseError, "Unreachable seek position");
+    src->p += offset;
+}
+
+static void
+int_bytes_seek(krypt_instream *in, int offset, int whence)
+{
+    struct krypt_byte_ary_st *src;
+    long num_read;
+
+    krypt_instream_ensure(in);
+
+    src = (struct krypt_byte_ary_st *)in->ptr;
+    num_read = in->num_read;
+
+    switch (whence) {
+	case SEEK_CUR:
+	    int_bytes_set_pos(src, offset, num_read);
+	    break;
+	case SEEK_SET:
+	    int_bytes_set_pos(src, offset - num_read, num_read);
+	    break;
+	case SEEK_END:
+	    int_bytes_set_pos(src, offset + src->len - num_read, num_read);
+	    break;
+	default:
+	    rb_raise(eParseError, "Unknown 'whence': %d", whence);
+    }
+}
+
+static void
 int_bytes_free(krypt_instream *in)
 {
-    if (!in)
-	return 0;
+    krypt_instream_ensure(in);
+
     xfree(in->ptr);
     xfree(in->buf);
-    return 1;
 }
 

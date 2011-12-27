@@ -29,17 +29,18 @@ static void int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn
 static void int_parse_primitive_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
 static void int_parse_length(krypt_instream *in, krypt_asn1_header *out);
 static void int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
+static unsigned char *int_parse_read_exactly(krypt_instream *in, int n);
 
 /**
  * Parses a krypt_asn1_header from the krypt_instream at its current
- * position. Raises Krypt::Asn1::ParseError or a subclass of it in
- * cases of errors.
+ * position. 
  *
  * @param in	The krypt_instream to be parsed from
  * @param out	A krypt_asn1_header instance. On successful parsing,
  * 		previous values are simply overwritten.
  * @return	1 if a new header was successfully parsed, 0 if EOF
  * 		has been reached.
+ * @raises      Krypt::Asn1::ParseError in cases of errors.
  */		
 int
 krypt_asn1_next_header(krypt_instream *in, krypt_asn1_header *out)
@@ -63,6 +64,79 @@ krypt_asn1_next_header(krypt_instream *in, krypt_asn1_header *out)
     return 1;
 }
 
+/**
+ * Based on the last header that was parsed, this function skips the bytes
+ * that represent the value of the object represented by the header.
+ *
+ * @param in	The krypt_instream that the header was parsed from
+ * @param last	The last header that was parsed from the stream
+ * @raises	Krypt::Asn1::ParseError if skipping failed
+ */
+void
+krypt_asn1_skip_value(krypt_instream *in, krypt_asn1_header *last)
+{
+    if (!last->is_infinite) {
+	krypt_instream_skip(in, last->length);
+    }
+    else {
+	rb_raise(rb_eNotImpError, "Not implemented yet.");
+    }
+}
+
+/**
+ * Based on the last header that was parsed, this function reads and returns
+ * the bytes that represent the value of the object represented by the header.
+ *
+ * @param in	The krypt_instream that the header was parsed from
+ * @param last	The last header that was parsed from the stream
+ * @param out   A pointer to the unsigned char* that shall receive the value
+ * 		representing the currently parsed object
+ * @return	The length of the value that has been parsed
+ * @raises	Krypt::Asn1::ParseError if reading the value failed
+ */
+int
+krypt_asn1_get_value(krypt_instream *in, krypt_asn1_header *last, unsigned char **out)
+{
+    unsigned char *value;
+
+    if (!last->is_infinite) {
+	value = int_parse_read_exactly(in, last->length);
+    }
+    else {
+	rb_raise(rb_eNotImpError, "Not implemented yet.");
+	return 0;
+    }
+
+    *out = value;
+    return last->length;
+}
+
+/**
+ * Based on the last header that was parsed, this function returns a
+ * krypt_instream that allows to read the bytes that represent the value of
+ * the object represented by the header in streaming manner.
+ *
+ * @param in	The krypt_instream that the header was parsed from
+ * @param last	The last header that was parsed from the stream
+ * @return	A krypt_instream * allowing to read the bytes representing
+ *  		the value of the currently parsed object
+ * @raises	Krypt::Asn1::ParseError in case of an error
+ */
+krypt_instream *
+krypt_asn1_get_value_stream(krypt_instream *in, krypt_asn1_header *last)
+{
+    return NULL;
+}
+
+/**
+ * Returns an ID representing the Symbol that stands for the corresponding
+ * tag class.
+ *
+ * @param tag_class	The raw tag class value
+ * @return		A Ruby Symbol representing the tag class, e.g. 
+ * 			:UNIVERSAL
+ * @raises		Krypt::KryptError if tag_class is unknown
+ */
 ID
 krypt_asn1_tag_class_for(int tag_class)
 {
@@ -79,6 +153,21 @@ krypt_asn1_tag_class_for(int tag_class)
 	    rb_raise(eKryptError, "Unknown tag class");
 	    return Qnil;
     }
+}
+
+/**
+ * Creates a krypt_asn1_header and sets all its members to 0.
+ *
+ * @return	The newly created instance
+ */
+krypt_asn1_header *
+krypt_asn1_header_new(void)
+{
+    krypt_asn1_header *ret;
+
+    ret = (krypt_asn1_header *)xmalloc(sizeof(krypt_asn1_header));
+    memset(ret, 0, sizeof(krypt_asn1_header));
+    return ret;
 }
 
 static void
@@ -157,3 +246,24 @@ int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn
     out->length = len;
 }
 
+
+static unsigned char *
+int_parse_read_exactly(krypt_instream *in, int n)
+{
+    unsigned char *ret, *p;
+    int offset = 0, read;
+
+    ret = (unsigned char *)xmalloc(n);
+    p = ret;
+    while (offset != n) {
+	read = krypt_instream_read(in, n - offset);
+	if (read == -1) {
+	    rb_raise(eParseError, "Premature EOF detected.");
+	    return NULL; /* dummy */
+	}
+	memcpy(p, in->buf, read);
+	p += read;
+	offset += read;
+    }
+    return ret;
+}

@@ -12,13 +12,17 @@
 
 #include "krypt-core.h"
 
+static VALUE ID_SEEK_CUR, ID_SEEK_SET, ID_SEEK_END;
+static ID ID_SEEK;
 
 static int int_io_read(krypt_instream *in, int read);
-static int int_io_free(krypt_instream *in);
+static void int_io_seek(krypt_instream *in, int offset, int whence);
+static void int_io_free(krypt_instream *in);
 
 static krypt_instream_interface interface_io_generic = {
     INSTREAM_TYPE_IO_GENERIC,
     int_io_read,
+    int_io_seek,
     int_io_free
 };
 
@@ -67,23 +71,59 @@ int_io_read(krypt_instream *in, int len)
 {
     VALUE buf, vlen;
 
+    krypt_instream_ensure(in);
+
     buf = (VALUE)in->util;
     vlen = INT2NUM(len);
     /* no need to update in->num_read */
     return int_io_rb_read(in, buf, vlen);
 }
 
-static int
+static VALUE
+int_whence_sym_for(int whence)
+{
+    switch (whence) {
+	case SEEK_CUR:
+	    return ID_SEEK_CUR;
+	case SEEK_SET:
+	    return ID_SEEK_SET;
+	case SEEK_END:
+	    return ID_SEEK_END;
+	default:
+	    rb_raise(eParseError, "Unknown 'whence': %d", whence);
+	    return Qnil; /* dummy */
+    }
+}
+
+static void
+int_io_seek(krypt_instream *in, int offset, int whence)
+{
+    VALUE io;
+    
+    krypt_instream_ensure(in);
+
+    io = (VALUE)in->ptr;
+    rb_funcall(io, ID_SEEK, 2, LONG2NUM(offset), int_whence_sym_for(whence));
+}
+
+static void
 int_io_free(krypt_instream *in)
 {
     VALUE buf;
 
-    if (!in)
-	return 0;
+    krypt_instream_ensure(in);
 
     buf = (VALUE)in->util;
     /* give it free for GC */
     rb_gc_unregister_address(&buf);
-    return 1; 
 }
 
+void
+Init_krypt_io_generic(void)
+{
+    ID_SEEK_CUR = rb_const_get(rb_cIO, rb_intern("SEEK_CUR"));
+    ID_SEEK_SET = rb_const_get(rb_cIO, rb_intern("SEEK_SET"));
+    ID_SEEK_END = rb_const_get(rb_cIO, rb_intern("SEEK_END"));
+
+    ID_SEEK = rb_intern("seek");
+}

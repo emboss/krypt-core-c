@@ -36,8 +36,10 @@ extern ID ID_READ, ID_WRITE;
 /** krypt-core headers **/
 #include "krypt_io.h"
 #include "krypt_asn1.h"
+#include "krypt_asn1_parser.h"
 
 void Init_krypt_core(void);
+void Init_krypt_io_generic(void);
 
 #if defined(__cplusplus)
 }
