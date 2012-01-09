@@ -1,4 +1,7 @@
 === 0.1.0 / 2011-12-26 [emboss]
+* Add krypt_outstream infrastructure
+
+=== 0.1.0 / 2011-12-26 [emboss]
 * Implement Header#to_s
 
 === 0.1.0 / 2011-12-26 [emboss]

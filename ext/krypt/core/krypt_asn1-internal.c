@@ -14,9 +14,9 @@
 #include "krypt-core.h"
 #include "krypt_asn1-internal.h"
 
-#define int_next_byte(in, b)		do {				  \
-    					    krypt_instream_read((in), 1); \
-    					    (b) = *in->buf;		  \
+#define int_next_byte(in, b)		do {				  			\
+    					    krypt_instream_read((in), 1); 			\
+    					    (b) = *krypt_instream_get_buffer(in);	        \
     					} while (0)
 
 #define int_parse_tag(b, in, out)	do {							\
@@ -54,7 +54,7 @@ krypt_asn1_next_header(krypt_instream *in, krypt_asn1_header *out)
     if (read != 1)
 	rb_raise(eParseError, "Error when parsing stream");
 
-    b = *in->buf;
+    b = *krypt_instream_get_buffer(in);
     int_parse_tag(b, in, out);
     int_parse_length(in, out);
 
@@ -256,14 +256,17 @@ int_parse_read_exactly(krypt_instream *in, int n)
     ret = (unsigned char *)xmalloc(n);
     p = ret;
     while (offset != n) {
+	unsigned char *buf;
 	read = krypt_instream_read(in, n - offset);
 	if (read == -1) {
 	    rb_raise(eParseError, "Premature EOF detected.");
 	    return NULL; /* dummy */
 	}
-	memcpy(p, in->buf, read);
+	buf = krypt_instream_get_buffer(in);
+	memcpy(p, buf, read);
 	p += read;
 	offset += read;
     }
     return ret;
 }
+
