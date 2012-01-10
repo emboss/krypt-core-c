@@ -12,14 +12,9 @@
 
 #include "krypt-core.h"
 
-struct krypt_byte_buffer_st {
-    /* TODO */
-};
-
 typedef struct int_outstream_bytes_st {
     krypt_outstream_interface *methods;
-    krypt_byte_buffer buf;
-    VALUE ref_string;
+    krypt_byte_buffer *buffer;
 } int_outstream_bytes;
 
 #define int_safe_cast(out, in)		krypt_safe_cast_outstream((out), (in), OUTSTREAM_TYPE_BYTES, int_outstream_bytes)
@@ -35,21 +30,23 @@ static krypt_outstream_interface interface_bytes = {
 };
 
 krypt_outstream *
-krypt_outstream_new_bytes_with_string(VALUE string)
-{
-    int_outstream_bytes *out = (int_outstream_bytes *)krypt_outstream_new_bytes();
-
-    out->ref_string = string;
-    return (krypt_outstream *) out;
-}
-
-krypt_outstream *
 krypt_outstream_new_bytes()
 {
     int_outstream_bytes *out;
 
     out = int_bytes_alloc();
+    out->buffer = krypt_buffer_new();
     return (krypt_outstream *) out;
+}
+
+unsigned char *
+krypt_outstream_bytes_get_bytes(krypt_outstream *outstream, size_t *len)
+{
+    int_outstream_bytes *out;
+
+    int_safe_cast(out, outstream);
+    *len = krypt_buffer_get_size(out->buffer);
+    return krypt_buffer_get_data(out->buffer);
 }
 
 static int_outstream_bytes *
@@ -63,14 +60,20 @@ int_bytes_alloc(void)
 }
 
 static int
-int_bytes_write(krypt_outstream *out, unsigned char *buf, int len)
+int_bytes_write(krypt_outstream *outstream, unsigned char *buf, int len)
 {
-    return -1;
+    int_outstream_bytes *out;
+
+    int_safe_cast(out, outstream);
+    return krypt_buffer_write(out->buffer, buf, len);
 }
 
 static void
-int_bytes_free(krypt_outstream *out)
+int_bytes_free(krypt_outstream *outstream)
 {
+    int_outstream_bytes *out;
 
+    int_safe_cast(out, outstream);
+    krypt_buffer_free(out->buffer);
 }
 

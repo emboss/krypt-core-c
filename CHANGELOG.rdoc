@@ -1,4 +1,8 @@
 === 0.1.0 / 2011-12-26 [emboss]
+* Add krypt_byte_buffer
+* Add krypt_outstream implementation
+
+=== 0.1.0 / 2011-12-26 [emboss]
 * Add krypt_outstream infrastructure
 
 === 0.1.0 / 2011-12-26 [emboss]

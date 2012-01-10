@@ -13,6 +13,8 @@
 #if !defined(_KRYPT_IO_H_)
 #define _KRYPT_IO_H_
 
+#include "krypt_io_buffer.h"
+
 #define KRYPT_IO_BUF_SIZE 8092
 
 #define INSTREAM_TYPE_FD         0
@@ -51,8 +53,6 @@ struct krypt_outstream_interface_st {
     void (*free)(krypt_outstream*);
 };
 
-typedef struct krypt_byte_buffer_st krypt_byte_buffer;
-
 #define krypt_stream_ensure(io)	        if (!(io)) rb_raise(eKryptError, "Uninitialized stream")
 #define krypt_safe_cast_stream(out, in, t, ptype, stype)	        \
     do {	                					\
@@ -86,6 +86,8 @@ krypt_instream *krypt_instream_new_value(VALUE value);
 
 int krypt_outstream_write(krypt_outstream *out, unsigned char *buf, int len);
 void krypt_outstream_free(krypt_outstream *out);
+
+unsigned char *krypt_outstream_bytes_get_bytes(krypt_outstream *out, size_t *len);
 
 krypt_outstream *krypt_outstream_new_fd(int fd);
 krypt_outstream *krypt_outstream_new_fd_io(VALUE io);
