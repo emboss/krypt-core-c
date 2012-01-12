@@ -21,11 +21,13 @@ typedef struct int_outstream_io_st {
 
 static int_outstream_io* int_io_alloc(void);
 static int int_io_write(krypt_outstream *out, unsigned char *buf, int len);
+static VALUE int_io_rb_write(krypt_outstream *out, VALUE vbuf);
 static void int_io_free(krypt_outstream *out);
 
 static krypt_outstream_interface interface_io = {
     OUTSTREAM_TYPE_IO_GENERIC,
     int_io_write,
+    int_io_rb_write,
     int_io_free
 };
 
@@ -52,14 +54,23 @@ int_io_alloc(void)
 static int
 int_io_write(krypt_outstream *outstream, unsigned char *buf, int len)
 {
+    VALUE vbuf, ret;
+
+    if (!buf || len < 0)
+	rb_raise(rb_eArgError, "Buffer not initialized or length negative");
+
+    vbuf = rb_str_new((const char *)buf, len);
+    ret = int_io_rb_write(outstream, vbuf);
+    return NUM2INT(ret);
+}
+
+static VALUE
+int_io_rb_write(krypt_outstream *outstream, VALUE vbuf)
+{
     int_outstream_io *out;
-    VALUE io, vbuf, ret;
 
     int_safe_cast(out, outstream);
-    io = out->io;
-    vbuf = rb_str_new((const char *)buf, len);
-    ret = rb_funcall(io, ID_WRITE, 1, vbuf);
-    return NUM2INT(ret);
+    return rb_funcall(out->io, ID_WRITE, 1, vbuf);
 }
 
 static void

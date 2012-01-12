@@ -26,6 +26,7 @@ static void int_bytes_free(krypt_outstream *out);
 static krypt_outstream_interface interface_bytes = {
     OUTSTREAM_TYPE_BYTES,
     int_bytes_write,
+    NULL,
     int_bytes_free
 };
 
@@ -39,14 +40,18 @@ krypt_outstream_new_bytes()
     return (krypt_outstream *) out;
 }
 
-unsigned char *
-krypt_outstream_bytes_get_bytes(krypt_outstream *outstream, size_t *len)
+size_t
+krypt_outstream_bytes_get_bytes_free(krypt_outstream *outstream, unsigned char **bytes)
 {
     int_outstream_bytes *out;
+    size_t len;
 
     int_safe_cast(out, outstream);
-    *len = krypt_buffer_get_size(out->buffer);
-    return krypt_buffer_get_data(out->buffer);
+    len = krypt_buffer_get_size(out->buffer);
+    *bytes = krypt_buffer_get_data(out->buffer);
+    krypt_buffer_resize_free(out->buffer);
+    out->buffer = NULL;
+    return len;
 }
 
 static int_outstream_bytes *
@@ -73,7 +78,9 @@ int_bytes_free(krypt_outstream *outstream)
 {
     int_outstream_bytes *out;
 
+    if (!outstream) return;
     int_safe_cast(out, outstream);
-    krypt_buffer_free(out->buffer);
+    if (out->buffer)
+	krypt_buffer_free(out->buffer);
 }
 

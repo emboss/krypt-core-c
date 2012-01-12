@@ -15,8 +15,6 @@
 VALUE mKrypt;
 VALUE eKryptError;
 
-ID ID_READ, ID_WRITE;
-
 void 
 Init_kryptcore(void)
 {
@@ -24,10 +22,8 @@ Init_kryptcore(void)
 
     eKryptError = rb_define_class_under(mKrypt, "KryptError", rb_eStandardError);
 
-    ID_READ = rb_intern("read");
-    ID_WRITE = rb_intern("write");
-
     /* Init components */
+    Init_krypt_io();
     Init_krypt_asn1();
 
     /* Init per VM */
@@ -37,5 +33,5 @@ Init_kryptcore(void)
 void
 InitVM_kryptcore(void)
 {
-    Init_krypt_io_generic();
+    InitVM_krypt_io();
 }

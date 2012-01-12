@@ -16,6 +16,7 @@
 extern VALUE mAsn1;
 extern VALUE cAsn1Parser;
 extern VALUE cAsn1Header;
+extern VALUE cInstream;
 
 extern VALUE eAsn1Error;
 extern VALUE eParseError;
@@ -28,6 +29,9 @@ extern ID sTC_PRIVATE;
 
 void Init_krypt_asn1(void);
 void Init_krypt_asn1_parser(void);
+void Init_krypt_instream_adapter(void);
+
+VALUE krypt_instream_adapter_new(krypt_instream *in);
 
 #endif /* _KRYPT_ASN1_H_ */
 

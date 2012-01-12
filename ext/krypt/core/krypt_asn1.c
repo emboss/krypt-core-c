@@ -33,4 +33,5 @@ Init_krypt_asn1(void)
     eSerializeError = rb_define_class_under(mAsn1, "SerializeError", eAsn1Error);
 
     Init_krypt_asn1_parser();
+    Init_krypt_instream_adapter();
 }

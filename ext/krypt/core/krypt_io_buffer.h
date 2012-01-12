@@ -15,7 +15,6 @@
 
 #include <ruby.h>
 
-#define KRYPT_BYTE_BUFFER_INIT_SIZE 32
 #define KRYPT_BYTE_BUFFER_GROWTH_FACTOR 1.5
 
 typedef struct krypt_byte_buffer_st {
@@ -30,5 +29,7 @@ krypt_byte_buffer *krypt_buffer_new(void);
 size_t krypt_buffer_write(krypt_byte_buffer *buffer, unsigned char *b, size_t len);
 void krypt_buffer_free_secure(krypt_byte_buffer *buffer);
 void krypt_buffer_free(krypt_byte_buffer *buffer);
+
+void krypt_buffer_resize_free(krypt_byte_buffer *buffer);
 
 #endif /* _KRYPT_IO_H_ */

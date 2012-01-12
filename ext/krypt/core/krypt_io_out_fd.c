@@ -28,6 +28,7 @@ static void int_fd_free(krypt_outstream *out);
 static krypt_outstream_interface interface_fd = {
     OUTSTREAM_TYPE_FD,
     int_fd_write,
+    NULL,
     int_fd_free
 };
 
@@ -68,13 +69,16 @@ int_fd_write(krypt_outstream *outstream, unsigned char *buf, int len)
    
     int_safe_cast(out, outstream); 
 
+    if (!buf || len < 0)
+	rb_raise(rb_eArgError, "Buffer not initialized or length negative");
+
     fd = out->fd;
     krypt_clear_sys_error();
     /* no need to increase out->num_written */
     w = write(fd, buf, len);
     
     if (w == -1) {
-	krypt_raise_io_error();
+	krypt_raise_io_error(eSerializeError);
 	return 0; /* dummy */
     }
     else {

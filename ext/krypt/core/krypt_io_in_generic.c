@@ -12,29 +12,24 @@
 
 #include "krypt-core.h"
 
-static VALUE ID_SEEK_CUR, ID_SEEK_SET, ID_SEEK_END;
-static ID ID_SEEK;
-
 typedef struct int_instream_io_st {
     krypt_instream_interface *methods;
     VALUE io;
-    unsigned char *buf; /* read buffer */
-    int buf_len;
     VALUE vbuf;
 } int_instream_io;
 
 #define int_safe_cast(out, in)		krypt_safe_cast_instream((out), (in), INSTREAM_TYPE_IO_GENERIC, int_instream_io)
 
 static int_instream_io* int_io_alloc(void);
-static unsigned char * int_io_get_buffer(krypt_instream *instream);
-static int int_io_read(krypt_instream *in, int read);
+static int int_io_read(krypt_instream *in, unsigned char *buf, int read);
+static VALUE int_io_rb_read(krypt_instream *in, VALUE vlen, VALUE vbuf);
 static void int_io_seek(krypt_instream *in, int offset, int whence);
 static void int_io_free(krypt_instream *in);
 
 static krypt_instream_interface interface_io_generic = {
     INSTREAM_TYPE_IO_GENERIC,
-    int_io_get_buffer,
     int_io_read,
+    int_io_rb_read,
     int_io_seek,
     int_io_free
 };
@@ -47,8 +42,6 @@ krypt_instream_new_io_generic(VALUE io)
 
     in = int_io_alloc();
     in->io = io;
-    in->buf = NULL;
-    in->buf_len = 0;
     buf = rb_str_new2("");
     /* exclude it from GC */
     rb_gc_register_address(&buf);
@@ -66,49 +59,37 @@ int_io_alloc(void)
     return ret;
 }
 
-static unsigned char *
-int_io_get_buffer(krypt_instream *instream)
+static int
+int_io_read(krypt_instream *instream, unsigned char *buf, int len)
 {
+    VALUE read;
     int_instream_io *in;
 
     int_safe_cast(in, instream);
-    return in->buf;
-}
 
-static int
-int_io_rb_read(int_instream_io *in, VALUE buf, VALUE len)
-{
-    VALUE io, read;
+    if (!buf || len < 0)
+	rb_raise(rb_eArgError, "Buffer not initialized or length negative");
 
-    if (buf == Qnil) return 0;
+    read = rb_funcall(in->io, ID_READ, 2, INT2NUM(len), in->vbuf);
 
-    io = in->io;
-    read = rb_funcall(io, ID_READ, 2, len, buf);
     if (read == Qnil) {
-	in->buf = NULL;
-	in->buf_len = 0;
 	return -1;
     }
     else {
 	int r;
 	r = RSTRING_LENINT(read);
-	in->buf = (unsigned char *)RSTRING_PTR(read);
-	in->buf_len = r;
+	memcpy(buf, RSTRING_PTR(read), r);
 	return r;
     }
 }
 
-static int
-int_io_read(krypt_instream *instream, int len)
+static VALUE
+int_io_rb_read(krypt_instream *instream, VALUE vlen, VALUE vbuf)
 {
-    VALUE buf, vlen;
     int_instream_io *in;
 
     int_safe_cast(in, instream);
-
-    buf = in->vbuf;
-    vlen = INT2NUM(len);
-    return int_io_rb_read(in, buf, vlen);
+    return rb_funcall(in->io, ID_READ, 2, vlen, vbuf);
 }
 
 static VALUE
@@ -145,20 +126,11 @@ int_io_free(krypt_instream *instream)
     VALUE buf;
     int_instream_io *in;
 
+    if (!instream) return;
     int_safe_cast(in, instream);
 
     buf = in->vbuf;
     /* give it free for GC */
     rb_gc_unregister_address(&buf);
-}
-
-void
-Init_krypt_io_generic(void)
-{
-    ID_SEEK_CUR = rb_const_get(rb_cIO, rb_intern("SEEK_CUR"));
-    ID_SEEK_SET = rb_const_get(rb_cIO, rb_intern("SEEK_SET"));
-    ID_SEEK_END = rb_const_get(rb_cIO, rb_intern("SEEK_END"));
-
-    ID_SEEK = rb_intern("seek");
 }
 

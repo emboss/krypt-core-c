@@ -25,6 +25,9 @@ typedef struct krypt_asn1_parsed_header_st {
     VALUE infinite;
     VALUE length;
     VALUE header_length;
+
+    int consumed;
+    VALUE cached_stream;
 } krypt_asn1_parsed_header;
 
 static void
@@ -36,6 +39,8 @@ int_parsed_header_mark(krypt_asn1_parsed_header *header)
     /* rb_gc_mark(header->infinite);    #Boolean*/
     rb_gc_mark(header->length);
     rb_gc_mark(header->header_length);
+    if (header->cached_stream != Qnil)
+	rb_gc_mark(header->cached_stream);
 }
 
 static void
@@ -52,6 +57,7 @@ int_parsed_header_free(krypt_asn1_parsed_header *header)
     } \
     (obj) = Data_Wrap_Struct((klass), int_parsed_header_mark, int_parsed_header_free, (header)); \
 } while (0)
+
 #define int_krypt_asn1_parsed_header_get(obj, header) do { \
     Data_Get_Struct((obj), krypt_asn1_parsed_header, (header)); \
     if (!(header)) { \
@@ -76,6 +82,8 @@ int_krypt_asn1_header_new(krypt_instream *in, krypt_asn1_header *header)
     parsed_header->header_length = INT2NUM(header->header_length);
     parsed_header->in = in;
     parsed_header->header = header;
+    parsed_header->consumed = 0;
+    parsed_header->cached_stream = Qnil;
     
     int_krypt_asn1_parsed_header_set(cAsn1Header, obj, parsed_header);
     return obj;
@@ -102,18 +110,50 @@ KRYPT_ASN1_HEADER_GET_DEFINE(length)
 
 KRYPT_ASN1_HEADER_GET_DEFINE(header_length)
 
+static krypt_outstream *
+int_krypt_outstream_new(VALUE io)
+{
+    int type;
+    type = TYPE(io);
+
+    if (type == T_FILE) {
+	return krypt_outstream_new_fd_io(io);
+    }
+    else if (rb_respond_to(io, ID_WRITE)) {
+	return krypt_outstream_new_io_generic(io);
+    }
+    else {
+	rb_raise(rb_eArgError, "Argument for encode_to must respond to write");
+    }
+}
+
 static VALUE
 krypt_asn1_header_encode_to(VALUE self, VALUE io)
 {
-    rb_raise(rb_eNotImpError, "Not implemented yet");
-    return Qnil;
+    krypt_asn1_parsed_header *header;
+    krypt_outstream *out;
+
+    int_krypt_asn1_parsed_header_get(self, header);
+
+    out = int_krypt_outstream_new(io);
+    krypt_asn1_header_encode(out, header->header);
+    return self;
 }
 
 static VALUE
 krypt_asn1_header_bytes(VALUE self)
 {
-    rb_raise(rb_eNotImpError, "Not implemented yet");
-    return Qnil;
+    krypt_asn1_parsed_header *header;
+    unsigned char *bytes;
+    size_t size;
+    krypt_outstream *out;
+
+    int_krypt_asn1_parsed_header_get(self, header);
+
+    out = krypt_outstream_new_bytes();
+    krypt_asn1_header_encode(out, header->header);
+    size = krypt_outstream_bytes_get_bytes_free(out, &bytes);
+    return rb_str_new((const char *)bytes, size);
 }
 
 static VALUE
@@ -139,10 +179,35 @@ krypt_asn1_header_value(VALUE self)
 }
 
 static VALUE
+int_header_cache_stream(krypt_instream *in, krypt_asn1_header *header, int values_only)
+{
+    krypt_instream *value_stream;
+
+    value_stream = krypt_asn1_get_value_stream(in, header, values_only);
+    return krypt_instream_adapter_new(value_stream);
+}
+
+static VALUE
 krypt_asn1_header_value_io(int argc, VALUE *argv, VALUE self)
 {
-    rb_raise(rb_eNotImpError, "Not implemented yet");
-    return Qnil;
+    krypt_asn1_parsed_header *header;
+    VALUE values_only = Qtrue;
+
+    rb_scan_args(argc, argv, "01", values_only);
+
+    int_krypt_asn1_parsed_header_get(self, header);
+    if (header->consumed && header->cached_stream == Qnil)
+	rb_raise(eParseError, "The stream has already been consumed");
+
+    /*TODO: synchronization */
+    if (header->cached_stream == Qnil) {
+	header->consumed = 1;
+	header->cached_stream = int_header_cache_stream(header->in,
+	       			       	     	        header->header,
+							values_only == Qtrue);
+    }
+
+    return header->cached_stream;
 }
 
 static VALUE
@@ -188,7 +253,7 @@ int_krypt_instream_new(VALUE io)
 	return krypt_instream_new_io_generic(io);
     }
     else {
-	rb_raise(eParseError, "Arguments for Parser#next must respond to IO#read");
+	rb_raise(eParseError, "Argument for next must respond to read");
     }
 }
 
@@ -196,10 +261,10 @@ static VALUE
 krypt_asn1_parser_next(VALUE self, VALUE io)
 {
     krypt_instream *in;
-    krypt_asn1_header *header = krypt_asn1_header_new();
+    krypt_asn1_header *header;
 
     in = int_krypt_instream_new(io);
-    if (!krypt_asn1_next_header(in, header))
+    if (!krypt_asn1_next_header(in, &header))
 	return Qnil;
 
     return int_krypt_asn1_header_new(in, header);

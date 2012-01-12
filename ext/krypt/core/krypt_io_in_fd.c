@@ -17,22 +17,19 @@
 typedef struct int_instream_fd_st {
     krypt_instream_interface *methods;
     int fd;
-    unsigned char *buf; /* read buffer */
-    int buf_len;
 } int_instream_fd;
 
 #define int_safe_cast(out, in)	krypt_safe_cast_instream((out), (in), INSTREAM_TYPE_FD, int_instream_fd)
     
 static int_instream_fd *int_fd_alloc(void);
-static unsigned char * int_fd_get_buffer(krypt_instream *instream);
-static int int_fd_read(krypt_instream *in, int len);
+static int int_fd_read(krypt_instream *in, unsigned char *, int len);
 static void int_fd_seek(krypt_instream *in, int offset, int whence);
 static void int_fd_free(krypt_instream *in);
 
 static krypt_instream_interface interface_fd = {
     INSTREAM_TYPE_FD,
-    int_fd_get_buffer,
     int_fd_read,
+    NULL,
     int_fd_seek,
     int_fd_free
 };
@@ -53,8 +50,6 @@ krypt_instream_new_fd(int fd)
 
     in = int_fd_alloc();
     in->fd = fd;
-    in->buf = (unsigned char *)xmalloc(KRYPT_IO_BUF_SIZE);
-    in->buf_len = KRYPT_IO_BUF_SIZE;
     return (krypt_instream *) in;
 }
 
@@ -68,33 +63,22 @@ int_fd_alloc(void)
     return ret;
 }
 
-static unsigned char *
-int_fd_get_buffer(krypt_instream *instream)
-{
-    int_instream_fd *in;
-
-    int_safe_cast(in, instream);
-    return in->buf;
-}
-
 static int
-int_fd_read(krypt_instream *instream, int len)
+int_fd_read(krypt_instream *instream, unsigned char *buf, int len)
 {
     int fd, r;
     int_instream_fd *in;
 
     int_safe_cast(in, instream);
-    if (!in->buf) return 0;
-    if (len > in->buf_len)
-	len = in->buf_len;
+    if (!buf || len < 0)
+	rb_raise(rb_eArgError, "Buffer not initialized or length negative");
 
     fd = in->fd;
     krypt_clear_sys_error();
-    /* no need to increase in->num_read */
-    r = read(fd, in->buf, len);
+    r = read(fd, buf, len);
     
     if (r == -1) {
-	krypt_raise_io_error();
+	krypt_raise_io_error(eParseError);
 	return 0; /* dummy */
     }
     else if (r == 0) {
@@ -117,16 +101,12 @@ int_fd_seek(krypt_instream *instream, int offset, int whence)
     off = lseek(fd, offset, whence);
 
     if (off == -1) 
-	krypt_raise_io_error();
+	krypt_raise_io_error(eParseError);
 }
 
 static void
 int_fd_free(krypt_instream *instream)
 {
-    int_instream_fd *in;
-
-    int_safe_cast(in, instream);
-    xfree(in->buf);
     /* do not close the fd, should be done explicitly */
 }
 

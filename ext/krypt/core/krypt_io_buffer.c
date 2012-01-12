@@ -16,9 +16,7 @@ krypt_byte_buffer *krypt_buffer_new(void)
 {
     krypt_byte_buffer *ret;
     ret = (krypt_byte_buffer *)xmalloc(sizeof(krypt_byte_buffer));
-    ret->size = 0;
-    ret->data = NULL;
-    ret->limit = KRYPT_BYTE_BUFFER_INIT_SIZE;
+    memset(ret, 0, sizeof(krypt_byte_buffer));
     return ret;
 }
 
@@ -45,6 +43,9 @@ int_buffer_grow(krypt_byte_buffer *buffer, size_t cur_len)
 size_t
 krypt_buffer_write(krypt_byte_buffer *buffer, unsigned char *b, size_t len)
 {
+    if (!b)
+	rb_raise(rb_eArgError, "Buffer not initialized or length negative");
+
     if (buffer->limit - buffer->size < len)
 	int_buffer_grow(buffer, len); 
 
@@ -65,10 +66,20 @@ krypt_buffer_free_secure(krypt_byte_buffer *buffer)
 void
 krypt_buffer_free(krypt_byte_buffer *buffer)
 {
-    if (!buffer)
-	return;
+    if (!buffer) return;
     if (buffer->data)
 	xfree(buffer->data);
+    xfree(buffer);
+}
+
+void
+krypt_buffer_resize_free(krypt_byte_buffer *buffer)
+{
+    if (!buffer) return;
+    if (buffer->data) {
+	xrealloc(buffer->data, buffer->size);
+	buffer->limit = buffer->size;
+    }
     xfree(buffer);
 }
 

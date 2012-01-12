@@ -1,0 +1,4 @@
+- Asn1::Header and Asn1::Instream shouldn't have a public constructor
+- Instream adapter for String to improve performance of Parser in comparison to StringIO 
+- Stream allocation method could be refactored as a public function in krypt_io.c
+- rb_str_new -> need to free the bytes parameter?
