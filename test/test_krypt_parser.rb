@@ -62,7 +62,7 @@ class Krypt::ParserTest < Test::Unit::TestCase
   end
 
   def test_parse_primitive
-    raw = [%w{ 02 02 01 00 }.join("")].pack("H*")
+    raw = [%w{02 02 01 00}.join("")].pack("H*")
     parser = Krypt::Asn1::Parser.new
     io = StringIO.new(raw)
     header = parser.next(io)
@@ -76,7 +76,7 @@ class Krypt::ParserTest < Test::Unit::TestCase
   end
 
   def test_parse_constructed
-    raw = [%w{ 30 06 04 01 01 04 01 02 }.join("")].pack("H*")
+    raw = [%w{30 06 04 01 01 04 01 02}.join("")].pack("H*")
     parser = Krypt::Asn1::Parser.new
     io = StringIO.new(raw)
     header = parser.next(io)
@@ -90,7 +90,7 @@ class Krypt::ParserTest < Test::Unit::TestCase
   end
 
   def test_parse_constructed
-    raw = [%w{ 30 02 80 01 00 }.join("")].pack("H*")
+    raw = [%w{30 02 80 01 00}.join("")].pack("H*")
     parser = Krypt::Asn1::Parser.new
     io = StringIO.new(raw)
     header = parser.next(io)
@@ -112,7 +112,7 @@ class Krypt::ParserTest < Test::Unit::TestCase
   end
 
   def test_complex_length
-    raw = [%w{ 04 82 03 e8 }.join("")].pack("H*")
+    raw = [%w{04 82 03 e8}.join("")].pack("H*")
     raw << "\0" * 1000
     io = StringIO.new(raw)
     parser = Krypt::Asn1::Parser.new
@@ -127,7 +127,7 @@ class Krypt::ParserTest < Test::Unit::TestCase
   end
 
   def test_complex_length_single_octet
-    raw = [%w{ df 2a 01 00 }.join("")].pack("H*")
+    raw = [%w{df 2a 01 00}.join("")].pack("H*")
     parser = Krypt::Asn1::Parser.new
     io = StringIO.new(raw)
     header = parser.next(io)
@@ -141,7 +141,7 @@ class Krypt::ParserTest < Test::Unit::TestCase
   end
 
   def test_complex_tag_two_octets
-    raw = [%w{ 5f 82 2c 01 00 }.join("")].pack("H*")
+    raw = [%w{5f 82 2c 01 00}.join("")].pack("H*")
     parser = Krypt::Asn1::Parser.new
     io = StringIO.new(raw)
     header = parser.next(io)
@@ -264,7 +264,7 @@ class Krypt::ParserTest < Test::Unit::TestCase
   end
 
   def inf_length_parsing_streaming_string_io(mode, values_only=false)
-    raw = [%w{ 24 80 04 01 01 04 01 02 00 00 }.join("")].pack("H*")
+    raw = [%w{24 80 04 01 01 04 01 02 00 00}.join("")].pack("H*")
     io = StringIO.new(raw)
     parser = Krypt::Asn1::Parser.new
     header = parser.next(io)
@@ -296,7 +296,7 @@ class Krypt::ParserTest < Test::Unit::TestCase
     end
   
     if values_only
-      assert_equal( [%w{ 01 02 }.join("")].pack("H*"), result.string)
+      assert_equal( [%w{01 02}.join("")].pack("H*"), result.string)
     else
       assert_equal(raw, result.string.force_encoding("ASCII-8BIT"))
     end

@@ -1,4 +1,8 @@
 === 0.1.0 / 2012-01-13 [emboss]
+* Import specs from krypt-core-jruby
+* Minor fixes to make specs pass
+
+=== 0.1.0 / 2012-01-13 [emboss]
 * Add more tests
 * Fix infinite loop if krypt_byte_buffer limit was initially equal to 1
 

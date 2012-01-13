@@ -186,6 +186,9 @@ krypt_asn1_header_value(VALUE self)
     
     int_krypt_asn1_parsed_header_get(self, header);
 
+    if (header->consumed && header->cached_stream != Qnil)
+	rb_raise(eParseError, "The stream has already been consumed");
+
     /* TODO: sync */
     if (!header->consumed && header->value == Qnil) {
 	unsigned char *value;
@@ -201,7 +204,7 @@ krypt_asn1_header_value(VALUE self)
 	header->consumed = 1;
 	xfree(value);
     }
-    /* TODO: exception if stream was consumed */
+
     return header->value;
 }
 
@@ -218,16 +221,19 @@ static VALUE
 krypt_asn1_header_value_io(int argc, VALUE *argv, VALUE self)
 {
     krypt_asn1_parsed_header *header;
-    VALUE values_only = Qtrue;
+    VALUE values_only;
 
     rb_scan_args(argc, argv, "01", &values_only);
-
+    
     int_krypt_asn1_parsed_header_get(self, header);
     if (header->consumed && header->cached_stream == Qnil)
 	rb_raise(eParseError, "The stream has already been consumed");
 
     /*TODO: synchronization */
     if (header->cached_stream == Qnil) {
+	if (NIL_P(values_only))
+	    values_only = Qtrue;
+
 	header->consumed = 1;
 	header->cached_stream = int_header_cache_stream(header->in,
 	       			       	     	        header->header,
@@ -280,7 +286,7 @@ int_krypt_instream_new(VALUE io)
 	return krypt_instream_new_io_generic(io);
     }
     else {
-	rb_raise(eParseError, "Argument for next must respond to read");
+	rb_raise(rb_eArgError, "Argument for next must respond to read");
     }
 }
 
@@ -320,5 +326,6 @@ Init_krypt_asn1_parser(void)
     rb_define_method(cAsn1Header, "value", krypt_asn1_header_value, 0);
     rb_define_method(cAsn1Header, "value_io", krypt_asn1_header_value_io, -1);
     rb_define_method(cAsn1Header, "to_s", krypt_asn1_header_to_s, 0);
+    rb_undef_method(CLASS_OF(cAsn1Header), "new"); /* private constructor */	
 }
 
