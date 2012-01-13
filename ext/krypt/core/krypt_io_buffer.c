@@ -31,7 +31,7 @@ int_buffer_grow(krypt_byte_buffer *buffer, size_t cur_len)
 	return;
     }
 
-    new_size = buffer->limit;
+    new_size = buffer->limit == 1 ? 2 : buffer->limit;
 
     while (new_size - buffer->size < cur_len)
     	new_size *= KRYPT_BYTE_BUFFER_GROWTH_FACTOR;

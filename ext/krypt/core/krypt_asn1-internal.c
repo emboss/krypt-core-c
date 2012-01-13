@@ -246,6 +246,12 @@ int_parse_primitive_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *
     out->tag_len = 1;
 }
 
+#define int_buffer_add_byte(buf, b, out)		\
+do {							\
+    krypt_buffer_write((buf), &(b), 1);			\
+    (out)->header_length++;				\
+} while (0)
+
 static void
 int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out)
 {
@@ -255,21 +261,20 @@ int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *ou
     out->is_constructed = (b & CONSTRUCTED_MASK) == CONSTRUCTED_MASK;
     out->tag_class = b & TAG_CLASS_PRIVATE;
     buffer = krypt_buffer_new();
-    krypt_buffer_write(buffer, &b, 1);
-    out->header_length++;
+    int_buffer_add_byte(buffer, b, out);
 
     int_next_byte(in, b);
 
     while ((b & INFINITE_LENGTH_MASK) == INFINITE_LENGTH_MASK) {
+	int_buffer_add_byte(buffer, b, out);
 	tag <<= 7;
 	tag |= (b & 0x7f);
 	if (tag > INT_MAX || tag < 0)
 	    rb_raise(eParseError, "Complex tag too long");
-	out->header_length++;
-	krypt_buffer_write(buffer, &b, 1);
 	int_next_byte(in, b);
     }
 
+    int_buffer_add_byte(buffer, b, out);
     tag <<= 7;
     tag |= (b & 0x7f);
     out->tag = tag;

@@ -61,6 +61,99 @@ class Krypt::ParserTest < Test::Unit::TestCase
     parse_tokens_test_methods(StringIO.new(Resources.certificate))
   end
 
+  def test_parse_primitive
+    raw = [%w{ 02 02 01 00 }.join("")].pack("H*")
+    parser = Krypt::Asn1::Parser.new
+    io = StringIO.new(raw)
+    header = parser.next(io)
+    assert_equal(Krypt::Asn1::INTEGER, header.tag)
+    assert_equal(:UNIVERSAL, header.tag_class)
+    assert_equal(false, header.constructed?)
+    assert_equal(false, header.infinite?)
+    assert_equal(2, header.length)
+    assert_equal(2, header.header_length)
+    assert_header_value_equal(raw, header)
+  end
+
+  def test_parse_constructed
+    raw = [%w{ 30 06 04 01 01 04 01 02 }.join("")].pack("H*")
+    parser = Krypt::Asn1::Parser.new
+    io = StringIO.new(raw)
+    header = parser.next(io)
+    assert_equal(Krypt::Asn1::SEQUENCE, header.tag)
+    assert_equal(:UNIVERSAL, header.tag_class)
+    assert_equal(true, header.constructed?)
+    assert_equal(false, header.infinite?)
+    assert_equal(6, header.length)
+    assert_equal(2, header.header_length)
+    assert_header_value_equal(raw, header)
+  end
+
+  def test_parse_constructed
+    raw = [%w{ 30 02 80 01 00 }.join("")].pack("H*")
+    parser = Krypt::Asn1::Parser.new
+    io = StringIO.new(raw)
+    header = parser.next(io)
+    assert_equal(Krypt::Asn1::SEQUENCE, header.tag)
+    assert_equal(:UNIVERSAL, header.tag_class)
+    assert_equal(true, header.constructed?)
+    assert_equal(false, header.infinite?)
+    assert_equal(2, header.length)
+    assert_equal(2, header.header_length)
+    header = parser.next(io)
+    assert_equal(0, header.tag)
+    assert_equal(:CONTEXT_SPECIFIC, header.tag_class)
+    assert_equal(false, header.constructed?)
+    assert_equal(false, header.infinite?)
+    assert_equal(1, header.length)
+    assert_equal(2, header.header_length)
+    assert_equal("\0", header.value)
+    assert_nil(parser.next(io))
+  end
+
+  def test_complex_length
+    raw = [%w{ 04 82 03 e8 }.join("")].pack("H*")
+    raw << "\0" * 1000
+    io = StringIO.new(raw)
+    parser = Krypt::Asn1::Parser.new
+    header = parser.next(io)
+    assert_equal(Krypt::Asn1::OCTET_STRING, header.tag)
+    assert_equal(:UNIVERSAL, header.tag_class)
+    assert_equal(false, header.constructed?)
+    assert_equal(false, header.infinite?)
+    assert_equal(1000, header.length)
+    assert_equal(4, header.header_length)
+    assert_header_value_equal(raw, header)
+  end
+
+  def test_complex_length_single_octet
+    raw = [%w{ df 2a 01 00 }.join("")].pack("H*")
+    parser = Krypt::Asn1::Parser.new
+    io = StringIO.new(raw)
+    header = parser.next(io)
+    assert_equal(42, header.tag)
+    assert_equal(:PRIVATE, header.tag_class)
+    assert_equal(false, header.constructed?)
+    assert_equal(false, header.infinite?)
+    assert_equal(1, header.length)
+    assert_equal(3, header.header_length)
+    assert_header_value_equal(raw, header)
+  end
+
+  def test_complex_tag_two_octets
+    raw = [%w{ 5f 82 2c 01 00 }.join("")].pack("H*")
+    parser = Krypt::Asn1::Parser.new
+    io = StringIO.new(raw)
+    header = parser.next(io)
+    assert_equal(300, header.tag)
+    assert_equal(:APPLICATION, header.tag_class)
+    assert_equal(false, header.constructed?)
+    assert_equal(false, header.infinite?)
+    assert_equal(1, header.length)
+    assert_equal(4, header.header_length)
+    assert_header_value_equal(raw, header)
+  end
+
   def test_inf_length_parsing_at_once_string_io
     inf_length_parsing_streaming_string_io(:AT_ONCE)
   end
@@ -84,8 +177,6 @@ class Krypt::ParserTest < Test::Unit::TestCase
   def test_inf_length_parsing_streaming_fixed_buffer_values_only_string_io
     inf_length_parsing_streaming_string_io(:STREAMING_FIXED, true)
   end
-
-  private
 
   private
 
@@ -205,7 +296,7 @@ class Krypt::ParserTest < Test::Unit::TestCase
     end
   
     if values_only
-      assert_equal( [%w{ 01 02 }.join("")].pack("H*"), result.string.force_encoding("ASCII-8BIT"))
+      assert_equal( [%w{ 01 02 }.join("")].pack("H*"), result.string)
     else
       assert_equal(raw, result.string.force_encoding("ASCII-8BIT"))
     end
@@ -215,6 +306,13 @@ class Krypt::ParserTest < Test::Unit::TestCase
     buffer = ""
     while io.read(3, buffer)
     end
+  end
+
+  def assert_header_value_equal(expected, header)
+    io = StringIO.new()
+    header.encode_to(io)
+    io << header.value
+    assert_equal(expected, io.string.force_encoding("ASCII-8BIT"))
   end
 
 end
