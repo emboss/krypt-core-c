@@ -16,7 +16,7 @@
 extern VALUE mAsn1;
 extern VALUE cAsn1Parser;
 extern VALUE cAsn1Header;
-extern VALUE cInstream;
+extern VALUE cAsn1Instream;
 
 extern VALUE eAsn1Error;
 extern VALUE eParseError;

@@ -128,6 +128,14 @@ krypt_instream_seek(krypt_instream *in, int offset, int whence)
 }
 
 void
+krypt_instream_mark(krypt_instream *in)
+{
+    int_check_stream(in);
+    if (in->methods->mark)
+	in->methods->mark(in);
+}
+
+void
 krypt_instream_free(krypt_instream *in)
 {
     int_check_stream_has(in, free);
@@ -190,6 +198,14 @@ krypt_outstream_rb_write(krypt_outstream *out, VALUE vbuf)
     else {
 	return krypt_outstream_write(out, (unsigned char *) RSTRING_PTR(vbuf), RSTRING_LENINT(vbuf));
     }
+}
+
+void
+krypt_outstream_mark(krypt_outstream *out)
+{
+    int_check_stream(out);
+    if (out->methods->mark)
+	out->methods->mark(out);
 }
 
 void

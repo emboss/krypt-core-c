@@ -31,6 +31,7 @@ static krypt_instream_interface interface_fd = {
     int_fd_read,
     NULL,
     int_fd_seek,
+    NULL,
     int_fd_free
 };
 

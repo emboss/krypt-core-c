@@ -27,6 +27,7 @@ typedef struct int_instream_chunked {
     int values_only;
     enum int_state state;
     krypt_asn1_header *cur_header;
+    krypt_instream *cur_value_stream;
     unsigned int header_offset;
 } int_instream_chunked;
 
@@ -35,6 +36,7 @@ typedef struct int_instream_chunked {
 static int_instream_chunked* int_chunked_alloc(void);
 static int int_chunked_read(krypt_instream *in, unsigned char *buf, int len);
 static void int_chunked_seek(krypt_instream *in, int offset, int whence);
+static void int_chunked_mark(krypt_instream *in);
 static void int_chunked_free(krypt_instream *in);
 
 static krypt_instream_interface interface_chunked = {
@@ -42,6 +44,7 @@ static krypt_instream_interface interface_chunked = {
     int_chunked_read,
     NULL,
     int_chunked_seek,
+    int_chunked_mark,
     int_chunked_free
 };
 
@@ -73,7 +76,7 @@ int_read_new_header(int_instream_chunked *in)
     int ret;
     krypt_asn1_header *next;
 
-    ret = krypt_asn1_next_header((krypt_instream *)in, &next);
+    ret = krypt_asn1_next_header(in->inner, &next);
     if (ret == 0) {
 	xfree(next);
 	rb_raise(eParseError, "Premature end of value detected");
@@ -98,35 +101,37 @@ int_read_header_bytes(int_instream_chunked *in,
     int to_read;
     int available = bytes_len - in->header_offset;
         
-        if (len < available) {
-            in->header_offset += len;
-            to_read = len;
-        }
-        else {
-            in->state = next_state;
-            in->header_offset = 0;
-            to_read = available;
-        }
-        
-        memcpy(buf, bytes, to_read);
-        return to_read;
+    if (len < available) {
+	in->header_offset += len;
+	to_read = len;
+    }
+    else {
+	in->state = next_state;
+	in->header_offset = 0;
+	to_read = available;
+    }
+    
+    memcpy(buf, bytes, to_read);
+    return to_read;
 }
 
 static int
 int_read_value(int_instream_chunked *in, unsigned char *buf, int len)
 {
     int read;
-    krypt_instream *nested;
 
-    nested = krypt_asn1_get_value_stream((krypt_instream *)in, in->cur_header, in->values_only);
-    read = krypt_instream_read(nested, buf, len);
+    if (!in->cur_value_stream)
+	in->cur_value_stream = krypt_asn1_get_value_stream(in->inner, in->cur_header, in->values_only);
+
+    read = krypt_instream_read(in->cur_value_stream, buf, len);
 
     if (read == -1) {
 	if (in->state != DONE)
 	    in->state = NEW_HEADER;
+	krypt_instream_free(in->cur_value_stream);
+	in->cur_value_stream = NULL;
 	read = 0;
     }
-    krypt_instream_free(nested);
 
     return read;
 }
@@ -172,7 +177,6 @@ int_read_single_element(int_instream_chunked *in, unsigned char *buf, int len)
 					 buf,
 					 len);
                 
-	    buf += read;
 	    int_check_done(in);
 	    
 	    if (!in->values_only) {
@@ -182,7 +186,9 @@ int_read_single_element(int_instream_chunked *in, unsigned char *buf, int len)
 		buf += read;
 	    } /* fallthrough */
 	case PROCESS_VALUE:
-	    total += int_read_value(in, buf, len);
+	    read = int_read_value(in, buf, len);
+	    total += read;
+	    buf += read;
 	    return total;
 	default:
 	    rb_raise(eParseError, "Internal error");
@@ -198,6 +204,7 @@ int_read(int_instream_chunked *in, unsigned char *buf, int len)
     while (total != len && in->state != DONE) {
 	read = int_read_single_element(in, buf, len);
 	total += read;
+	buf += read;
     }
     return total;
 }
@@ -208,7 +215,7 @@ int_chunked_read(krypt_instream *instream, unsigned char *buf, int len)
     int_instream_chunked *in;
     
     int_safe_cast(in, instream);
-
+    
     if (!buf || len < 0)
 	rb_raise(rb_eArgError, "Buffer not initialized or length negative");
 
@@ -230,10 +237,21 @@ int_chunked_seek(krypt_instream *instream, int offset, int whence)
 }
 
 static void
+int_chunked_mark(krypt_instream *instream)
+{
+    int_instream_chunked *in;
+
+    if (!instream) return;
+    int_safe_cast(in, instream);
+    krypt_instream_mark(in->inner);
+}
+
+static void
 int_chunked_free(krypt_instream *instream)
 {
     int_instream_chunked *in;
 
+    if (!instream) return;
     int_safe_cast(in, instream);
     if (in->cur_header)
 	xfree(in->cur_header);

@@ -24,6 +24,7 @@ static int_instream_io* int_io_alloc(void);
 static int int_io_read(krypt_instream *in, unsigned char *buf, int read);
 static VALUE int_io_rb_read(krypt_instream *in, VALUE vlen, VALUE vbuf);
 static void int_io_seek(krypt_instream *in, int offset, int whence);
+static void int_io_mark(krypt_instream *in);
 static void int_io_free(krypt_instream *in);
 
 static krypt_instream_interface interface_io_generic = {
@@ -31,6 +32,7 @@ static krypt_instream_interface interface_io_generic = {
     int_io_read,
     int_io_rb_read,
     int_io_seek,
+    int_io_mark,
     int_io_free
 };
 
@@ -42,9 +44,7 @@ krypt_instream_new_io_generic(VALUE io)
 
     in = int_io_alloc();
     in->io = io;
-    buf = rb_str_new2("");
-    /* exclude it from GC */
-    rb_gc_register_address(&buf);
+    buf = rb_str_new_cstr("");
     in->vbuf = buf;
     return (krypt_instream *) in;
 }
@@ -87,9 +87,11 @@ static VALUE
 int_io_rb_read(krypt_instream *instream, VALUE vlen, VALUE vbuf)
 {
     int_instream_io *in;
+    VALUE read;
 
     int_safe_cast(in, instream);
-    return rb_funcall(in->io, ID_READ, 2, vlen, vbuf);
+    read = rb_funcall(in->io, ID_READ, 2, vlen, vbuf);
+    return read;
 }
 
 static VALUE
@@ -121,16 +123,20 @@ int_io_seek(krypt_instream *instream, int offset, int whence)
 }
 
 static void
-int_io_free(krypt_instream *instream)
+int_io_mark(krypt_instream *instream)
 {
-    VALUE buf;
     int_instream_io *in;
 
     if (!instream) return;
     int_safe_cast(in, instream);
 
-    buf = in->vbuf;
-    /* give it free for GC */
-    rb_gc_unregister_address(&buf);
+    rb_gc_mark(in->io);
+    rb_gc_mark(in->vbuf);
+}
+
+static void
+int_io_free(krypt_instream *instream)
+{
+    /* do nothing */
 }
 

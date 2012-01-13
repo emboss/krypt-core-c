@@ -27,6 +27,7 @@ static krypt_outstream_interface interface_bytes = {
     OUTSTREAM_TYPE_BYTES,
     int_bytes_write,
     NULL,
+    NULL,
     int_bytes_free
 };
 

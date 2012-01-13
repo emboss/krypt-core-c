@@ -29,6 +29,7 @@ static krypt_outstream_interface interface_fd = {
     OUTSTREAM_TYPE_FD,
     int_fd_write,
     NULL,
+    NULL,
     int_fd_free
 };
 

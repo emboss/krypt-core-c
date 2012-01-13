@@ -12,7 +12,7 @@
 
 #include "krypt-core.h"
 
-VALUE cInstream;
+VALUE cAsn1Instream;
 
 typedef struct krypt_instream_adapter_st {
     krypt_instream *in;
@@ -21,12 +21,16 @@ typedef struct krypt_instream_adapter_st {
 static void
 int_instream_adapter_mark(krypt_instream_adapter *adapter)
 {
-    /* do nothing */
+    if (!adapter) return;
+
+    krypt_instream_mark(adapter->in);
 }
 
 static void
 int_instream_adapter_free(krypt_instream_adapter *adapter)
 {
+    if (!adapter) return;
+
     krypt_instream_free(adapter->in);
     xfree(adapter);
 }
@@ -55,7 +59,7 @@ krypt_instream_adapter_new(krypt_instream *in)
 
     adapter = (krypt_instream_adapter *)xmalloc(sizeof(krypt_instream_adapter));
     adapter->in = in;
-    int_krypt_instream_adapter_set(cInstream, obj, adapter);
+    int_krypt_instream_adapter_set(cAsn1Instream, obj, adapter);
     return obj;
 }
 
@@ -113,8 +117,8 @@ krypt_instream_adapter_seek(int argc, VALUE *argv, VALUE self)
 void
 Init_krypt_instream_adapter(void)
 {
-    cInstream = rb_define_class_under(mAsn1, "Instream", rb_cObject);
-    rb_define_method(cInstream, "read", krypt_instream_adapter_read, -1);
-    rb_define_method(cInstream, "seek", krypt_instream_adapter_seek, -1);
+    cAsn1Instream = rb_define_class_under(mAsn1, "Instream", rb_cObject);
+    rb_define_method(cAsn1Instream, "read", krypt_instream_adapter_read, -1);
+    rb_define_method(cAsn1Instream, "seek", krypt_instream_adapter_seek, -1);
 }
 

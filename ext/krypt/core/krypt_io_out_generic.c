@@ -22,12 +22,14 @@ typedef struct int_outstream_io_st {
 static int_outstream_io* int_io_alloc(void);
 static int int_io_write(krypt_outstream *out, unsigned char *buf, int len);
 static VALUE int_io_rb_write(krypt_outstream *out, VALUE vbuf);
+static void int_io_mark(krypt_outstream *out);
 static void int_io_free(krypt_outstream *out);
 
 static krypt_outstream_interface interface_io = {
     OUTSTREAM_TYPE_IO_GENERIC,
     int_io_write,
     int_io_rb_write,
+    int_io_mark,
     int_io_free
 };
 
@@ -71,6 +73,16 @@ int_io_rb_write(krypt_outstream *outstream, VALUE vbuf)
 
     int_safe_cast(out, outstream);
     return rb_funcall(out->io, ID_WRITE, 1, vbuf);
+}
+
+static void
+int_io_mark(krypt_outstream *outstream)
+{
+    int_outstream_io *out;
+
+    if (!outstream) return;
+    int_safe_cast(out, outstream);
+    rb_gc_mark(out->io);
 }
 
 static void

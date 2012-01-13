@@ -14,13 +14,18 @@
 #include "krypt-core.h"
 #include "krypt_asn1-internal.h"
 
-#define int_next_byte(in, b)	    	krypt_instream_read((in), &(b), 1);
+#define int_next_byte(in, b)				  \
+do {							  \
+    if (krypt_instream_read((in), &(b), 1) != 1)	  \
+    	rb_raise(eParseError, "Error while parsing."); 	  \
+} while (0)						  \
 
-#define int_parse_tag(b, in, out)	do {							\
-    					    (((b) & COMPLEX_TAG_MASK) == COMPLEX_TAG_MASK) ? 	\
-					    int_parse_complex_tag((b), (in), (out)) : 		\
-				 	    int_parse_primitive_tag((b), (in), (out));		\
-    					} while (0)
+#define int_parse_tag(b, in, out)			\
+do {							\
+    (((b) & COMPLEX_TAG_MASK) == COMPLEX_TAG_MASK) ? 	\
+    int_parse_complex_tag((b), (in), (out)) : 		\
+    int_parse_primitive_tag((b), (in), (out));		\
+} while (0)
 
 static krypt_asn1_header *int_asn1_header_new(void);
 static void int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out);

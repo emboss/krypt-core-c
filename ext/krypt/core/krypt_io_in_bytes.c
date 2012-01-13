@@ -35,6 +35,7 @@ static krypt_instream_interface interface_bytes = {
     int_bytes_read,
     NULL,
     int_bytes_seek,
+    NULL,
     int_bytes_free
 };
 

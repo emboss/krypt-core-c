@@ -25,6 +25,7 @@ typedef struct krypt_asn1_parsed_header_st {
     VALUE infinite;
     VALUE length;
     VALUE header_length;
+    VALUE value;
 
     int consumed;
     VALUE cached_stream;
@@ -33,12 +34,18 @@ typedef struct krypt_asn1_parsed_header_st {
 static void
 int_parsed_header_mark(krypt_asn1_parsed_header *header)
 {
+    if (!header) return;
+
+    krypt_instream_mark(header->in);
+
     rb_gc_mark(header->tag);
     rb_gc_mark(header->tag_class);
-    /* rb_gc_mark(header->constructed); #Boolean*/
-    /* rb_gc_mark(header->infinite);    #Boolean*/
+    rb_gc_mark(header->constructed);
+    rb_gc_mark(header->infinite);
     rb_gc_mark(header->length);
     rb_gc_mark(header->header_length);
+    if (header->value != Qnil)
+	rb_gc_mark(header->value);
     if (header->cached_stream != Qnil)
 	rb_gc_mark(header->cached_stream);
 }
@@ -46,8 +53,10 @@ int_parsed_header_mark(krypt_asn1_parsed_header *header)
 static void
 int_parsed_header_free(krypt_asn1_parsed_header *header)
 {
+    if (!header) return;
+
     krypt_instream_free(header->in);
-    xfree(header->header);
+    krypt_asn1_header_free(header->header);
     xfree(header);
 }
 
@@ -82,6 +91,7 @@ int_krypt_asn1_header_new(krypt_instream *in, krypt_asn1_header *header)
     parsed_header->header_length = INT2NUM(header->header_length);
     parsed_header->in = in;
     parsed_header->header = header;
+    parsed_header->value = Qnil;
     parsed_header->consumed = 0;
     parsed_header->cached_stream = Qnil;
     
@@ -147,13 +157,16 @@ krypt_asn1_header_bytes(VALUE self)
     unsigned char *bytes;
     size_t size;
     krypt_outstream *out;
+    VALUE ret;
 
     int_krypt_asn1_parsed_header_get(self, header);
 
     out = krypt_outstream_new_bytes();
     krypt_asn1_header_encode(out, header->header);
     size = krypt_outstream_bytes_get_bytes_free(out, &bytes);
-    return rb_str_new((const char *)bytes, size);
+    ret = rb_str_new((const char *)bytes, size);
+    xfree(bytes);
+    return ret;
 }
 
 static VALUE
@@ -170,12 +183,26 @@ static VALUE
 krypt_asn1_header_value(VALUE self)
 {
     krypt_asn1_parsed_header *header;
-    unsigned char *value;
-    int length;
-
+    
     int_krypt_asn1_parsed_header_get(self, header);
-    length = krypt_asn1_get_value(header->in, header->header, &value);
-    return rb_str_new((const char *)value, length);
+
+    /* TODO: sync */
+    if (!header->consumed && header->value == Qnil) {
+	unsigned char *value;
+	int length;
+	int tag;
+
+	length = krypt_asn1_get_value(header->in, header->header, &value);
+	tag = header->header->tag;
+
+	if (length != 0 || (tag != TAGS_NULL && tag != TAGS_END_OF_CONTENTS))
+	    header->value = rb_str_new((const char *)value, length);
+
+	header->consumed = 1;
+	xfree(value);
+    }
+    /* TODO: exception if stream was consumed */
+    return header->value;
 }
 
 static VALUE
@@ -193,7 +220,7 @@ krypt_asn1_header_value_io(int argc, VALUE *argv, VALUE self)
     krypt_asn1_parsed_header *header;
     VALUE values_only = Qtrue;
 
-    rb_scan_args(argc, argv, "01", values_only);
+    rb_scan_args(argc, argv, "01", &values_only);
 
     int_krypt_asn1_parsed_header_get(self, header);
     if (header->consumed && header->cached_stream == Qnil)

@@ -24,6 +24,7 @@ typedef struct int_instream_definite_st {
 static int_instream_definite* int_definite_alloc(void);
 static int int_definite_read(krypt_instream *in, unsigned char *buf, int len);
 static void int_definite_seek(krypt_instream *in, int offset, int whence);
+static void int_definite_mark(krypt_instream *in);
 static void int_definite_free(krypt_instream *in);
 
 static krypt_instream_interface interface_definite = {
@@ -31,6 +32,7 @@ static krypt_instream_interface interface_definite = {
     int_definite_read,
     NULL,
     int_definite_seek,
+    int_definite_mark,
     int_definite_free
 };
 
@@ -108,6 +110,17 @@ int_definite_seek(krypt_instream *instream, int offset, int whence)
 
     krypt_instream_seek(in->inner, offset, whence);
 }
+
+static void
+int_definite_mark(krypt_instream *instream)
+{
+    int_instream_definite *in;
+
+    if (!instream) return;
+    int_safe_cast(in, instream);
+    krypt_instream_mark(in->inner);
+}
+
 
 static void
 int_definite_free(krypt_instream *instream)
