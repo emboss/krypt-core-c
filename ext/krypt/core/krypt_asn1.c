@@ -183,12 +183,13 @@ krypt_asn1_data_new(krypt_instream *in, krypt_asn1_header *header)
     if (header->tag_class == TAG_CLASS_UNIVERSAL) {
 	if (header->tag > 30)
 	   rb_raise(eParseError, "Universal tag too large: %d", header->tag);
-	klass = *(krypt_asn1_infos[header->tag].klass);
 	if (header->is_constructed) {
+	    klass = cAsn1Constructive;
 	    data->decode_cb = int_asn1_cons_value_decode;
 	    data->encode_cb = int_asn1_cons_encode_to;
 	}
 	else {
+	    klass = *(krypt_asn1_infos[header->tag].klass);
 	    data->decode_cb = int_asn1_prim_value_decode;
 	    data->encode_cb = int_asn1_prim_encode_to;
 	}
