@@ -85,7 +85,7 @@ int_bytes_read(krypt_instream *instream, unsigned char *buf, int len)
     else
 	to_read = len;
 
-    memcpy(src->p, buf, to_read);
+    memcpy(buf, src->p, to_read);
     src->p += to_read;
     in->num_read += to_read;
     return to_read;

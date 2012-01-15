@@ -27,7 +27,6 @@ do {							\
     int_parse_primitive_tag((b), (in), (out));		\
 } while (0)
 
-static krypt_asn1_header *int_asn1_header_new(void);
 static void int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
 static void int_parse_primitive_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
 static void int_parse_length(krypt_instream *in, krypt_asn1_header *out);
@@ -62,7 +61,7 @@ krypt_asn1_next_header(krypt_instream *in, krypt_asn1_header **out)
     if (read != 1)
 	rb_raise(eParseError, "Error when parsing stream");
 
-    header = int_asn1_header_new();
+    header = krypt_asn1_header_new();
     
     int_parse_tag(b, in, header);
     int_parse_length(in, header);
@@ -182,6 +181,29 @@ krypt_asn1_header_encode(krypt_outstream *out, krypt_asn1_header *header)
 }
 
 /**
+ * Writes the encoding of an krypt_asn1_object (header + value) to the
+ * supplied krypt_outstream.
+ *
+ * @param out		The krypt_outstream where the object shall be encoded 
+ * 			to
+ * @param object	The object that shall be encoded
+ * @raises		Krypt::Asn1::SerializeError in case of an error
+ * @raises		ArgumentError if out or object is NULL	
+ */
+void
+krypt_asn1_object_encode(krypt_outstream *out, krypt_asn1_object *object)
+{
+    if (!object) rb_raise(rb_eArgError, "Object is not initialized");
+
+    krypt_asn1_header_encode(out, object->header);
+
+    if (!object->bytes) 
+	rb_raise(eSerializeError, "Value bytes have not been set");
+
+    krypt_outstream_write(out, object->bytes, object->bytes_len);
+}
+
+/**
  * Returns an ID representing the Symbol that stands for the corresponding
  * tag class.
  *
@@ -191,7 +213,7 @@ krypt_asn1_header_encode(krypt_outstream *out, krypt_asn1_header *header)
  * @raises		Krypt::KryptError if tag_class is unknown
  */
 ID
-krypt_asn1_tag_class_for(int tag_class)
+krypt_asn1_tag_class_for_int(int tag_class)
 {
     switch (tag_class) {
 	case TAG_CLASS_UNIVERSAL:
@@ -206,6 +228,49 @@ krypt_asn1_tag_class_for(int tag_class)
 	    rb_raise(eKryptError, "Unknown tag class");
 	    return Qnil;
     }
+}
+
+/**
+ * Returns an integer representing the tag class of the corresponding
+ * symbol.
+ *
+ * @param tag_class	The tag class ID
+ * @return		An integer representing the tag class
+ * @raises		Krypt::KryptError if tag_class is unknown
+ */
+int
+krypt_asn1_tag_class_for_id(ID tag_class)
+{
+    ID id;
+
+    id = SYM2ID(tag_class);
+
+    if (id == sTC_UNIVERSAL)
+	return TAG_CLASS_UNIVERSAL;
+    else if (id == sTC_APPLICATION)
+	return TAG_CLASS_APPLICATION;
+    else if (id == sTC_CONTEXT_SPECIFIC)
+	return TAG_CLASS_CONTEXT_SPECIFIC;
+    else if (id == sTC_PRIVATE)
+	return TAG_CLASS_PRIVATE;
+    
+    rb_raise(eKryptError, "Unknown tag class");
+    return Qnil;
+}
+
+/**
+ * Creates a new krypt_asn1_header struct.
+ * @return 	a newly allocated krypt_asn1_header
+ * @raises	NoMemoryError when allocation fails
+ */
+krypt_asn1_header *
+krypt_asn1_header_new(void)
+{
+    krypt_asn1_header *ret;
+
+    ret = (krypt_asn1_header *)xmalloc(sizeof(krypt_asn1_header));
+    memset(ret, 0, sizeof(krypt_asn1_header));
+    return ret;
 }
 
 /**
@@ -224,14 +289,76 @@ krypt_asn1_header_free(krypt_asn1_header *header)
     xfree(header);
 }
 
-static krypt_asn1_header *
-int_asn1_header_new(void)
+/**
+ * Allocates a new krypt_asn1_object given a header and the value encoding.
+ * It does *not* copy value, so the value pointer shall only be freed by a
+ * subsequent call to krypt_asn1_object_free.
+ *
+ * @param header	The header corresponding to the value
+ * @param value		The raw byte encoding of the value
+ * @param len		The length of the byte encoding
+ * @raises		NoMemoryError if allocation fails
+ * @raises		ArgumentError if either header or value is NULL or
+ * 			len is negative
+ */
+krypt_asn1_object *
+krypt_asn1_object_new_value(krypt_asn1_header *header, unsigned char *value, int len)
 {
-    krypt_asn1_header *ret;
+    krypt_asn1_object *obj;
 
-    ret = (krypt_asn1_header *)xmalloc(sizeof(krypt_asn1_header));
-    memset(ret, 0, sizeof(krypt_asn1_header));
-    return ret;
+    if (!value)
+	rb_raise(rb_eArgError, "header or value not initialized");
+    if (len < 0)
+	rb_raise(rb_eArgError, "Negative length %d provided", len);
+
+    obj = krypt_asn1_object_new(header);
+    obj->bytes = value;
+    obj->bytes_len = len;
+
+    return obj;
+}
+
+/**
+ * Allocates a new krypt_asn1_object given a header. For succesful encoding
+ * with krypt_asn1_object_encode it is expected that the value encoding will
+ * be added at a later point.
+ *
+ * @param header	The header corresponding to the value
+ * @raises		NoMemoryError if allocation fails
+ * @raises		ArgumentError if header is NULL
+ */
+krypt_asn1_object *
+krypt_asn1_object_new(krypt_asn1_header *header)
+{
+    krypt_asn1_object *obj;
+
+    if (!header)
+	rb_raise(rb_eArgError, "header not initialized");
+
+    obj = (krypt_asn1_object *)xmalloc(sizeof(krypt_asn1_object));
+    obj->header = header;
+    obj->bytes = NULL;
+    obj->bytes_len = 0;
+
+    return obj;
+}
+
+
+/**
+ * Frees a krypt_asn1_object by freeing the header and the
+ * value bytes if present.
+ *
+ * @param object	The krypt_asn1_object to be freed
+ */
+void
+krypt_asn1_object_free(krypt_asn1_object *object)
+{
+    if (!object) return;
+
+    krypt_asn1_header_free(object->header);
+    if (object->bytes)
+	xfree(object->bytes);
+    xfree(object);
 }
 
 static void
@@ -282,7 +409,6 @@ int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *ou
     out->tag_bytes = krypt_buffer_get_data(buffer);
     krypt_buffer_resize_free(buffer);
 }
-
 
 #define int_set_single_byte_length(h, b)					\
 do {										\

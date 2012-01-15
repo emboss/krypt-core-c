@@ -170,6 +170,7 @@ krypt_instream_new_value(VALUE value)
 	    }
 	}
 	else {
+	    value = krypt_to_der_if_possible(value);
 	    StringValue(value);
 	    return krypt_instream_new_bytes((unsigned char *)RSTRING_PTR(value), RSTRING_LEN(value));
 	}
@@ -223,30 +224,13 @@ krypt_outstream_new_value(VALUE value)
 
     type = TYPE(value);
 
-    if (type == T_STRING) {
-	return krypt_outstream_new_bytes(value);
-    }
-    else {
-	if (type == T_FILE) {
-	    return krypt_outstream_new_fd_io(value);
-	}
-	else if (rb_respond_to(value, ID_WRITE)) {
-	    ID id_string;
-	    id_string = rb_intern("string");
-	    if (rb_respond_to(value, id_string)) { /* StringIO */
-		VALUE str;
-		str = rb_funcall(value, id_string, 0);
-		return krypt_outstream_new_bytes(str);
-	    }
-	    else {
-    		return krypt_outstream_new_io_generic(value);
-	    }
-	}
-	else {
-	    StringValue(value);
-	    return krypt_outstream_new_bytes(value);
-	}
-    }
+    if (type == T_FILE)
+	return krypt_outstream_new_fd_io(value);
+    else if (rb_respond_to(value, ID_WRITE))
+	return krypt_outstream_new_io_generic(value);
+    else
+	rb_raise(rb_eArgError, "Argument must be an IO");
+    return NULL; /* dummy */
 }
 
 /* end outstream */

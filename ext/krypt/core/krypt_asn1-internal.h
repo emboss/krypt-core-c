@@ -28,7 +28,7 @@
 #define TAGS_BIT_STRING		0x03
 #define TAGS_OCTET_STRING	0x04
 #define TAGS_NULL		0x05
-#define TAGS_OBJECT_IDENTIFIER	0x06
+#define TAGS_OBJECT_ID  	0x06
 #define TAGS_ENUMERATED		0x0a
 #define TAGS_UTF8_STRING	0xc0
 #define TAGS_SEQUENCE		0x10
@@ -59,14 +59,27 @@ typedef struct krypt_asn1_header_st {
     int length_len;
 } krypt_asn1_header;
 
-void krypt_asn1_header_free(krypt_asn1_header *header);
+typedef struct krypt_asn1_object_st {
+    krypt_asn1_header *header;
+    unsigned char *bytes;
+    int bytes_len;
+} krypt_asn1_object;
 
-ID krypt_asn1_tag_class_for(int tag_class);
+krypt_asn1_header *krypt_asn1_header_new(void);
+void krypt_asn1_header_free(krypt_asn1_header *header);
+krypt_asn1_object *krypt_asn1_object_new(krypt_asn1_header *header);
+krypt_asn1_object *krypt_asn1_object_new_value(krypt_asn1_header *header, unsigned char *value, int len);
+void krypt_asn1_object_free(krypt_asn1_object *object);
+
+ID krypt_asn1_tag_class_for_int(int tag_class);
+int krypt_asn1_tag_class_for_id(ID tag_class);
 int krypt_asn1_next_header(krypt_instream *in, krypt_asn1_header **out);
 void krypt_asn1_skip_value(krypt_instream *in, krypt_asn1_header *last);
 int krypt_asn1_get_value(krypt_instream *in, krypt_asn1_header *last, unsigned char **out);
 krypt_instream *krypt_asn1_get_value_stream(krypt_instream *in, krypt_asn1_header *last, int values_only);
+
 void krypt_asn1_header_encode(krypt_outstream *out, krypt_asn1_header *header);
+void krypt_asn1_object_encode(krypt_outstream *out, krypt_asn1_object *object);
 
 #endif /* _KRYPT_ASN1_INTERNAL_H_ */
 

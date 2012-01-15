@@ -105,7 +105,6 @@ size_t krypt_outstream_bytes_get_bytes_free(krypt_outstream *outstream, unsigned
 krypt_outstream *krypt_outstream_new_fd(int fd);
 krypt_outstream *krypt_outstream_new_fd_io(VALUE io);
 krypt_outstream *krypt_outstream_new_bytes();
-krypt_outstream *krypt_outstream_new_bytes_with_string(VALUE str);
 krypt_outstream *krypt_outstream_new_io_generic(VALUE io);
 krypt_outstream *krypt_outstream_new_value(VALUE value);
 

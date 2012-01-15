@@ -36,7 +36,7 @@ int_buffer_grow(krypt_byte_buffer *buffer, size_t cur_len)
     while (new_size - buffer->size < cur_len)
     	new_size *= KRYPT_BYTE_BUFFER_GROWTH_FACTOR;
 
-    xrealloc(buffer->data, new_size);
+    buffer->data = (unsigned char *)xrealloc(buffer->data, new_size);
     buffer->limit = new_size; 
 }
 
@@ -76,8 +76,9 @@ void
 krypt_buffer_resize_free(krypt_byte_buffer *buffer)
 {
     if (!buffer) return;
+
     if (buffer->data) {
-	xrealloc(buffer->data, buffer->size);
+	buffer->data = xrealloc(buffer->data, buffer->size);
 	buffer->limit = buffer->size;
     }
     xfree(buffer);

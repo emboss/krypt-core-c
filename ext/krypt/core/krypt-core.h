@@ -31,9 +31,14 @@ extern VALUE mKrypt;
 
 extern VALUE eKryptError;
 
+extern ID sID_TO_DER;
+
 /** krypt-core headers **/
 #include "krypt_io.h"
 #include "krypt_asn1.h"
+
+VALUE krypt_to_der_if_possible(VALUE);
+VALUE krypt_to_der(VALUE);
 
 void Init_krypt_core(void);
 void Init_krypt_io(void);

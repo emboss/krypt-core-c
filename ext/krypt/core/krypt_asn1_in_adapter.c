@@ -120,5 +120,6 @@ Init_krypt_instream_adapter(void)
     cAsn1Instream = rb_define_class_under(mAsn1, "Instream", rb_cObject);
     rb_define_method(cAsn1Instream, "read", krypt_instream_adapter_read, -1);
     rb_define_method(cAsn1Instream, "seek", krypt_instream_adapter_seek, -1);
+    rb_undef_method(CLASS_OF(cAsn1Instream), "new"); /* private constructor */	
 }
 
