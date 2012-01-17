@@ -1,7 +1,12 @@
 source :rubygems
 
+group :development do
+  gem 'rake'
+  gem 'rake-compiler'
+end
+
 group :test do
-  gem 'simplecov', :require => false
+  gem 'rspec'
 end
 
 gemspec

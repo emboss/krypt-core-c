@@ -1,4 +1,7 @@
+.bundle
 Makefile
+coverage
+kryptcore.info
 tmp
 *.swp
 *.swo

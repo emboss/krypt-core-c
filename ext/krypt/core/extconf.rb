@@ -17,10 +17,20 @@ See the file 'LICENSE' for further details.
 
 require 'mkmf'
 
+arg = ARGV.shift
+if arg == "-g"
+  debug = true
+end
+
 message "=== krypt-core API - C version ===\n"
+
+if debug && CONFIG['GCC'] == 'yes'
+  flags = "-fprofile-arcs -ftest-coverage"
+  message "!! set #{flags} for coverage !!"
+  $CFLAGS += " #{flags}"
+  $DLDFLAGS += " #{flags}"
+end
 
 create_header
 create_makefile("kryptcore")
 message "Done.\n"
-
-
