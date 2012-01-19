@@ -33,6 +33,8 @@ static void int_parse_length(krypt_instream *in, krypt_asn1_header *out);
 static void int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
 static unsigned char *int_parse_read_exactly(krypt_instream *in, int n);
 static int int_consume_stream(krypt_instream *in, unsigned char **out);
+static void int_compute_tag(krypt_asn1_header *header);
+static void int_compute_length(krypt_asn1_header *header);
 
 /**
  * Parses a krypt_asn1_header from the krypt_instream at its current
@@ -168,12 +170,10 @@ krypt_asn1_header_encode(krypt_outstream *out, krypt_asn1_header *header)
     if (!header) rb_raise(rb_eArgError, "Header is not initialized");
 
     if (!header->tag_bytes) {
-	/* TODO */
-	rb_raise(rb_eNotImpError, "Not implemented yet.");
+	int_compute_tag(header);
     }
     if (!header->length_bytes) {
-	/* TODO */
-	rb_raise(rb_eNotImpError, "Not implemented yet.");
+	int_compute_length(header);
     }
 
     krypt_outstream_write(out, header->tag_bytes, header->tag_len);
@@ -517,5 +517,93 @@ int_consume_stream(krypt_instream *in, unsigned char **out)
     krypt_buffer_resize_free(out_buf);
     xfree(in_buf);
     return (int) size;
+}
+
+#define int_determine_num_shifts(i, value, by)	\
+do {						\
+    int tmp = (value);				\
+    for ((i) = 0; tmp > 0; (i)++) {		\
+	tmp >>= (by);				\
+    }						\
+} while (0)
+
+static void
+int_compute_complex_tag(krypt_asn1_header *header)
+{
+    int num_shifts, i, tmp_tag;
+    unsigned char b;
+   
+    b = header->is_constructed ? CONSTRUCTED_MASK : 0x00;
+    b |= header->tag_class & 0xff;
+    b |= COMPLEX_TAG_MASK;
+
+    int_determine_num_shifts(num_shifts, header->tag, 7);
+    header->tag_bytes = (unsigned char *)xmalloc(num_shifts + 1);
+    header->tag_bytes[0] = b;
+
+    tmp_tag = header->tag;
+
+    for (i = num_shifts; i > 0; i--) {
+	b = tmp_tag & 0x7f;
+	if (i != num_shifts)
+	    b |= INFINITE_LENGTH_MASK;
+	header->tag_bytes[i] = b;
+	tmp_tag >>= 7;
+    }
+
+    header->tag_len = num_shifts + 1;
+}
+
+static void 
+int_compute_tag(krypt_asn1_header *header)
+{
+    if (header->tag < 31) {
+	unsigned char b;
+	b = header->is_constructed ? CONSTRUCTED_MASK : 0x00;
+	b |= (header->tag_class & 0xff);
+	b |= (header->tag & 0xff);
+	header->tag_bytes = (unsigned char *)xmalloc(sizeof(unsigned char));
+	*(header->tag_bytes) = b;
+	header->tag_len = 1;
+    } else {
+	int_compute_complex_tag(header);
+    }
+}
+
+static void
+int_compute_complex_length(krypt_asn1_header *header)
+{
+    int num_shifts, tmp_len, i;
+
+    int_determine_num_shifts(num_shifts, header->length, 8);
+    tmp_len = header->length;
+    header->length_bytes = (unsigned char *)xmalloc(num_shifts + 1);
+    header->length_bytes[0] = num_shifts & 0xff;
+    header->length_bytes[0] |= INFINITE_LENGTH_MASK;
+
+    for (i = num_shifts; i > 0; i--) {
+	header->length_bytes[i] = tmp_len & 0xff;
+	tmp_len >>= 8;
+    }
+
+    header->length_len = num_shifts + 1;
+}
+
+static void
+int_compute_length(krypt_asn1_header *header)
+{
+    if (header->is_infinite) {
+	header->length_bytes = (unsigned char *)xmalloc(sizeof(unsigned char));
+	*(header->length_bytes) = INFINITE_LENGTH_MASK;
+	header->length_len = 1;
+    }
+    else if (header->length <= 127) {
+	header->length_bytes = (unsigned char *)xmalloc(sizeof(unsigned char));
+	*(header->length_bytes) = header->length & 0xFF;
+	header->length_len = 1;
+    }
+    else {
+	int_compute_complex_length(header);
+    }
 }
 

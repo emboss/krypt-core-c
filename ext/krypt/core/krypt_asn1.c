@@ -667,7 +667,7 @@ int_asn1_cons_encode_to(krypt_outstream *out, VALUE ary, krypt_asn1_data *data)
     }
 
     if (!rb_obj_is_kind_of(ary, rb_cArray))
-	rb_raise("Value is not an array");
+	rb_raise(rb_eArgError, "Value is not an array");
 
     krypt_asn1_header_encode(out, data->object->header);
     size = RARRAY_LEN(ary);
