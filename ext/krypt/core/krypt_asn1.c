@@ -316,36 +316,42 @@ int_asn1_default_initialize(VALUE self,
 static VALUE
 krypt_asn1_end_of_contents_initialize(VALUE self)
 {
-    int_asn1_data_initialize(self,
-	   		     TAGS_END_OF_CONTENTS,
-			     TAG_CLASS_UNIVERSAL,
-			     0,
-			     0,
-			     int_asn1_prim_encode_to);
-
-    int_asn1_data_set_tag(self, INT2NUM(0));
-    int_asn1_data_set_tag_class(self, ID2SYM(sTC_UNIVERSAL));
-    int_asn1_data_set_infinite_length(self, Qfalse);
-    
-    return self;
+    return int_asn1_default_initialize(self,
+	    	  		       Qnil,
+				       INT2NUM(TAGS_END_OF_CONTENTS),
+				       ID2SYM(sTC_UNIVERSAL),
+				       0,
+				       int_asn1_prim_encode_to);
 }
 
 /* Special treatment for NULL: no-arg constructor */
 static VALUE
-krypt_asn1_null_initialize(VALUE self)
+krypt_asn1_null_initialize(int argc, VALUE *argv, VALUE self)
 {
-    int_asn1_data_initialize(self,
-	   		     TAGS_NULL,
-			     TAG_CLASS_UNIVERSAL,
-			     0,
-			     0,
-			     int_asn1_prim_encode_to);
+    VALUE value;
+    VALUE tag;
+    VALUE tag_class;
+    if (argc == 0) {
+	value = Qnil;
+	tag = INT2NUM(TAGS_NULL);
+	tag_class = ID2SYM(sTC_UNIVERSAL);
+    }
+    else {
+	rb_scan_args(argc, argv, "12", &value, &tag, &tag_class);
+	if (!NIL_P(tag_class) && NIL_P(tag))
+	    rb_raise(rb_eArgError, "Tag must be specified if tag class is");
+	if (NIL_P(tag_class))
+	    tag_class = ID2SYM(sTC_UNIVERSAL);
+	if (!NIL_P(value))
+	    rb_raise(rb_eArgError, "Value for ASN.1 NULL must be nil");
+    }
 
-    int_asn1_data_set_tag(self, INT2NUM(0));
-    int_asn1_data_set_tag_class(self, ID2SYM(sTC_UNIVERSAL));
-    int_asn1_data_set_infinite_length(self, Qfalse);
-    
-    return self;
+    return int_asn1_default_initialize(self,
+	    			       value,
+				       tag,
+				       tag_class,
+				       0,
+				       int_asn1_prim_encode_to);
 }
 
 #define KRYPT_ASN1_DEFINE_CTOR(klass, t, cons, cb)					\
@@ -355,7 +361,7 @@ krypt_asn1_##klass##_initialize(int argc, VALUE *argv, VALUE self)			\
     VALUE value, tag, tag_class;							\
     rb_scan_args(argc, argv, "12", &value, &tag, &tag_class);				\
     if (argc > 1) {									\
-	if (NIL_P(tag))									\
+	if (!NIL_P(tag_class) && NIL_P(tag))						\
 	    rb_raise(rb_eArgError, "Tag must be specified if tag class is");		\
 	if(NIL_P(tag_class))								\
 	    tag_class = ID2SYM(sTC_UNIVERSAL);						\
@@ -652,6 +658,16 @@ int_asn1_cons_encode_to(krypt_outstream *out, VALUE ary, krypt_asn1_data *data)
 {
     VALUE cur;
     long size, i;
+    krypt_asn1_header *header;
+
+    header = data->object->header;
+    if (header->length_bytes == NULL) {
+	/* TODO compute and update length */
+	rb_raise(rb_eNotImpError, "Not implemented yet");
+    }
+
+    if (!rb_obj_is_kind_of(ary, rb_cArray))
+	rb_raise("Value is not an array");
 
     krypt_asn1_header_encode(out, data->object->header);
     size = RARRAY_LEN(ary);
@@ -700,6 +716,7 @@ int_asn1_prim_encode_to(krypt_outstream *out, VALUE value, krypt_asn1_data *data
 	object->bytes_len = len;
     }
 
+    object->header->length = object->bytes_len;
     krypt_asn1_object_encode(out, object);
 }
 
