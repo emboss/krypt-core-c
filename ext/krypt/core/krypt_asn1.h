@@ -64,6 +64,9 @@ void Init_krypt_instream_adapter(void);
 
 VALUE krypt_instream_adapter_new(krypt_instream *in);
 
+int krypt_asn1_encode_default(VALUE value, unsigned char **out);
+VALUE krypt_asn1_decode_default(unsigned char *bytes, int len);
+
 #endif /* _KRYPT_ASN1_H_ */
 
 

@@ -692,7 +692,7 @@ int_asn1_prim_value_decode(krypt_asn1_data *data)
     if (data->codec)
 	value = data->codec->decoder(object->bytes, object->bytes_len);
     else
-	value = rb_str_new((const char *)object->bytes, object->bytes_len);
+	value = krypt_asn1_decode_default(object->bytes, object->bytes_len);
 
     return value;
 }
@@ -707,13 +707,7 @@ int_asn1_prim_encode_to(krypt_outstream *out, VALUE value, krypt_asn1_data *data
 	object->bytes_len = data->codec->encoder(value, &object->bytes);
     }
     else {
-	int len;
-
-	StringValue(value);
-	len = RSTRING_LENINT(value);
-	object->bytes = (unsigned char *)xmalloc(len);
-	memcpy(object->bytes, RSTRING_PTR(value), len);
-	object->bytes_len = len;
+	object->bytes_len = krypt_asn1_encode_default(value, &object->bytes);
     }
 
     object->header->length = object->bytes_len;

@@ -1,4 +1,7 @@
 === 0.1.0 / 2012-01-19 [emboss]
+* Add first Asn.1 codecs
+
+=== 0.1.0 / 2012-01-19 [emboss]
 * Add functions to encode tag/length from scratch 
 
 === 0.1.0 / 2012-01-15 [emboss]
