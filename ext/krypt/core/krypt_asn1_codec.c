@@ -29,9 +29,9 @@ krypt_asn1_encode_default(VALUE value, unsigned char **out)
 VALUE
 krypt_asn1_decode_default(unsigned char *bytes, int len)
 {
-    if (len < 0 || bytes == NULL)
+    if (len < 0)
 	rb_raise(eAsn1Error, "Error while default decoding value");
-    if (len == 0)
+    if (len == 0 || bytes == NULL)
 	return Qnil;
     return rb_str_new((const char *)bytes, len);
 }
