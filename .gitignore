@@ -1,4 +1,5 @@
 .bundle
+mkmf.log
 extconf.h
 Makefile
 coverage

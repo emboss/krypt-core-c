@@ -40,7 +40,7 @@ VALUE cAsn1Sequence, cAsn1Set;
 
 ID sTC_UNIVERSAL, sTC_APPLICATION, sTC_CONTEXT_SPECIFIC, sTC_PRIVATE;
 
-static ID sIV_TAG, sIV_TAG_CLASS, sIV_INF_LEN, sIV_VALUE;
+ID sIV_TAG, sIV_TAG_CLASS, sIV_INF_LEN, sIV_VALUE, sIV_UNUSED_BITS;
 
 typedef struct krypt_asn1_info_st {
     const char *name;
@@ -98,13 +98,19 @@ struct krypt_asn1_data_st {
 static krypt_asn1_codec *
 int_codec_for(krypt_asn1_object *object)
 {
-    /* TODO */
     krypt_asn1_codec *codec;
+    int tag = object->header->tag;
 
-    codec = &krypt_asn1_codecs[0];
-    codec = NULL;
-
-    return codec;
+    if (tag < 31 && object->header->tag_class == TAG_CLASS_UNIVERSAL) {
+	codec = &krypt_asn1_codecs[tag];
+	if (!codec->encoder)
+	    return NULL;
+	else
+	    return codec;
+    }
+    else {
+	return NULL;
+    }
 }
 
 static krypt_asn1_data *
@@ -265,7 +271,7 @@ krypt_asn1_data_initialize(VALUE self, VALUE value, VALUE vtag, VALUE vtag_class
     if (stag_class == sTC_UNIVERSAL && tag > 30)
 	rb_raise(eAsn1Error, "Tag too large for UNIVERSAL tag class");
     tag_class = krypt_asn1_tag_class_for_id(stag_class);
-    is_constructed = rb_obj_is_kind_of(value, rb_cArray) == Qtrue;
+    is_constructed = rb_respond_to(value, sID_EACH) == Qtrue;
     
     int_asn1_data_initialize(self, tag, tag_class, is_constructed, 0, int_asn1_data_encode_to);
 
@@ -547,7 +553,7 @@ krypt_asn1_data_set_value(VALUE self, VALUE value)
     int_asn1_data_get(self, data);
     object = data->object;
     int_invalidate_value(object);    
-    is_constructed = rb_obj_is_kind_of(value, rb_cArray);
+    is_constructed = rb_respond_to(value, sID_EACH);
     if (object->header->is_constructed != is_constructed) {
 	object->header->is_constructed = is_constructed;
 	int_invalidate_tag(object->header);
@@ -666,9 +672,6 @@ int_asn1_cons_encode_to(krypt_outstream *out, VALUE ary, krypt_asn1_data *data)
 	rb_raise(rb_eNotImpError, "Not implemented yet");
     }
 
-    if (!rb_obj_is_kind_of(ary, rb_cArray))
-	rb_raise(rb_eArgError, "Value is not an array");
-
     krypt_asn1_header_encode(out, data->object->header);
     size = RARRAY_LEN(ary);
 
@@ -744,6 +747,7 @@ Init_krypt_asn1(void)
     sIV_TAG_CLASS = rb_intern("@tag_class");
     sIV_INF_LEN = rb_intern("@infinite_length");
     sIV_VALUE = rb_intern("@value");
+    sIV_UNUSED_BITS = rb_intern("@unused_bits");
 
     mAsn1 = rb_define_module_under(mKrypt, "Asn1");
 

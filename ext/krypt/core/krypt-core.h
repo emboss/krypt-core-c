@@ -22,6 +22,10 @@ extern "C" {
 #include <ruby.h>
 #include "krypt-os.h"
 
+#if defined(HAVE_RUBY_IO_H)
+#include <ruby/io.h>
+#endif
+
 #ifndef InitVM
 #define InitVM(ext) {void InitVM_##ext(void);InitVM_##ext();}
 #endif
@@ -31,6 +35,7 @@ extern VALUE mKrypt;
 extern VALUE eKryptError;
 
 extern ID sID_TO_DER;
+extern ID sID_EACH;
 
 /** krypt-core headers **/
 #include "krypt_missing.h"

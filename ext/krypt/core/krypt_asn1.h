@@ -58,6 +58,8 @@ extern ID sTC_APPLICATION;
 extern ID sTC_CONTEXT_SPECIFIC;
 extern ID sTC_PRIVATE;
 
+extern ID sIV_TAG, sIV_TAG_CLASS, sIV_INF_LEN, sIV_VALUE, sIV_UNUSED_BITS;
+
 void Init_krypt_asn1(void);
 void Init_krypt_asn1_parser(void);
 void Init_krypt_instream_adapter(void);

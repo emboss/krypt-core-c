@@ -16,6 +16,7 @@ VALUE mKrypt;
 VALUE eKryptError;
 
 ID sID_TO_DER;
+ID sID_EACH;
 
 VALUE
 krypt_to_der(VALUE obj)
@@ -44,6 +45,7 @@ Init_kryptcore(void)
     eKryptError = rb_define_class_under(mKrypt, "KryptError", rb_eStandardError);
 
     sID_TO_DER = rb_intern("to_der");
+    sID_EACH = rb_intern("each");
 
     /* Init components */
     Init_krypt_io();

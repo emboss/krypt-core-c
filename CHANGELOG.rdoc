@@ -1,4 +1,8 @@
 === 0.1.0 / 2012-01-22 [emboss]
+* Continued implementing Asn.1 codecs
+* Include ruby/io.h conditionally
+
+=== 0.1.0 / 2012-01-22 [emboss]
 * Remove CRuby specifics to ensure Rubinius compatibility
 
 === 0.1.0 / 2012-01-19 [emboss]
