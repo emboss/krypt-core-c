@@ -19,7 +19,7 @@ krypt_asn1_encode_default(VALUE value, unsigned char **out)
     unsigned char *ret;
 
     StringValue(value);
-    len = RSTRING_LENINT(value);
+    len = (int)RSTRING_LEN(value);
     ret = (unsigned char *)xmalloc(len);
     memcpy(ret, RSTRING_PTR(value), len);
     *out = ret;

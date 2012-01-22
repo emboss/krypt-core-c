@@ -20,7 +20,6 @@ extern "C" {
 #endif
 
 #include <ruby.h>
-#include <ruby/io.h>
 #include "krypt-os.h"
 
 #ifndef InitVM
@@ -34,6 +33,7 @@ extern VALUE eKryptError;
 extern ID sID_TO_DER;
 
 /** krypt-core headers **/
+#include "krypt_missing.h"
 #include "krypt_io.h"
 #include "krypt_asn1.h"
 

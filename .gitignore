@@ -1,4 +1,5 @@
 .bundle
+extconf.h
 Makefile
 coverage
 kryptcore.info
@@ -7,3 +8,6 @@ tmp
 *.swo
 *~
 *.so
+*.o
+.rbx/
+

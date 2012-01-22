@@ -197,7 +197,7 @@ krypt_outstream_rb_write(krypt_outstream *out, VALUE vbuf)
 	return out->methods->rb_write(out, vbuf);
     }
     else {
-	return krypt_outstream_write(out, (unsigned char *) RSTRING_PTR(vbuf), RSTRING_LENINT(vbuf));
+	return krypt_outstream_write(out, (unsigned char *) RSTRING_PTR(vbuf), (int)RSTRING_LEN(vbuf));
     }
 }
 

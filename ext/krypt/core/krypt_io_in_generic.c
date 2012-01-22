@@ -77,7 +77,7 @@ int_io_read(krypt_instream *instream, unsigned char *buf, int len)
     }
     else {
 	int r;
-	r = RSTRING_LENINT(read);
+	r = (int)RSTRING_LEN(read);
 	memcpy(buf, RSTRING_PTR(read), r);
 	return r;
     }
