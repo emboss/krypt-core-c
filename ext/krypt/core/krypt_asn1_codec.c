@@ -11,7 +11,7 @@
 */
 
 #include "krypt-core.h"
-#include <math.h>
+#include <time.h>
 
 int
 krypt_asn1_encode_default(VALUE value, unsigned char **out)
@@ -43,6 +43,10 @@ static const size_t MAX_LONG_DIGITS = sizeof(long) * 2 * 1.21f + 1; /* times 2 -
 
 static int int_encode_object_id(unsigned char*, int, unsigned char **);
 static VALUE int_decode_object_id(unsigned char*, int);
+static VALUE int_parse_utc_time(unsigned char *bytes, int len);
+static VALUE int_parse_generalized_time(unsigned char *bytes, int len);
+static int int_encode_utc_time(VALUE, unsigned char **);
+static int int_encode_generalized_time(VALUE, unsigned char **);
 
 #define sanity_check(b, len)			\
 do {						\
@@ -221,43 +225,42 @@ int_asn1_decode_enumerated(unsigned char *bytes, int len)
 static int
 int_asn1_encode_utf8_string(VALUE value, unsigned char **out)
 {
-    rb_raise(rb_eNotImpError, "Not implemented yet");
-    return 0;
+    rb_enc_associate(value, rb_utf8_encoding());
+    return krypt_asn1_encode_default(value, out);
 }
 
 static VALUE
 int_asn1_decode_utf8_string(unsigned char *bytes, int len)
 {
-    rb_raise(rb_eNotImpError, "Not implemented yet");
-    return Qnil;
+    VALUE ret = krypt_asn1_decode_default(bytes, len);
+    rb_enc_associate(ret, rb_utf8_encoding());
+    return ret;
 }
 
 static int
 int_asn1_encode_utc_time(VALUE value, unsigned char **out)
 {
-    rb_raise(rb_eNotImpError, "Not implemented yet");
-    return 0;
+    return int_encode_utc_time(value, out);
 }
 
 static VALUE
 int_asn1_decode_utc_time(unsigned char *bytes, int len)
 {
-    rb_raise(rb_eNotImpError, "Not implemented yet");
-    return Qnil;
+    sanity_check(bytes, len);
+    return int_parse_utc_time(bytes, len);
 }
 
 static int
 int_asn1_encode_generalized_time(VALUE value, unsigned char **out)
 {
-    rb_raise(rb_eNotImpError, "Not implemented yet");
-    return 0;
+    return int_encode_generalized_time(value, out);
 }
 
 static VALUE
 int_asn1_decode_generalized_time(unsigned char *bytes, int len)
 {
-    rb_raise(rb_eNotImpError, "Not implemented yet");
-    return Qnil;
+    sanity_check(bytes, len);
+    return int_parse_generalized_time(bytes, len);
 }
 
 krypt_asn1_codec krypt_asn1_codecs[] = {
@@ -467,3 +470,135 @@ int_decode_object_id(unsigned char *bytes, int len)
     return ret;
 }
 
+#define int_as_time_t(t, time)				\
+do {							\
+    (t) = (time_t) NUM2LONG(rb_Integer((time)));	\
+} while (0)
+
+static int
+int_encode_utc_time(VALUE value, unsigned char **out)
+{
+    time_t time;
+    struct tm tm;
+    char *ret;
+    int r;
+
+    int_as_time_t(time, value);
+    if (!(gmtime_r(&time, &tm)))
+	rb_raise(rb_eNoMemError, NULL);
+
+    ret = (char *)xmalloc(20);
+    
+    r = snprintf(ret, 20, 
+	        "%02d%02d%02d%02d%02d%02dZ",
+	        tm.tm_year%100,
+	        tm.tm_mon+1,
+	        tm.tm_mday,
+	        tm.tm_hour,
+	        tm.tm_min,
+	        tm.tm_sec);
+
+    if (r > 20) {
+	xfree(ret);
+	rb_raise(eAsn1Error, "Error while encoding UTC time value");
+    }
+
+    *out = (unsigned char *) ret;
+    return 13;
+}
+
+static VALUE
+int_parse_utc_time(unsigned char *bytes, int len)
+{
+    VALUE argv[6];
+    struct tm tm = { 0 };
+
+    if (len != 13)
+	rb_raise(eAsn1Error, "Invalid UTC time format. Value must be 15 characters");
+
+    if (sscanf((const char *) bytes,
+		"%2d%2d%2d%2d%2d%2dZ",
+		&tm.tm_year,
+		&tm.tm_mon,
+    		&tm.tm_mday,
+		&tm.tm_hour,
+		&tm.tm_min,
+		&tm.tm_sec) != 6) {
+	    rb_raise(eAsn1Error, "Invalid UTC time format");
+    }
+    if (tm.tm_year < 69)
+	tm.tm_year += 2000;
+    else
+	tm.tm_year += 1900;
+
+    argv[0] = INT2NUM(tm.tm_year);
+    argv[1] = INT2NUM(tm.tm_mon);
+    argv[2] = INT2NUM(tm.tm_mday);
+    argv[3] = INT2NUM(tm.tm_hour);
+    argv[4] = INT2NUM(tm.tm_min);
+    argv[5] = INT2NUM(tm.tm_sec);
+
+    return rb_funcall2(rb_cTime, rb_intern("utc"), 6, argv);
+}
+
+static int
+int_encode_generalized_time(VALUE value, unsigned char **out)
+{
+    time_t time;
+    struct tm tm;
+    char *ret;
+    int r;
+
+    int_as_time_t(time, value);
+    gmtime_r(&time, &tm);
+    if (!(gmtime_r(&time, &tm)))
+	rb_raise(rb_eNoMemError, NULL);
+
+    ret = (char *)xmalloc(20);
+    
+    r = snprintf(ret, 20,
+		 "%04d%02d%02d%02d%02d%02dZ",
+		 tm.tm_year + 1900,
+		 tm.tm_mon+1,
+		 tm.tm_mday,
+		 tm.tm_hour,
+		 tm.tm_min,
+		 tm.tm_sec);
+    if (r  > 20) {
+	xfree(ret);
+	rb_raise(eAsn1Error, "Error while encoding generalized time value");
+    }
+
+    *out = (unsigned char *)ret;
+    return 15;
+}
+
+static VALUE
+int_parse_generalized_time(unsigned char *bytes, int len)
+{
+    VALUE argv[6];
+    struct tm tm = { 0 };
+
+    if (len != 15)
+	rb_raise(eAsn1Error, "Invalid generalized time format. Value must be 13 characters");
+
+    if (sscanf((const char *)bytes,
+		"%4d%2d%2d%2d%2d%2dZ",
+		&tm.tm_year,
+		&tm.tm_mon,
+    		&tm.tm_mday,
+		&tm.tm_hour,
+		&tm.tm_min,
+		&tm.tm_sec) != 6) {
+	rb_raise(eAsn1Error, "Invalid generalized time format" );
+    }
+
+    argv[0] = INT2NUM(tm.tm_year);
+    argv[1] = INT2NUM(tm.tm_mon);
+    argv[2] = INT2NUM(tm.tm_mday);
+    argv[3] = INT2NUM(tm.tm_hour);
+    argv[4] = INT2NUM(tm.tm_min);
+    argv[5] = INT2NUM(tm.tm_sec);
+
+    return rb_funcall2(rb_cTime, rb_intern("utc"), 6, argv);
+}
