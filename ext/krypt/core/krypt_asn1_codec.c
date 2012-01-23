@@ -36,12 +36,26 @@ krypt_asn1_decode_default(unsigned char *bytes, int len)
     return rb_str_new((const char *)bytes, len);
 }
 
+static long SUB_ID_LIMIT_ENCODE = LONG_MAX / 10;
+static long SUB_ID_LIMIT_PARSE = LONG_MAX >> 7;
+
+static int int_encode_object_id(unsigned char*, int, unsigned char **);
+static long int_parse_sub_id(unsigned char*, long, long *);
+static void int_set_first_sub_ids(long, long *, long *);
+
 #define sanity_check(b, len)			\
 do {						\
     if (!b || len < 0)				\
         rb_raise(eAsn1Error, "Invalid value"); 	\
 } while (0)
-	
+
+#define int_long_byte_len(ret, l)	\
+do {					\
+    (ret) = 1;				\
+    while ((l) >> (ret))		\
+        (ret)++;			\
+} while (0)
+
 static int
 int_asn1_encode_eoc(VALUE value, unsigned char **out)
 {
@@ -84,19 +98,15 @@ static int
 int_asn1_encode_integer(VALUE value, unsigned char **out)
 {
     long num;
-    int len, i;
+    int len;
     unsigned char *bytes;
 
     num = rb_big2long(value);
-    for (len = sizeof(long); i > 0; i--) {
-	if (num >> (len - 1)) 
-	    break;
-    }
+    int_long_byte_len(len, num);
 
     bytes = (unsigned char *)xmalloc(len);
-    for (i = 0; i < len; i++) {
-	bytes[i] = (num >> (len - 1)) & 0xff;
-    }
+    num <<= sizeof(long) - len;
+    memcpy(bytes, (unsigned char *) num, len);
     *out = bytes;
 
     return len;
@@ -180,15 +190,41 @@ int_asn1_decode_null(unsigned char *bytes, int len)
 static int
 int_asn1_encode_object_id(VALUE value, unsigned char **out)
 {
-    rb_raise(rb_eNotImpError, "Not implemented yet");
-    return 0;
+    unsigned char *str;
+
+    StringValue(value);
+    str = (unsigned char *)RSTRING_PTR(value);
+    return int_encode_object_id(str, (int)RSTRING_LEN(value), out);
 }
+
+#define int_append_num(str, l, dot, to_s)			\
+do {								\
+    VALUE n = LONG2NUM((l));					\
+    rb_str_append((str), (dot));				\
+    (str) = rb_str_append(str, rb_funcall(n, (to_s), 0));	\
+} while (0)
 
 static VALUE
 int_asn1_decode_object_id(unsigned char *bytes, int len)
 {
-    rb_raise(rb_eNotImpError, "Not implemented yet");
-    return Qnil;
+    long cur, first, second;
+    long offset = 0;
+    VALUE dot, ret;
+    ID to_s = rb_intern("to_s");
+
+    sanity_check(bytes, len);
+    
+    cur = int_parse_sub_id(bytes, len, &offset);
+    int_set_first_sub_ids(cur, &first, &second);
+    dot = rb_str_new2(".");
+    cur = LONG2NUM(first);
+    ret = rb_funcall(cur, to_s, 0);
+    int_append_num(ret, second, dot, to_s);
+
+    while ((cur = int_parse_sub_id(bytes, len, &offset)) != -1)
+	int_append_num(ret, cur, dot, to_s);
+
+    return ret;
 }
 
 static int
@@ -278,4 +314,136 @@ krypt_asn1_codec krypt_asn1_codecs[] = {
     { int_asn1_encode_octet_string,	int_asn1_decode_octet_string     },
     { int_asn1_encode_octet_string,	int_asn1_decode_octet_string     },
 };
+
+static long
+int_get_sub_id(unsigned char *str, int len, long *offset)
+{
+    unsigned char c;
+    long ret = 0;
+    long off = *offset;
+
+    if (off >= len) 
+	return -1;
+
+    c = str[off];
+    if (c == '.')
+	rb_raise(eAsn1Error, "Sub identifier cannot start with '.'");
+
+    while (c != '.' && off < len) {
+	if (c < '0' || c > '9')
+	    rb_raise(eAsn1Error, "Invalid character in object id: %x", c);
+	if (ret > SUB_ID_LIMIT_ENCODE)
+	    rb_raise(eAsn1Error, "Sub object identifier too large");
+	if (off + 1 == LONG_MAX)
+	    rb_raise(eAsn1Error, "Object id value too large");
+
+	ret *= 10;
+	ret += c - '0';
+	c = str[++off];
+    }
+
+    *offset = ++off; /* skip '.' */
+    return ret;
+}
+
+#define int_determine_num_shifts(i, value, by)		\
+do {							\
+    long tmp = (value);					\
+    for ((i) = 0; tmp > 0; (i)++) {			\
+	tmp >>= (by);					\
+    }							\
+} while (0)
+
+
+static void
+int_write_long(krypt_byte_buffer *buf, long cur)
+{
+    int num_shifts, i;
+    unsigned char b;
+    unsigned char *bytes;
+
+    if (cur == 0) {
+	b = 0x0;
+	krypt_buffer_write(buf, &b, 1);
+	return;
+    }
+
+    int_determine_num_shifts(num_shifts, cur, 7);
+    bytes = (unsigned char *)xmalloc(num_shifts);
+
+    for (i = num_shifts - 1; i >= 0; i--) {
+	b = cur & 0x7f;
+	if (i  < num_shifts - 1)
+	    b |= 0x80;
+	bytes[i] = b;
+	cur >>= 7;
+    }
+    krypt_buffer_write(buf, bytes, num_shifts);
+    xfree(bytes);
+} 
+
+static int
+int_encode_object_id(unsigned char *str, int len, unsigned char **out)
+{
+    long offset = 0;
+    long first, second, cur;
+    krypt_byte_buffer *buffer;
+    size_t size;
+
+    buffer = krypt_buffer_new();
+    if ((first = int_get_sub_id(str, len, &offset)) == -1)
+	rb_raise(eAsn1Error, "Error while parsing object identifier");
+    if ((second = int_get_sub_id(str, len, &offset)) == -1)
+	rb_raise(eAsn1Error, "Error while parsing object identifier");
+
+    cur = 40 * first + second;
+    int_write_long(buffer, cur);
+
+    while ((cur = int_get_sub_id(str, len, &offset)) != -1) {
+	int_write_long(buffer, cur);
+    }
+
+    size = krypt_buffer_get_size(buffer);
+    if (size > INT_MAX)
+	rb_raise(eAsn1Error, "Object identifier too large");
+    *out = krypt_buffer_get_data(buffer);
+    krypt_buffer_resize_free(buffer);
+    return (int)size;
+}
+
+static long
+int_parse_sub_id(unsigned char* bytes, long len, long *offset)
+{
+    long num = 0;
+    long off = *offset;
+
+    if (off >= len)
+	return -1;
+
+    while (bytes[off] & 0x80) {
+	if (num > SUB_ID_LIMIT_PARSE)
+	    rb_raise(eAsn1Error, "Sub identifier too large");
+	num <<= 7;
+	num |= bytes[off++] & 0x7f;
+	if (off >= len)
+	    rb_raise(eAsn1Error, "Invalid object identifier encoding");
+    }
+
+    num <<= 7;
+    num |= bytes[off++];
+    *offset = off;
+    return num;
+}
+
+static void
+int_set_first_sub_ids(long combined, long *first, long *second)
+{
+    long f = 1;
+
+    while (40 * f < combined)
+       f++;	
+
+    *first = f - 1;
+    *second = combined - 40 * (f - 1);
+}
 

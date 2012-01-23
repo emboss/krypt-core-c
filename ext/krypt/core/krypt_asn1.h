@@ -66,6 +66,14 @@ void Init_krypt_instream_adapter(void);
 
 VALUE krypt_instream_adapter_new(krypt_instream *in);
 
+#define krypt_determine_num_shifts(i, value, by)	\
+do {							\
+    int tmp = (value);					\
+    for ((i) = 0; tmp > 0; (i)++) {			\
+	tmp >>= (by);					\
+    }							\
+} while (0)
+
 int krypt_asn1_encode_default(VALUE value, unsigned char **out);
 VALUE krypt_asn1_decode_default(unsigned char *bytes, int len);
 

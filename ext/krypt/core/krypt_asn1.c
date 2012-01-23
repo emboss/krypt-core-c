@@ -225,7 +225,7 @@ krypt_asn1_data_alloc(VALUE klass)
 {
     VALUE obj;
 
-    obj = Data_Wrap_Struct(cAsn1Data, 0, int_asn1_data_free, 0);
+    obj = Data_Wrap_Struct(klass, 0, int_asn1_data_free, 0);
     return obj;
 }
 

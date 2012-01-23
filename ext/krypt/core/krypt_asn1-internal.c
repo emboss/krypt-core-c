@@ -14,6 +14,9 @@
 #include "krypt-core.h"
 #include "krypt_asn1-internal.h"
 
+static const int TAG_LIMIT = INT_MAX >> 7;
+static const int LENGTH_LIMIT = INT_MAX >> 8;
+
 #define int_next_byte(in, b)				  \
 do {							  \
     if (krypt_instream_read((in), &(b), 1) != 1)	  \
@@ -241,17 +244,13 @@ krypt_asn1_tag_class_for_int(int tag_class)
 int
 krypt_asn1_tag_class_for_id(ID tag_class)
 {
-    ID id;
-
-    id = SYM2ID(tag_class);
-
-    if (id == sTC_UNIVERSAL)
+    if (tag_class == sTC_UNIVERSAL)
 	return TAG_CLASS_UNIVERSAL;
-    else if (id == sTC_APPLICATION)
+    else if (tag_class == sTC_APPLICATION)
 	return TAG_CLASS_APPLICATION;
-    else if (id == sTC_CONTEXT_SPECIFIC)
+    else if (tag_class == sTC_CONTEXT_SPECIFIC)
 	return TAG_CLASS_CONTEXT_SPECIFIC;
-    else if (id == sTC_PRIVATE)
+    else if (tag_class == sTC_PRIVATE)
 	return TAG_CLASS_PRIVATE;
     
     rb_raise(eKryptError, "Unknown tag class");
@@ -393,11 +392,11 @@ int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *ou
     int_next_byte(in, b);
 
     while ((b & INFINITE_LENGTH_MASK) == INFINITE_LENGTH_MASK) {
+	if (tag > TAG_LIMIT)
+	    rb_raise(eParseError, "Complex tag too long");
 	int_buffer_add_byte(buffer, b, out);
 	tag <<= 7;
 	tag |= (b & 0x7f);
-	if (tag > INT_MAX || tag < 0)
-	    rb_raise(eParseError, "Complex tag too long");
 	int_next_byte(in, b);
     }
 
@@ -461,7 +460,7 @@ int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn
 	out->header_length++;
 	len <<= 8;
 	len |= b;
-	if (len > INT_MAX || len < 0)
+	if (len > LENGTH_LIMIT)
 	    rb_raise(eParseError, "Complex length too long");
 	out->length_bytes[offset++] = b;
     }
@@ -519,13 +518,14 @@ int_consume_stream(krypt_instream *in, unsigned char **out)
     return (int) size;
 }
 
-#define int_determine_num_shifts(i, value, by)	\
-do {						\
-    int tmp = (value);				\
-    for ((i) = 0; tmp > 0; (i)++) {		\
-	tmp >>= (by);				\
-    }						\
+#define int_determine_num_shifts(i, value, by)		\
+do {							\
+    int tmp = (value);					\
+    for ((i) = 0; tmp > 0; (i)++) {			\
+	tmp >>= (by);					\
+    }							\
 } while (0)
+
 
 static void
 int_compute_complex_tag(krypt_asn1_header *header)

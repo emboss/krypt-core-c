@@ -1,3 +1,6 @@
+=== 0.1.0 / 2012-01-23 [emboss]
+* Add codec for object identifier
+
 === 0.1.0 / 2012-01-22 [emboss]
 * Continued implementing Asn.1 codecs
 * Include ruby/io.h conditionally
