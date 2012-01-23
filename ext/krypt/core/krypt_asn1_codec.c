@@ -234,8 +234,10 @@ int_asn1_encode_utf8_string(VALUE value, unsigned char **out)
 static VALUE
 int_asn1_decode_utf8_string(unsigned char *bytes, int len)
 {
+    VALUE ret;
+
     sanity_check(bytes, len);
-    VALUE ret = krypt_asn1_decode_default(bytes, len);
+    ret = krypt_asn1_decode_default(bytes, len);
     rb_enc_associate(ret, rb_utf8_encoding());
     return ret;
 }
