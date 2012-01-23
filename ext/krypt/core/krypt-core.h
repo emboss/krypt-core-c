@@ -45,7 +45,7 @@ extern ID sID_EACH;
 VALUE krypt_to_der_if_possible(VALUE);
 VALUE krypt_to_der(VALUE);
 
-void Init_krypt_core(void);
+void Init_kryptcore(void);
 void Init_krypt_io(void);
 void InitVM_krypt_io(void);
 
