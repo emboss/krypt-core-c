@@ -2,6 +2,8 @@ require 'rake'
 require 'rake/extensiontask'
 require 'rspec/core/rake_task'
 
+KRYPT_HOME = '../krypt'
+
 $config_options = []
 
 task :default => :compile
@@ -18,7 +20,9 @@ Rake::ExtensionTask.new('kryptcore') do |ext|
   ext.config_options = $config_options
 end
 
-RSpec::Core::RakeTask.new(:spec)
+RSpec::Core::RakeTask.new(:spec) do |spec|
+  spec.pattern = File.join(KRYPT_HOME, 'spec/**/*_spec.rb')
+end
 
 task 'enable-coverage' do
   # ugly, but we cannot define 2 ExtensionTasks for the same ext.name.
