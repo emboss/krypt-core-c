@@ -11,6 +11,7 @@
 */
 
 #include "krypt-core.h"
+#include <time.h>
 
 int
 krypt_asn1_encode_default(VALUE value, unsigned char **out)
@@ -36,12 +37,16 @@ krypt_asn1_decode_default(unsigned char *bytes, int len)
     return rb_str_new((const char *)bytes, len);
 }
 
-static long SUB_ID_LIMIT_ENCODE = LONG_MAX / 10;
-static long SUB_ID_LIMIT_PARSE = LONG_MAX >> 7;
+static const long SUB_ID_LIMIT_ENCODE = LONG_MAX / 10;
+static const long SUB_ID_LIMIT_PARSE = LONG_MAX >> 7;
+static const size_t MAX_LONG_DIGITS = sizeof(long) * 2 * 1.21f + 1; /* times 2 -> hex representation, 1.21 ~ log10(16) */
 
 static int int_encode_object_id(unsigned char*, int, unsigned char **);
-static long int_parse_sub_id(unsigned char*, long, long *);
-static void int_set_first_sub_ids(long, long *, long *);
+static VALUE int_decode_object_id(unsigned char*, int);
+static VALUE int_parse_utc_time(unsigned char *bytes, int len);
+static VALUE int_parse_generalized_time(unsigned char *bytes, int len);
+static int int_encode_utc_time(VALUE, unsigned char **);
+static int int_encode_generalized_time(VALUE, unsigned char **);
 
 #define sanity_check(b, len)			\
 do {						\
@@ -171,6 +176,7 @@ int_asn1_encode_octet_string(VALUE value, unsigned char **out)
 static VALUE
 int_asn1_decode_octet_string(unsigned char *bytes, int len)
 {
+    sanity_check(bytes, len);
     return krypt_asn1_decode_default(bytes, len);
 }
 
@@ -184,6 +190,8 @@ int_asn1_encode_null(VALUE value, unsigned char **out)
 static VALUE
 int_asn1_decode_null(unsigned char *bytes, int len)
 {
+    if (len != 0)
+	rb_raise(eAsn1Error, "Invalid encoding for Null value");
     return Qnil;
 }
 
@@ -197,34 +205,11 @@ int_asn1_encode_object_id(VALUE value, unsigned char **out)
     return int_encode_object_id(str, (int)RSTRING_LEN(value), out);
 }
 
-#define int_append_num(str, l, dot, to_s)			\
-do {								\
-    VALUE n = LONG2NUM((l));					\
-    rb_str_append((str), (dot));				\
-    (str) = rb_str_append(str, rb_funcall(n, (to_s), 0));	\
-} while (0)
-
 static VALUE
 int_asn1_decode_object_id(unsigned char *bytes, int len)
 {
-    long cur, first, second;
-    long offset = 0;
-    VALUE dot, ret;
-    ID to_s = rb_intern("to_s");
-
     sanity_check(bytes, len);
-    
-    cur = int_parse_sub_id(bytes, len, &offset);
-    int_set_first_sub_ids(cur, &first, &second);
-    dot = rb_str_new2(".");
-    cur = LONG2NUM(first);
-    ret = rb_funcall(cur, to_s, 0);
-    int_append_num(ret, second, dot, to_s);
-
-    while ((cur = int_parse_sub_id(bytes, len, &offset)) != -1)
-	int_append_num(ret, cur, dot, to_s);
-
-    return ret;
+    return int_decode_object_id(bytes, len);
 }
 
 static int
@@ -242,43 +227,45 @@ int_asn1_decode_enumerated(unsigned char *bytes, int len)
 static int
 int_asn1_encode_utf8_string(VALUE value, unsigned char **out)
 {
-    rb_raise(rb_eNotImpError, "Not implemented yet");
-    return 0;
+    rb_enc_associate(value, rb_utf8_encoding());
+    return krypt_asn1_encode_default(value, out);
 }
 
 static VALUE
 int_asn1_decode_utf8_string(unsigned char *bytes, int len)
 {
-    rb_raise(rb_eNotImpError, "Not implemented yet");
-    return Qnil;
+    VALUE ret;
+
+    sanity_check(bytes, len);
+    ret = krypt_asn1_decode_default(bytes, len);
+    rb_enc_associate(ret, rb_utf8_encoding());
+    return ret;
 }
 
 static int
 int_asn1_encode_utc_time(VALUE value, unsigned char **out)
 {
-    rb_raise(rb_eNotImpError, "Not implemented yet");
-    return 0;
+    return int_encode_utc_time(value, out);
 }
 
 static VALUE
 int_asn1_decode_utc_time(unsigned char *bytes, int len)
 {
-    rb_raise(rb_eNotImpError, "Not implemented yet");
-    return Qnil;
+    sanity_check(bytes, len);
+    return int_parse_utc_time(bytes, len);
 }
 
 static int
 int_asn1_encode_generalized_time(VALUE value, unsigned char **out)
 {
-    rb_raise(rb_eNotImpError, "Not implemented yet");
-    return 0;
+    return int_encode_generalized_time(value, out);
 }
 
 static VALUE
 int_asn1_decode_generalized_time(unsigned char *bytes, int len)
 {
-    rb_raise(rb_eNotImpError, "Not implemented yet");
-    return Qnil;
+    sanity_check(bytes, len);
+    return int_parse_generalized_time(bytes, len);
 }
 
 krypt_asn1_codec krypt_asn1_codecs[] = {
@@ -445,5 +432,179 @@ int_set_first_sub_ids(long combined, long *first, long *second)
 
     *first = f - 1;
     *second = combined - 40 * (f - 1);
+}
+
+#define int_append_num(buf, cur, numbuf)			\
+do {								\
+    int nl;							\
+    unsigned char b = (unsigned char)'.';  			\
+    krypt_buffer_write((buf), &b, 1);				\
+    nl = sprintf((char *) (numbuf), "%ld", (cur));		\
+    krypt_buffer_write((buf), (numbuf), nl);			\
+} while (0)
+
+static VALUE
+int_decode_object_id(unsigned char *bytes, int len)
+{
+    long cur, first, second;
+    long offset = 0;
+    krypt_byte_buffer *buffer;
+    int numlen;
+    unsigned char numbuf[MAX_LONG_DIGITS];
+    unsigned char *retbytes;
+    size_t retlen;
+    VALUE ret;
+
+    sanity_check(bytes, len);
+    
+    buffer = krypt_buffer_new();
+    cur = int_parse_sub_id(bytes, len, &offset);
+    int_set_first_sub_ids(cur, &first, &second);
+    numlen = sprintf((char *)numbuf, "%ld", first);
+    krypt_buffer_write(buffer, numbuf, numlen);
+    int_append_num(buffer, second, numbuf);
+
+    while ((cur = int_parse_sub_id(bytes, len, &offset)) != -1)
+	int_append_num(buffer, cur, numbuf);
+
+    retbytes = krypt_buffer_get_data(buffer);
+    retlen = krypt_buffer_get_size(buffer);
+    krypt_buffer_resize_free(buffer);
+    ret = rb_str_new((const char *)retbytes, retlen);
+    xfree(retbytes);
+    return ret;
+}
+
+#define int_as_time_t(t, time)				\
+do {							\
+    (t) = (time_t) NUM2LONG(rb_Integer((time)));	\
+} while (0)
+
+static int
+int_encode_utc_time(VALUE value, unsigned char **out)
+{
+    time_t time;
+    struct tm tm;
+    char *ret;
+    int r;
+
+    int_as_time_t(time, value);
+    if (!(gmtime_r(&time, &tm)))
+	rb_raise(rb_eNoMemError, NULL);
+
+    ret = (char *)xmalloc(20);
+    
+    r = snprintf(ret, 20, 
+	        "%02d%02d%02d%02d%02d%02dZ",
+	        tm.tm_year%100,
+	        tm.tm_mon+1,
+	        tm.tm_mday,
+	        tm.tm_hour,
+	        tm.tm_min,
+	        tm.tm_sec);
+
+    if (r > 20) {
+	xfree(ret);
+	rb_raise(eAsn1Error, "Error while encoding UTC time value");
+    }
+
+    *out = (unsigned char *) ret;
+    return 13;
+}
+
+static VALUE
+int_parse_utc_time(unsigned char *bytes, int len)
+{
+    VALUE argv[6];
+    struct tm tm = { 0 };
+
+    if (len != 13)
+	rb_raise(eAsn1Error, "Invalid UTC time format. Value must be 15 characters");
+
+    if (sscanf((const char *) bytes,
+		"%2d%2d%2d%2d%2d%2dZ",
+		&tm.tm_year,
+		&tm.tm_mon,
+    		&tm.tm_mday,
+		&tm.tm_hour,
+		&tm.tm_min,
+		&tm.tm_sec) != 6) {
+	    rb_raise(eAsn1Error, "Invalid UTC time format");
+    }
+    if (tm.tm_year < 69)
+	tm.tm_year += 2000;
+    else
+	tm.tm_year += 1900;
+
+    argv[0] = INT2NUM(tm.tm_year);
+    argv[1] = INT2NUM(tm.tm_mon);
+    argv[2] = INT2NUM(tm.tm_mday);
+    argv[3] = INT2NUM(tm.tm_hour);
+    argv[4] = INT2NUM(tm.tm_min);
+    argv[5] = INT2NUM(tm.tm_sec);
+
+    return rb_funcall2(rb_cTime, rb_intern("utc"), 6, argv);
+}
+
+static int
+int_encode_generalized_time(VALUE value, unsigned char **out)
+{
+    time_t time;
+    struct tm tm;
+    char *ret;
+    int r;
+
+    int_as_time_t(time, value);
+    gmtime_r(&time, &tm);
+    if (!(gmtime_r(&time, &tm)))
+	rb_raise(rb_eNoMemError, NULL);
+
+    ret = (char *)xmalloc(20);
+    
+    r = snprintf(ret, 20,
+		 "%04d%02d%02d%02d%02d%02dZ",
+		 tm.tm_year + 1900,
+		 tm.tm_mon+1,
+		 tm.tm_mday,
+		 tm.tm_hour,
+		 tm.tm_min,
+		 tm.tm_sec);
+    if (r  > 20) {
+	xfree(ret);
+	rb_raise(eAsn1Error, "Error while encoding generalized time value");
+    }
+
+    *out = (unsigned char *)ret;
+    return 15;
+}
+
+static VALUE
+int_parse_generalized_time(unsigned char *bytes, int len)
+{
+    VALUE argv[6];
+    struct tm tm = { 0 };
+
+    if (len != 15)
+	rb_raise(eAsn1Error, "Invalid generalized time format. Value must be 13 characters");
+
+    if (sscanf((const char *)bytes,
+		"%4d%2d%2d%2d%2d%2dZ",
+		&tm.tm_year,
+		&tm.tm_mon,
+    		&tm.tm_mday,
+		&tm.tm_hour,
+		&tm.tm_min,
+		&tm.tm_sec) != 6) {
+	rb_raise(eAsn1Error, "Invalid generalized time format" );
+    }
+
+    argv[0] = INT2NUM(tm.tm_year);
+    argv[1] = INT2NUM(tm.tm_mon);
+    argv[2] = INT2NUM(tm.tm_mday);
+    argv[3] = INT2NUM(tm.tm_hour);
+    argv[4] = INT2NUM(tm.tm_min);
+    argv[5] = INT2NUM(tm.tm_sec);
+
+    return rb_funcall2(rb_cTime, rb_intern("utc"), 6, argv);
 }
 
