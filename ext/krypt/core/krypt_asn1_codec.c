@@ -11,6 +11,7 @@
 */
 
 #include "krypt-core.h"
+#include <math.h>
 
 int
 krypt_asn1_encode_default(VALUE value, unsigned char **out)
@@ -36,12 +37,12 @@ krypt_asn1_decode_default(unsigned char *bytes, int len)
     return rb_str_new((const char *)bytes, len);
 }
 
-static long SUB_ID_LIMIT_ENCODE = LONG_MAX / 10;
-static long SUB_ID_LIMIT_PARSE = LONG_MAX >> 7;
+static const long SUB_ID_LIMIT_ENCODE = LONG_MAX / 10;
+static const long SUB_ID_LIMIT_PARSE = LONG_MAX >> 7;
+static const size_t MAX_LONG_DIGITS = sizeof(long) * 2 * 1.21f + 1; /* times 2 -> hex representation, 1.21 ~ log10(16) */
 
 static int int_encode_object_id(unsigned char*, int, unsigned char **);
-static long int_parse_sub_id(unsigned char*, long, long *);
-static void int_set_first_sub_ids(long, long *, long *);
+static VALUE int_decode_object_id(unsigned char*, int);
 
 #define sanity_check(b, len)			\
 do {						\
@@ -197,34 +198,12 @@ int_asn1_encode_object_id(VALUE value, unsigned char **out)
     return int_encode_object_id(str, (int)RSTRING_LEN(value), out);
 }
 
-#define int_append_num(str, l, dot, to_s)			\
-do {								\
-    VALUE n = LONG2NUM((l));					\
-    rb_str_append((str), (dot));				\
-    (str) = rb_str_append(str, rb_funcall(n, (to_s), 0));	\
-} while (0)
-
 static VALUE
 int_asn1_decode_object_id(unsigned char *bytes, int len)
 {
-    long cur, first, second;
-    long offset = 0;
-    VALUE dot, ret;
-    ID to_s = rb_intern("to_s");
-
     sanity_check(bytes, len);
-    
-    cur = int_parse_sub_id(bytes, len, &offset);
-    int_set_first_sub_ids(cur, &first, &second);
-    dot = rb_str_new2(".");
-    cur = LONG2NUM(first);
-    ret = rb_funcall(cur, to_s, 0);
-    int_append_num(ret, second, dot, to_s);
 
-    while ((cur = int_parse_sub_id(bytes, len, &offset)) != -1)
-	int_append_num(ret, cur, dot, to_s);
-
-    return ret;
+    return int_decode_object_id(bytes, len);
 }
 
 static int
@@ -445,5 +424,46 @@ int_set_first_sub_ids(long combined, long *first, long *second)
 
     *first = f - 1;
     *second = combined - 40 * (f - 1);
+}
+
+#define int_append_num(buf, cur, numbuf)			\
+do {								\
+    int nl;							\
+    unsigned char b = (unsigned char)'.';  			\
+    krypt_buffer_write((buf), &b, 1);				\
+    nl = sprintf((char *) (numbuf), "%ld", (cur));		\
+    krypt_buffer_write((buf), (numbuf), nl);			\
+} while (0)
+
+static VALUE
+int_decode_object_id(unsigned char *bytes, int len)
+{
+    long cur, first, second;
+    long offset = 0;
+    krypt_byte_buffer *buffer;
+    int numlen;
+    unsigned char numbuf[MAX_LONG_DIGITS];
+    unsigned char *retbytes;
+    size_t retlen;
+    VALUE ret;
+
+    sanity_check(bytes, len);
+    
+    buffer = krypt_buffer_new();
+    cur = int_parse_sub_id(bytes, len, &offset);
+    int_set_first_sub_ids(cur, &first, &second);
+    numlen = sprintf((char *)numbuf, "%ld", first);
+    krypt_buffer_write(buffer, numbuf, numlen);
+    int_append_num(buffer, second, numbuf);
+
+    while ((cur = int_parse_sub_id(bytes, len, &offset)) != -1)
+	int_append_num(buffer, cur, numbuf);
+
+    retbytes = krypt_buffer_get_data(buffer);
+    retlen = krypt_buffer_get_size(buffer);
+    krypt_buffer_resize_free(buffer);
+    ret = rb_str_new((const char *)retbytes, retlen);
+    xfree(retbytes);
+    return ret;
 }
 
