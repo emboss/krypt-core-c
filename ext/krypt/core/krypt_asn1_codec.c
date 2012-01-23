@@ -176,6 +176,7 @@ int_asn1_encode_octet_string(VALUE value, unsigned char **out)
 static VALUE
 int_asn1_decode_octet_string(unsigned char *bytes, int len)
 {
+    sanity_check(bytes, len);
     return krypt_asn1_decode_default(bytes, len);
 }
 
@@ -189,6 +190,8 @@ int_asn1_encode_null(VALUE value, unsigned char **out)
 static VALUE
 int_asn1_decode_null(unsigned char *bytes, int len)
 {
+    if (len != 0)
+	rb_raise(eAsn1Error, "Invalid encoding for Null value");
     return Qnil;
 }
 
@@ -206,7 +209,6 @@ static VALUE
 int_asn1_decode_object_id(unsigned char *bytes, int len)
 {
     sanity_check(bytes, len);
-
     return int_decode_object_id(bytes, len);
 }
 
@@ -232,6 +234,7 @@ int_asn1_encode_utf8_string(VALUE value, unsigned char **out)
 static VALUE
 int_asn1_decode_utf8_string(unsigned char *bytes, int len)
 {
+    sanity_check(bytes, len);
     VALUE ret = krypt_asn1_decode_default(bytes, len);
     rb_enc_associate(ret, rb_utf8_encoding());
     return ret;
@@ -602,3 +605,4 @@ int_parse_generalized_time(unsigned char *bytes, int len)
 
     return rb_funcall2(rb_cTime, rb_intern("utc"), 6, argv);
 }
+
