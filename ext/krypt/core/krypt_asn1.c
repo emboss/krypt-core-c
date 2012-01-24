@@ -13,30 +13,30 @@
 #include "krypt-core.h"
 #include "krypt_asn1-internal.h"
 
-VALUE mAsn1;
-VALUE eAsn1Error, eParseError, eSerializeError;
+VALUE mKryptASN1;
+VALUE eKryptASN1Error, eKryptParseError, eKryptSerializeError;
 
-VALUE cAsn1Data;
-VALUE cAsn1Primitive;
-VALUE cAsn1Constructive;
+VALUE cKryptASN1Data;
+VALUE cKryptASN1Primitive;
+VALUE cKryptASN1Constructive;
 
 /* PRIMITIVE */
-VALUE cAsn1EndOfContents;
-VALUE cAsn1Boolean;                           /* BOOLEAN           */
-VALUE cAsn1Integer, cAsn1Enumerated;          /* INTEGER           */
-VALUE cAsn1BitString;                         /* BIT STRING        */
-VALUE cAsn1OctetString, cAsn1Utf8String;      /* STRINGs           */
-VALUE cAsn1NumericString, cAsn1PrintableString;
-VALUE cAsn1T61String, cAsn1VideotexString;
-VALUE cAsn1Ia5String, cAsn1GraphicString;
-VALUE cAsn1Iso64String, cAsn1GeneralString;
-VALUE cAsn1UniversalString, cAsn1BmpString;
-VALUE cAsn1Null;                              /* NULL              */
-VALUE cAsn1ObjectId;                          /* OBJECT IDENTIFIER */
-VALUE cAsn1UtcTime, cAsn1GeneralizedTime;     /* TIME              */
+VALUE cKryptASN1EndOfContents;
+VALUE cKryptASN1Boolean;                           /* BOOLEAN           */
+VALUE cKryptASN1Integer, cKryptASN1Enumerated;          /* INTEGER           */
+VALUE cKryptASN1BitString;                         /* BIT STRING        */
+VALUE cKryptASN1OctetString, cKryptASN1UTF8String;      /* STRINGs           */
+VALUE cKryptASN1NumericString, cKryptASN1PrintableString;
+VALUE cKryptASN1T61String, cKryptASN1VideotexString;
+VALUE cKryptASN1IA5String, cKryptASN1GraphicString;
+VALUE cKryptASN1ISO64String, cKryptASN1GeneralString;
+VALUE cKryptASN1UniversalString, cKryptASN1BMPString;
+VALUE cKryptASN1Null;                              /* NULL              */
+VALUE cKryptASN1ObjectId;                          /* OBJECT IDENTIFIER */
+VALUE cKryptASN1UTCTime, cKryptASN1GeneralizedTime;     /* TIME              */
 
 /* CONSTRUCTIVE */
-VALUE cAsn1Sequence, cAsn1Set;
+VALUE cKryptASN1Sequence, cKryptASN1Set;
 
 ID sTC_UNIVERSAL, sTC_APPLICATION, sTC_CONTEXT_SPECIFIC, sTC_PRIVATE;
 
@@ -48,37 +48,37 @@ typedef struct krypt_asn1_info_st {
 } krypt_asn1_info;
 
 static krypt_asn1_info krypt_asn1_infos[] = {
-    { "END_OF_CONTENTS",   &cAsn1EndOfContents,	  },  /*  0 */
-    { "BOOLEAN",           &cAsn1Boolean,         },  /*  1 */
-    { "INTEGER",           &cAsn1Integer,         },  /*  2 */
-    { "BIT_STRING",        &cAsn1BitString,	  },  /*  3 */
-    { "OCTET_STRING",      &cAsn1OctetString,  	  },  /*  4 */
-    { "NULL",              &cAsn1Null,         	  },  /*  5 */
-    { "OBJECT_ID",         &cAsn1ObjectId,     	  },  /*  6 */
+    { "END_OF_CONTENTS",   &cKryptASN1EndOfContents,	  },  /*  0 */
+    { "BOOLEAN",           &cKryptASN1Boolean,         },  /*  1 */
+    { "INTEGER",           &cKryptASN1Integer,         },  /*  2 */
+    { "BIT_STRING",        &cKryptASN1BitString,	  },  /*  3 */
+    { "OCTET_STRING",      &cKryptASN1OctetString,  	  },  /*  4 */
+    { "NULL",              &cKryptASN1Null,         	  },  /*  5 */
+    { "OBJECT_ID",         &cKryptASN1ObjectId,     	  },  /*  6 */
     { "OBJECT_DESCRIPTOR", NULL,                  },  /*  7 */
     { "EXTERNAL",          NULL,                  },  /*  8 */
     { "REAL",              NULL,                  },  /*  9 */
-    { "ENUMERATED",        &cAsn1Enumerated,   	  },  /* 10 */
+    { "ENUMERATED",        &cKryptASN1Enumerated,   	  },  /* 10 */
     { "EMBEDDED_PDV",      NULL,                  },  /* 11 */
-    { "UTF8_STRING",       &cAsn1Utf8String,   	  },  /* 12 */
+    { "UTF8_STRING",       &cKryptASN1UTF8String,   	  },  /* 12 */
     { "RELATIVE_OID",      NULL,                  },  /* 13 */
     { "[UNIVERSAL 14]",    NULL,                  },  /* 14 */
     { "[UNIVERSAL 15]",    NULL,                  },  /* 15 */
-    { "SEQUENCE",          &cAsn1Sequence,     	  },  /* 16 */
-    { "SET",               &cAsn1Set,          	  },  /* 17 */
-    { "NUMERIC_STRING",    &cAsn1NumericString,	  },  /* 18 */
-    { "PRINTABLE_STRING",  &cAsn1PrintableString, },  /* 19 */
-    { "T61_STRING",        &cAsn1T61String,       },  /* 20 */
-    { "VIDEOTEX_STRING",   &cAsn1VideotexString,  },  /* 21 */
-    { "IA5_STRING",        &cAsn1Ia5String,       },  /* 22 */
-    { "UTC_TIME",          &cAsn1UtcTime,         },  /* 23 */
-    { "GENERALIZED_TIME",  &cAsn1GeneralizedTime, },  /* 24 */
-    { "GRAPHIC_STRING",    &cAsn1GraphicString,   },  /* 25 */
-    { "ISO64_STRING",      &cAsn1Iso64String,     },  /* 26 */
-    { "GENERAL_STRING",    &cAsn1GeneralString,   },  /* 27 */
-    { "UNIVERSAL_STRING",  &cAsn1UniversalString, },  /* 28 */
+    { "SEQUENCE",          &cKryptASN1Sequence,     	  },  /* 16 */
+    { "SET",               &cKryptASN1Set,          	  },  /* 17 */
+    { "NUMERIC_STRING",    &cKryptASN1NumericString,	  },  /* 18 */
+    { "PRINTABLE_STRING",  &cKryptASN1PrintableString, },  /* 19 */
+    { "T61_STRING",        &cKryptASN1T61String,       },  /* 20 */
+    { "VIDEOTEX_STRING",   &cKryptASN1VideotexString,  },  /* 21 */
+    { "IA5_STRING",        &cKryptASN1IA5String,       },  /* 22 */
+    { "UTC_TIME",          &cKryptASN1UTCTime,         },  /* 23 */
+    { "GENERALIZED_TIME",  &cKryptASN1GeneralizedTime, },  /* 24 */
+    { "GRAPHIC_STRING",    &cKryptASN1GraphicString,   },  /* 25 */
+    { "ISO64_STRING",      &cKryptASN1ISO64String,     },  /* 26 */
+    { "GENERAL_STRING",    &cKryptASN1GeneralString,   },  /* 27 */
+    { "UNIVERSAL_STRING",  &cKryptASN1UniversalString, },  /* 28 */
     { "CHARACTER_STRING",  NULL,                  },  /* 29 */
-    { "BMP_STRING",        &cAsn1BmpString,       },  /* 30 */
+    { "BMP_STRING",        &cKryptASN1BMPString,       },  /* 30 */
 };
 
 static int krypt_asn1_infos_size = (sizeof(krypt_asn1_infos)/sizeof(krypt_asn1_infos[0]));
@@ -188,9 +188,9 @@ krypt_asn1_data_new(krypt_instream *in, krypt_asn1_header *header)
 
     if (header->tag_class == TAG_CLASS_UNIVERSAL) {
 	if (header->tag > 30)
-	   rb_raise(eParseError, "Universal tag too large: %d", header->tag);
+	   rb_raise(eKryptParseError, "Universal tag too large: %d", header->tag);
 	if (header->is_constructed) {
-	    klass = cAsn1Constructive;
+	    klass = cKryptASN1Constructive;
 	    data->decode_cb = int_asn1_cons_value_decode;
 	    data->encode_cb = int_asn1_cons_encode_to;
 	}
@@ -201,7 +201,7 @@ krypt_asn1_data_new(krypt_instream *in, krypt_asn1_header *header)
 	}
     }
     else {
-	klass = cAsn1Data;
+	klass = cKryptASN1Data;
 	data->decode_cb = int_asn1_data_value_decode;
     }
 
@@ -214,7 +214,7 @@ krypt_asn1_data_new(krypt_instream *in, krypt_asn1_header *header)
     return obj;
 }
 
-/* Initializer section for Asn1Data created from scratch */
+/* Initializer section for ASN1Data created from scratch */
 
 /* Note: We do not need to set krypt_asn1_data.decode_cb for
  * these objects.
@@ -243,7 +243,7 @@ int_asn1_data_initialize(VALUE self,
     krypt_asn1_header *header;
 
     if (DATA_PTR(self))
-	rb_raise(eAsn1Error, "Asn1Data already initialized");
+	rb_raise(eKryptASN1Error, "ASN1Data already initialized");
     header = krypt_asn1_header_new();
     header->tag = tag;
     header->tag_class = tag_class;
@@ -265,11 +265,11 @@ krypt_asn1_data_initialize(VALUE self, VALUE value, VALUE vtag, VALUE vtag_class
     int tag, tag_class, is_constructed;
 
     if (!SYMBOL_P(vtag_class))
-	rb_raise(eAsn1Error, "tag_class must be a Symbol");
+	rb_raise(eKryptASN1Error, "tag_class must be a Symbol");
     tag = NUM2INT(vtag);
     stag_class = SYM2ID(vtag_class);
     if (stag_class == sTC_UNIVERSAL && tag > 30)
-	rb_raise(eAsn1Error, "Tag too large for UNIVERSAL tag class");
+	rb_raise(eKryptASN1Error, "Tag too large for UNIVERSAL tag class");
     tag_class = krypt_asn1_tag_class_for_id(stag_class);
     is_constructed = rb_respond_to(value, sID_EACH) == Qtrue;
     
@@ -296,11 +296,11 @@ int_asn1_default_initialize(VALUE self,
     int tag, tag_class;
 
     if (!SYMBOL_P(vtag_class))
-	rb_raise(eAsn1Error, "tag_class must be a Symbol");
+	rb_raise(eKryptASN1Error, "tag_class must be a Symbol");
     tag = NUM2INT(vtag);
     stag_class = SYM2ID(vtag_class);
     if (stag_class == sTC_UNIVERSAL && tag > 30)
-	rb_raise(eAsn1Error, "Tag too large for UNIVERSAL tag class");
+	rb_raise(eKryptASN1Error, "Tag too large for UNIVERSAL tag class");
     tag_class = krypt_asn1_tag_class_for_id(stag_class);
     
     int_asn1_data_initialize(self,
@@ -402,9 +402,9 @@ KRYPT_ASN1_DEFINE_CTOR(generalized_time, TAGS_GENERALIZED_TIME,  0, int_asn1_pri
 KRYPT_ASN1_DEFINE_CTOR(sequence, 	 TAGS_SEQUENCE, 	 1, int_asn1_cons_encode_to)
 KRYPT_ASN1_DEFINE_CTOR(set, 		 TAGS_SET, 		 1, int_asn1_cons_encode_to)
 
-/* End initializer section for Asn1Data created from scratch */
+/* End initializer section for ASN1Data created from scratch */
 
-/* Asn1Data methods */
+/* ASN1Data methods */
 
 #define int_invalidate_tag(h)				\
 do {							\
@@ -529,6 +529,7 @@ static VALUE
 krypt_asn1_data_get_value(VALUE self)
 {
     VALUE value;
+
     value = int_asn1_data_get_value(self);
     /* TODO: sync */
     if (NIL_P(value)) {
@@ -622,9 +623,9 @@ krypt_asn1_data_to_der(VALUE self)
     return ret;
 }
 
-/* End Asn1Data methods */
+/* End ASN1Data methods */
 
-/* Asn1Constructive methods */
+/* ASN1Constructive methods */
 
 static VALUE
 krypt_asn1_cons_each(VALUE self)
@@ -681,9 +682,9 @@ int_asn1_cons_encode_to(krypt_outstream *out, VALUE ary, krypt_asn1_data *data)
     }
 }
 
-/* End Asn1Constructive methods */
+/* End ASN1Constructive methods */
 
-/* Asn1Primitive methods */
+/* ASN1Primitive methods */
 
 static VALUE
 int_asn1_prim_value_decode(krypt_asn1_data *data)
@@ -717,7 +718,7 @@ int_asn1_prim_encode_to(krypt_outstream *out, VALUE value, krypt_asn1_data *data
     krypt_asn1_object_encode(out, object);
 }
 
-/* End Asn1Primitive methods */
+/* End ASN1Primitive methods */
 
 static VALUE
 krypt_asn1_decode(VALUE self, VALUE obj)
@@ -727,7 +728,7 @@ krypt_asn1_decode(VALUE self, VALUE obj)
     
     in = krypt_instream_new_value(obj);
     if (krypt_asn1_next_header(in, &header) == 0)
-	rb_raise(eParseError, "Premature EOF detected");
+	rb_raise(eKryptParseError, "Premature EOF detected");
 
     return krypt_asn1_data_new(in, header);
 }
@@ -749,48 +750,48 @@ Init_krypt_asn1(void)
     sIV_VALUE = rb_intern("@value");
     sIV_UNUSED_BITS = rb_intern("@unused_bits");
 
-    mAsn1 = rb_define_module_under(mKrypt, "Asn1");
+    mKryptASN1 = rb_define_module_under(mKrypt, "ASN1");
 
-    eAsn1Error = rb_define_class_under(mAsn1, "Asn1Error", eKryptError);
-    eParseError = rb_define_class_under(mAsn1, "ParseError", eAsn1Error);
-    eSerializeError = rb_define_class_under(mAsn1, "SerializeError", eAsn1Error);
+    eKryptASN1Error = rb_define_class_under(mKryptASN1, "ASN1Error", eKryptError);
+    eKryptParseError = rb_define_class_under(mKryptASN1, "ParseError", eKryptASN1Error);
+    eKryptSerializeError = rb_define_class_under(mKryptASN1, "SerializeError", eKryptASN1Error);
 
     ary = rb_ary_new();
-    rb_define_const(mAsn1, "UNIVERSAL_TAG_NAME", ary);
+    rb_define_const(mKryptASN1, "UNIVERSAL_TAG_NAME", ary);
     for(i = 0; i < krypt_asn1_infos_size; i++){
 	if(krypt_asn1_infos[i].name[0] == '[') continue;
-	rb_define_const(mAsn1, krypt_asn1_infos[i].name, INT2NUM(i));
+	rb_define_const(mKryptASN1, krypt_asn1_infos[i].name, INT2NUM(i));
 	rb_ary_store(ary, i, rb_str_new2(krypt_asn1_infos[i].name));
     }
 
-    rb_define_module_function(mAsn1, "decode", krypt_asn1_decode, 1);
+    rb_define_module_function(mKryptASN1, "decode", krypt_asn1_decode, 1);
 
-    cAsn1Data = rb_define_class_under(mAsn1, "Asn1Data", rb_cObject);
-    rb_define_alloc_func(cAsn1Data, krypt_asn1_data_alloc);
-    rb_define_method(cAsn1Data, "initialize", krypt_asn1_data_initialize, -1);
-    rb_define_method(cAsn1Data, "tag", krypt_asn1_data_get_tag, 0);
-    rb_define_method(cAsn1Data, "tag=", krypt_asn1_data_set_tag, 1);
-    rb_define_method(cAsn1Data, "tag_class", krypt_asn1_data_get_tag_class, 0);
-    rb_define_method(cAsn1Data, "tag_class=", krypt_asn1_data_set_tag_class, 1);
-    rb_define_method(cAsn1Data, "infinite_length", krypt_asn1_data_get_inf_length, 0);
-    rb_define_method(cAsn1Data, "infinite_length=", krypt_asn1_data_set_inf_length, 1);
-    rb_define_method(cAsn1Data, "value", krypt_asn1_data_get_value, 0);
-    rb_define_method(cAsn1Data, "value=", krypt_asn1_data_set_value, 1);
-    rb_define_method(cAsn1Data, "to_der", krypt_asn1_data_to_der, 0);
-    rb_define_method(cAsn1Data, "encode_to", krypt_asn1_data_encode_to, 1);
+    cKryptASN1Data = rb_define_class_under(mKryptASN1, "ASN1Data", rb_cObject);
+    rb_define_alloc_func(cKryptASN1Data, krypt_asn1_data_alloc);
+    rb_define_method(cKryptASN1Data, "initialize", krypt_asn1_data_initialize, -1);
+    rb_define_method(cKryptASN1Data, "tag", krypt_asn1_data_get_tag, 0);
+    rb_define_method(cKryptASN1Data, "tag=", krypt_asn1_data_set_tag, 1);
+    rb_define_method(cKryptASN1Data, "tag_class", krypt_asn1_data_get_tag_class, 0);
+    rb_define_method(cKryptASN1Data, "tag_class=", krypt_asn1_data_set_tag_class, 1);
+    rb_define_method(cKryptASN1Data, "infinite_length", krypt_asn1_data_get_inf_length, 0);
+    rb_define_method(cKryptASN1Data, "infinite_length=", krypt_asn1_data_set_inf_length, 1);
+    rb_define_method(cKryptASN1Data, "value", krypt_asn1_data_get_value, 0);
+    rb_define_method(cKryptASN1Data, "value=", krypt_asn1_data_set_value, 1);
+    rb_define_method(cKryptASN1Data, "to_der", krypt_asn1_data_to_der, 0);
+    rb_define_method(cKryptASN1Data, "encode_to", krypt_asn1_data_encode_to, 1);
 
-    cAsn1Primitive = rb_define_class_under(mAsn1, "Primitive", cAsn1Data);
-    rb_define_method(cAsn1Primitive, "initialize", krypt_asn1_data_initialize, -1);
-    rb_undef_method(cAsn1Primitive, "infinite_length=");
+    cKryptASN1Primitive = rb_define_class_under(mKryptASN1, "Primitive", cKryptASN1Data);
+    rb_define_method(cKryptASN1Primitive, "initialize", krypt_asn1_data_initialize, -1);
+    rb_undef_method(cKryptASN1Primitive, "infinite_length=");
 
-    cAsn1Constructive = rb_define_class_under(mAsn1, "Constructive", cAsn1Data);
-    rb_include_module(cAsn1Constructive, rb_mEnumerable);
-    rb_define_method(cAsn1Constructive, "initialize", krypt_asn1_data_initialize, -1);
-    rb_define_method(cAsn1Constructive, "each", krypt_asn1_cons_each, 0);
+    cKryptASN1Constructive = rb_define_class_under(mKryptASN1, "Constructive", cKryptASN1Data);
+    rb_include_module(cKryptASN1Constructive, rb_mEnumerable);
+    rb_define_method(cKryptASN1Constructive, "initialize", krypt_asn1_data_initialize, -1);
+    rb_define_method(cKryptASN1Constructive, "each", krypt_asn1_cons_each, 0);
 
 #define KRYPT_ASN1_DEFINE_CLASS(name, super, init)					\
-    cAsn1##name = rb_define_class_under(mAsn1, #name, cAsn1##super);			\
-    rb_define_method(cAsn1##name, "initialize", krypt_asn1_##init##_initialize, -1);
+    cKryptASN1##name = rb_define_class_under(mKryptASN1, #name, cKryptASN1##super);			\
+    rb_define_method(cKryptASN1##name, "initialize", krypt_asn1_##init##_initialize, -1);
 
     KRYPT_ASN1_DEFINE_CLASS(EndOfContents,   Primitive, end_of_contents)
     KRYPT_ASN1_DEFINE_CLASS(Boolean,	     Primitive, boolean)
@@ -798,20 +799,20 @@ Init_krypt_asn1(void)
     KRYPT_ASN1_DEFINE_CLASS(Enumerated,	     Primitive, enumerated)
     KRYPT_ASN1_DEFINE_CLASS(BitString, 	     Primitive, bit_string)
     KRYPT_ASN1_DEFINE_CLASS(OctetString,     Primitive, octet_string)
-    KRYPT_ASN1_DEFINE_CLASS(Utf8String,      Primitive, utf8_string)
+    KRYPT_ASN1_DEFINE_CLASS(UTF8String,      Primitive, utf8_string)
     KRYPT_ASN1_DEFINE_CLASS(NumericString,   Primitive, numeric_string)
     KRYPT_ASN1_DEFINE_CLASS(PrintableString, Primitive, printable_string)
     KRYPT_ASN1_DEFINE_CLASS(T61String, 	     Primitive, t61_string)
     KRYPT_ASN1_DEFINE_CLASS(VideotexString,  Primitive, videotex_string)
-    KRYPT_ASN1_DEFINE_CLASS(Ia5String,       Primitive, ia5_string)
+    KRYPT_ASN1_DEFINE_CLASS(IA5String,       Primitive, ia5_string)
     KRYPT_ASN1_DEFINE_CLASS(GraphicString,   Primitive, graphic_string)
-    KRYPT_ASN1_DEFINE_CLASS(Iso64String,     Primitive, iso64_string)
+    KRYPT_ASN1_DEFINE_CLASS(ISO64String,     Primitive, iso64_string)
     KRYPT_ASN1_DEFINE_CLASS(GeneralString,   Primitive, general_string)
     KRYPT_ASN1_DEFINE_CLASS(UniversalString, Primitive, universal_string)
-    KRYPT_ASN1_DEFINE_CLASS(BmpString,       Primitive, bmp_string)
+    KRYPT_ASN1_DEFINE_CLASS(BMPString,       Primitive, bmp_string)
     KRYPT_ASN1_DEFINE_CLASS(Null, 	     Primitive, null)
     KRYPT_ASN1_DEFINE_CLASS(ObjectId, 	     Primitive, object_id)
-    KRYPT_ASN1_DEFINE_CLASS(UtcTime, 	     Primitive, utc_time)
+    KRYPT_ASN1_DEFINE_CLASS(UTCTime, 	     Primitive, utc_time)
     KRYPT_ASN1_DEFINE_CLASS(GeneralizedTime, Primitive, generalized_time)
     KRYPT_ASN1_DEFINE_CLASS(Sequence, 	     Constructive, sequence)
     KRYPT_ASN1_DEFINE_CLASS(Set, 	     Constructive, set)

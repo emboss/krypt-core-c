@@ -13,10 +13,10 @@
 #include "krypt-core.h"
 
 #define int_check_stream(io) 		if (!(io) || !(io)->methods) \
-						    rb_raise(eParseError, "Stream not initialized properly")
+						    rb_raise(eKryptParseError, "Stream not initialized properly")
 
 #define int_check_stream_has(io, m) 		if (!(io) || !(io)->methods || !(io)->methods->m) \
-						    rb_raise(eParseError, "Stream not initialized properly")
+						    rb_raise(eKryptParseError, "Stream not initialized properly")
 
 VALUE ID_SEEK_CUR, ID_SEEK_SET, ID_SEEK_END;
 ID ID_READ, ID_SEEK, ID_WRITE;

@@ -12,7 +12,7 @@
 
 #include "krypt-core.h"
 
-VALUE cAsn1Instream;
+VALUE cKryptASN1Instream;
 
 typedef struct krypt_instream_adapter_st {
     krypt_instream *in;
@@ -59,7 +59,7 @@ krypt_instream_adapter_new(krypt_instream *in)
 
     adapter = (krypt_instream_adapter *)xmalloc(sizeof(krypt_instream_adapter));
     adapter->in = in;
-    int_krypt_instream_adapter_set(cAsn1Instream, obj, adapter);
+    int_krypt_instream_adapter_set(cKryptASN1Instream, obj, adapter);
     return obj;
 }
 
@@ -93,7 +93,7 @@ int_whence_for(VALUE vwhence)
     else if (whence == ID_SEEK_END)
 	return SEEK_END;
     else
-	rb_raise(eParseError, "Unknown whence");
+	rb_raise(eKryptParseError, "Unknown whence");
     
     return Qnil; /* dummy */
 }
@@ -117,9 +117,9 @@ krypt_instream_adapter_seek(int argc, VALUE *argv, VALUE self)
 void
 Init_krypt_instream_adapter(void)
 {
-    cAsn1Instream = rb_define_class_under(mAsn1, "Instream", rb_cObject);
-    rb_define_method(cAsn1Instream, "read", krypt_instream_adapter_read, -1);
-    rb_define_method(cAsn1Instream, "seek", krypt_instream_adapter_seek, -1);
-    rb_undef_method(CLASS_OF(cAsn1Instream), "new"); /* private constructor */	
+    cKryptASN1Instream = rb_define_class_under(mKryptASN1, "Instream", rb_cObject);
+    rb_define_method(cKryptASN1Instream, "read", krypt_instream_adapter_read, -1);
+    rb_define_method(cKryptASN1Instream, "seek", krypt_instream_adapter_seek, -1);
+    rb_undef_method(CLASS_OF(cKryptASN1Instream), "new"); /* private constructor */	
 }
 

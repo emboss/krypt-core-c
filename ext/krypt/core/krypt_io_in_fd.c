@@ -79,7 +79,7 @@ int_fd_read(krypt_instream *instream, unsigned char *buf, int len)
     r = read(fd, buf, len);
     
     if (r == -1) {
-	krypt_raise_io_error(eParseError);
+	krypt_raise_io_error(eKryptParseError);
 	return 0; /* dummy */
     }
     else if (r == 0) {
@@ -102,7 +102,7 @@ int_fd_seek(krypt_instream *instream, int offset, int whence)
     off = lseek(fd, offset, whence);
 
     if (off == -1) 
-	krypt_raise_io_error(eParseError);
+	krypt_raise_io_error(eKryptParseError);
 }
 
 static void

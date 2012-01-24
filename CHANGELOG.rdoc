@@ -1,3 +1,7 @@
+=== 0.1.0 / 2012-01-24 [emboss]
+* Rename Asn1 to ASN1
+* Properly namespace globals
+
 === 0.1.0 / 2012-01-23 [emboss]
 * Finish codec implementation
 

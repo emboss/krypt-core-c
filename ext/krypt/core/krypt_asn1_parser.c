@@ -13,8 +13,8 @@
 #include "krypt-core.h"
 #include "krypt_asn1-internal.h"
 
-VALUE cAsn1Parser;
-VALUE cAsn1Header;
+VALUE cKryptASN1Parser;
+VALUE cKryptASN1Header;
 
 typedef struct krypt_asn1_parsed_header_st {
     krypt_instream *in;
@@ -95,7 +95,7 @@ int_krypt_asn1_header_new(krypt_instream *in, krypt_asn1_header *header)
     parsed_header->consumed = 0;
     parsed_header->cached_stream = Qnil;
     
-    int_krypt_asn1_parsed_header_set(cAsn1Header, obj, parsed_header);
+    int_krypt_asn1_parsed_header_set(cKryptASN1Header, obj, parsed_header);
     return obj;
 }
 
@@ -187,7 +187,7 @@ krypt_asn1_header_value(VALUE self)
     int_krypt_asn1_parsed_header_get(self, header);
 
     if (header->consumed && header->cached_stream != Qnil)
-	rb_raise(eParseError, "The stream has already been consumed");
+	rb_raise(eKryptParseError, "The stream has already been consumed");
 
     /* TODO: sync */
     if (!header->consumed && header->value == Qnil) {
@@ -227,7 +227,7 @@ krypt_asn1_header_value_io(int argc, VALUE *argv, VALUE self)
     
     int_krypt_asn1_parsed_header_get(self, header);
     if (header->consumed && header->cached_stream == Qnil)
-	rb_raise(eParseError, "The stream has already been consumed");
+	rb_raise(eKryptParseError, "The stream has already been consumed");
 
     /*TODO: synchronization */
     if (header->cached_stream == Qnil) {
@@ -308,24 +308,24 @@ krypt_asn1_parser_next(VALUE self, VALUE io)
 void
 Init_krypt_asn1_parser(void)
 {
-    cAsn1Parser = rb_define_class_under(mAsn1, "Parser", rb_cObject);
-    rb_define_method(cAsn1Parser, "next", krypt_asn1_parser_next, 1);
+    cKryptASN1Parser = rb_define_class_under(mKryptASN1, "Parser", rb_cObject);
+    rb_define_method(cKryptASN1Parser, "next", krypt_asn1_parser_next, 1);
 
-    cAsn1Header = rb_define_class_under(mAsn1, "Header", rb_cObject);
-    rb_define_method(cAsn1Header, "tag", krypt_asn1_header_get_tag, 0);
-    rb_define_method(cAsn1Header, "tag_class", krypt_asn1_header_get_tag_class, 0);
-    rb_define_method(cAsn1Header, "constructed?", krypt_asn1_header_get_constructed, 0);
-    rb_define_method(cAsn1Header, "infinite?", krypt_asn1_header_get_infinite, 0);
-    rb_define_method(cAsn1Header, "length", krypt_asn1_header_get_length, 0);
-    rb_define_alias(cAsn1Header, "size", "length");
-    rb_define_method(cAsn1Header, "header_length", krypt_asn1_header_get_header_length, 0);
-    rb_define_alias(cAsn1Header, "header_size", "header_length");
-    rb_define_method(cAsn1Header, "encode_to", krypt_asn1_header_encode_to, 1);
-    rb_define_method(cAsn1Header, "bytes", krypt_asn1_header_bytes, 0);
-    rb_define_method(cAsn1Header, "skip_value", krypt_asn1_header_skip_value, 0);
-    rb_define_method(cAsn1Header, "value", krypt_asn1_header_value, 0);
-    rb_define_method(cAsn1Header, "value_io", krypt_asn1_header_value_io, -1);
-    rb_define_method(cAsn1Header, "to_s", krypt_asn1_header_to_s, 0);
-    rb_undef_method(CLASS_OF(cAsn1Header), "new"); /* private constructor */	
+    cKryptASN1Header = rb_define_class_under(mKryptASN1, "Header", rb_cObject);
+    rb_define_method(cKryptASN1Header, "tag", krypt_asn1_header_get_tag, 0);
+    rb_define_method(cKryptASN1Header, "tag_class", krypt_asn1_header_get_tag_class, 0);
+    rb_define_method(cKryptASN1Header, "constructed?", krypt_asn1_header_get_constructed, 0);
+    rb_define_method(cKryptASN1Header, "infinite?", krypt_asn1_header_get_infinite, 0);
+    rb_define_method(cKryptASN1Header, "length", krypt_asn1_header_get_length, 0);
+    rb_define_alias(cKryptASN1Header, "size", "length");
+    rb_define_method(cKryptASN1Header, "header_length", krypt_asn1_header_get_header_length, 0);
+    rb_define_alias(cKryptASN1Header, "header_size", "header_length");
+    rb_define_method(cKryptASN1Header, "encode_to", krypt_asn1_header_encode_to, 1);
+    rb_define_method(cKryptASN1Header, "bytes", krypt_asn1_header_bytes, 0);
+    rb_define_method(cKryptASN1Header, "skip_value", krypt_asn1_header_skip_value, 0);
+    rb_define_method(cKryptASN1Header, "value", krypt_asn1_header_value, 0);
+    rb_define_method(cKryptASN1Header, "value_io", krypt_asn1_header_value_io, -1);
+    rb_define_method(cKryptASN1Header, "to_s", krypt_asn1_header_to_s, 0);
+    rb_undef_method(CLASS_OF(cKryptASN1Header), "new"); /* private constructor */	
 }
 

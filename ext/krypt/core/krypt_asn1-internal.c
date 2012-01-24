@@ -20,7 +20,7 @@ static const int LENGTH_LIMIT = INT_MAX >> 8;
 #define int_next_byte(in, b)				  \
 do {							  \
     if (krypt_instream_read((in), &(b), 1) != 1)	  \
-    	rb_raise(eParseError, "Error while parsing."); 	  \
+    	rb_raise(eKryptParseError, "Error while parsing."); 	  \
 } while (0)						  \
 
 #define int_parse_tag(b, in, out)			\
@@ -64,7 +64,7 @@ krypt_asn1_next_header(krypt_instream *in, krypt_asn1_header **out)
     if (read == -1)
 	return 0;
     if (read != 1)
-	rb_raise(eParseError, "Error when parsing stream");
+	rb_raise(eKryptParseError, "Error when parsing stream");
 
     header = krypt_asn1_header_new();
     
@@ -72,7 +72,7 @@ krypt_asn1_next_header(krypt_instream *in, krypt_asn1_header **out)
     int_parse_length(in, header);
 
     if (header->is_infinite && !header->is_constructed)
-	rb_raise(eParseError, "Infinite length values must be constructed");
+	rb_raise(eKryptParseError, "Infinite length values must be constructed");
 
     *out = header;
     return 1;
@@ -201,7 +201,7 @@ krypt_asn1_object_encode(krypt_outstream *out, krypt_asn1_object *object)
     krypt_asn1_header_encode(out, object->header);
 
     if (!object->bytes) 
-	rb_raise(eSerializeError, "Value bytes have not been set");
+	rb_raise(eKryptSerializeError, "Value bytes have not been set");
 
     krypt_outstream_write(out, object->bytes, object->bytes_len);
 }
@@ -393,7 +393,7 @@ int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *ou
 
     while ((b & INFINITE_LENGTH_MASK) == INFINITE_LENGTH_MASK) {
 	if (tag > TAG_LIMIT)
-	    rb_raise(eParseError, "Complex tag too long");
+	    rb_raise(eKryptParseError, "Complex tag too long");
 	int_buffer_add_byte(buffer, b, out);
 	tag <<= 7;
 	tag |= (b & 0x7f);
@@ -450,7 +450,7 @@ int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn
 
     num_bytes = b & 0x7f;
     if (num_bytes > sizeof(int))
-	rb_raise(eParseError, "Definite value length too long");
+	rb_raise(eKryptParseError, "Definite value length too long");
 
     out->length_bytes = (unsigned char *)xmalloc((num_bytes + 1) * sizeof(unsigned char));
     out->length_bytes[offset++] = b;
@@ -461,7 +461,7 @@ int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn
 	len <<= 8;
 	len |= b;
 	if (len > LENGTH_LIMIT)
-	    rb_raise(eParseError, "Complex length too long");
+	    rb_raise(eKryptParseError, "Complex length too long");
 	out->length_bytes[offset++] = b;
     }
 
@@ -481,7 +481,7 @@ int_parse_read_exactly(krypt_instream *in, int n)
     while (offset != n) {
 	read = krypt_instream_read(in, p, n - offset);
 	if (read == -1) {
-	    rb_raise(eParseError, "Premature EOF detected.");
+	    rb_raise(eKryptParseError, "Premature EOF detected.");
 	    return NULL; /* dummy */
 	}
 	p += read;
@@ -510,7 +510,7 @@ int_consume_stream(krypt_instream *in, unsigned char **out)
     if (size > INT_MAX) {
 	krypt_buffer_free(out_buf);
 	xfree(in_buf);
-	rb_raise(eParseError, "Value too long to be parsed");
+	rb_raise(eKryptParseError, "Value too long to be parsed");
     }
 
     krypt_buffer_resize_free(out_buf);

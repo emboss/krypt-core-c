@@ -79,7 +79,7 @@ int_fd_write(krypt_outstream *outstream, unsigned char *buf, int len)
     w = write(fd, buf, len);
     
     if (w == -1) {
-	krypt_raise_io_error(eSerializeError);
+	krypt_raise_io_error(eKryptSerializeError);
 	return 0; /* dummy */
     }
     else {

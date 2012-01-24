@@ -77,7 +77,7 @@ int_definite_read(krypt_instream *instream, unsigned char *buf, int len)
 
     r = krypt_instream_read(in->inner, buf, to_read);
     if (r == -1)
-	rb_raise(eParseError, "Premature end of value detected");
+	rb_raise(eKryptParseError, "Premature end of value detected");
 
     in->num_read += r;
     return r;
@@ -102,11 +102,11 @@ int_definite_seek(krypt_instream *instream, int offset, int whence)
 	    real_off = offset + in->max_read - in->num_read;
 	    break;
 	default:
-	    rb_raise(eParseError, "Unknown 'whence': %d", whence);
+	    rb_raise(eKryptParseError, "Unknown 'whence': %d", whence);
     }
     
     if (in->num_read + real_off < 0 || in->num_read + real_off >= in->max_read)
-	rb_raise(eParseError, "Unreachable seek position");
+	rb_raise(eKryptParseError, "Unreachable seek position");
 
     krypt_instream_seek(in->inner, offset, whence);
 }

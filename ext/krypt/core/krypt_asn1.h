@@ -13,32 +13,32 @@
 #if !defined(_KRYPT_ASN1_H_)
 #define _KRYPT_ASN1_H_
 
-extern VALUE mAsn1;
-extern VALUE cAsn1Parser;
-extern VALUE cAsn1Header;
-extern VALUE cAsn1Instream;
+extern VALUE mKryptASN1;
+extern VALUE cKryptASN1Parser;
+extern VALUE cKryptASN1Header;
+extern VALUE cKryptASN1Instream;
 
-extern VALUE cAsn1Data;
-extern VALUE cAsn1Primitive;
-extern VALUE cAsn1Constructive;
+extern VALUE cKryptASN1Data;
+extern VALUE cKryptASN1Primitive;
+extern VALUE cKryptASN1Constructive;
 
 /* PRIMITIVE */
-extern VALUE cAsn1EndOfContents;
-extern VALUE cAsn1Boolean;                           /* BOOLEAN           */
-extern VALUE cAsn1Integer, cAsn1Enumerated;          /* INTEGER           */
-extern VALUE cAsn1BitString;                         /* BIT STRING        */
-extern VALUE cAsn1OctetString, cAsn1UTF8String;      /* STRINGs           */
-extern VALUE cAsn1NumericString, cAsn1PrintableString;
-extern VALUE cAsn1T61String, cAsn1VideotexString;
-extern VALUE cAsn1IA5String, cAsn1GraphicString;
-extern VALUE cAsn1ISO64String, cAsn1GeneralString;
-extern VALUE cAsn1UniversalString, cAsn1BMPString;
-extern VALUE cAsn1Null;                              /* NULL              */
-extern VALUE cAsn1ObjectId;                          /* OBJECT IDENTIFIER */
-extern VALUE cAsn1UTCTime, cAsn1GeneralizedTime;     /* TIME              */
+extern VALUE cKryptASN1EndOfContents;
+extern VALUE cKryptASN1Boolean;                           /* BOOLEAN           */
+extern VALUE cKryptASN1Integer, cKryptASN1Enumerated;          /* INTEGER           */
+extern VALUE cKryptASN1BitString;                         /* BIT STRING        */
+extern VALUE cKryptASN1OctetString, cKryptASN1UTF8String;      /* STRINGs           */
+extern VALUE cKryptASN1NumericString, cKryptASN1PrintableString;
+extern VALUE cKryptASN1T61String, cKryptASN1VideotexString;
+extern VALUE cKryptASN1IA5String, cKryptASN1GraphicString;
+extern VALUE cKryptASN1ISO64String, cKryptASN1GeneralString;
+extern VALUE cKryptASN1UniversalString, cKryptASN1BMPString;
+extern VALUE cKryptASN1Null;                              /* NULL              */
+extern VALUE cKryptASN1ObjectId;                          /* OBJECT IDENTIFIER */
+extern VALUE cKryptASN1UTCTime, cKryptASN1GeneralizedTime;     /* TIME              */
 
 /* CONSTRUCTIVE */
-extern VALUE cAsn1Sequence, cAsn1Set;
+extern VALUE cKryptASN1Sequence, cKryptASN1Set;
 
 typedef VALUE (*krypt_asn1_decoder)(unsigned char *bytes, int len);
 typedef int (*krypt_asn1_encoder)(VALUE value, unsigned char **out);
@@ -49,9 +49,9 @@ typedef struct krypt_asn1_codec_st {
 
 extern krypt_asn1_codec krypt_asn1_codecs[];
 
-extern VALUE eAsn1Error;
-extern VALUE eParseError;
-extern VALUE eSerializeError;
+extern VALUE eKryptASN1Error;
+extern VALUE eKryptParseError;
+extern VALUE eKryptSerializeError;
 
 extern ID sTC_UNIVERSAL;
 extern ID sTC_APPLICATION;
