@@ -105,7 +105,7 @@ int_whence_sym_for(int whence)
 	case SEEK_END:
 	    return ID_SEEK_END;
 	default:
-	    rb_raise(eParseError, "Unknown 'whence': %d", whence);
+	    rb_raise(eKryptParseError, "Unknown 'whence': %d", whence);
 	    return Qnil; /* dummy */
     }
 }

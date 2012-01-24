@@ -95,7 +95,7 @@ static inline void
 int_bytes_set_pos(struct krypt_byte_ary_st *src, int offset, long num_read)
 {
     if (num_read + offset < 0 || num_read + offset >= src->len)
-	rb_raise(eParseError, "Unreachable seek position");
+	rb_raise(eKryptParseError, "Unreachable seek position");
     src->p += offset;
 }
 
@@ -122,7 +122,7 @@ int_bytes_seek(krypt_instream *instream, int offset, int whence)
 	    int_bytes_set_pos(src, offset + src->len - num_read, num_read);
 	    break;
 	default:
-	    rb_raise(eParseError, "Unknown 'whence': %d", whence);
+	    rb_raise(eKryptParseError, "Unknown 'whence': %d", whence);
     }
 }
 

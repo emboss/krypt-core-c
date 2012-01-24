@@ -31,7 +31,7 @@ VALUE
 krypt_asn1_decode_default(unsigned char *bytes, int len)
 {
     if (len < 0)
-	rb_raise(eAsn1Error, "Error while default decoding value");
+	rb_raise(eKryptASN1Error, "Error while default decoding value");
     if (len == 0 || bytes == NULL)
 	return Qnil;
     return rb_str_new((const char *)bytes, len);
@@ -51,7 +51,7 @@ static int int_encode_generalized_time(VALUE, unsigned char **);
 #define sanity_check(b, len)			\
 do {						\
     if (!b || len < 0)				\
-        rb_raise(eAsn1Error, "Invalid value"); 	\
+        rb_raise(eKryptASN1Error, "Invalid value"); 	\
 } while (0)
 
 #define int_long_byte_len(ret, l)	\
@@ -91,7 +91,7 @@ int_asn1_decode_boolean(unsigned char *bytes, int len)
 
     sanity_check(bytes, len);
     if (len != 1)
-	rb_raise(eAsn1Error, "Boolean value with length != 1 found");
+	rb_raise(eKryptASN1Error, "Boolean value with length != 1 found");
     b = *bytes;
     if (b == 0x0)
 	return Qfalse;
@@ -125,9 +125,9 @@ int_asn1_decode_integer(unsigned char *bytes, int len)
 
     sanity_check(bytes, len);
     if (len > (int)sizeof(long))
-	rb_raise(eAsn1Error, "Size of integer too long: %d", len);
+	rb_raise(eKryptASN1Error, "Size of integer too long: %d", len);
     if (len == 0)
-	rb_raise(eAsn1Error, "Size 0 for integer value");
+	rb_raise(eKryptASN1Error, "Size 0 for integer value");
     
     for (i = 0; i < len; i++)
        num |= bytes[i] << (len - i - 1);	
@@ -191,7 +191,7 @@ static VALUE
 int_asn1_decode_null(unsigned char *bytes, int len)
 {
     if (len != 0)
-	rb_raise(eAsn1Error, "Invalid encoding for Null value");
+	rb_raise(eKryptASN1Error, "Invalid encoding for Null value");
     return Qnil;
 }
 
@@ -314,15 +314,15 @@ int_get_sub_id(unsigned char *str, int len, long *offset)
 
     c = str[off];
     if (c == '.')
-	rb_raise(eAsn1Error, "Sub identifier cannot start with '.'");
+	rb_raise(eKryptASN1Error, "Sub identifier cannot start with '.'");
 
     while (off < len && (c = str[off]) != '.') {
 	if (c < '0' || c > '9')
-	    rb_raise(eAsn1Error, "Invalid character in object id: %x", c);
+	    rb_raise(eKryptASN1Error, "Invalid character in object id: %x", c);
 	if (ret > SUB_ID_LIMIT_ENCODE)
-	    rb_raise(eAsn1Error, "Sub object identifier too large");
+	    rb_raise(eKryptASN1Error, "Sub object identifier too large");
 	if (off + 1 == LONG_MAX)
-	    rb_raise(eAsn1Error, "Object id value too large");
+	    rb_raise(eKryptASN1Error, "Object id value too large");
 
 	ret *= 10;
 	ret += c - '0';
@@ -379,9 +379,9 @@ int_encode_object_id(unsigned char *str, int len, unsigned char **out)
 
     buffer = krypt_buffer_new();
     if ((first = int_get_sub_id(str, len, &offset)) == -1)
-	rb_raise(eAsn1Error, "Error while encoding object identifier");
+	rb_raise(eKryptASN1Error, "Error while encoding object identifier");
     if ((second = int_get_sub_id(str, len, &offset)) == -1)
-	rb_raise(eAsn1Error, "Error while encoding object identifier");
+	rb_raise(eKryptASN1Error, "Error while encoding object identifier");
 
     cur = 40 * first + second;
     int_write_long(buffer, cur);
@@ -392,7 +392,7 @@ int_encode_object_id(unsigned char *str, int len, unsigned char **out)
 
     size = krypt_buffer_get_size(buffer);
     if (size > INT_MAX)
-	rb_raise(eAsn1Error, "Object identifier too large");
+	rb_raise(eKryptASN1Error, "Object identifier too large");
     *out = krypt_buffer_get_data(buffer);
     krypt_buffer_resize_free(buffer);
     return (int)size;
@@ -409,11 +409,11 @@ int_parse_sub_id(unsigned char* bytes, long len, long *offset)
 
     while (bytes[off] & 0x80) {
 	if (num > SUB_ID_LIMIT_PARSE)
-	    rb_raise(eAsn1Error, "Sub identifier too large");
+	    rb_raise(eKryptASN1Error, "Sub identifier too large");
 	num <<= 7;
 	num |= bytes[off++] & 0x7f;
 	if (off >= len)
-	    rb_raise(eAsn1Error, "Invalid object identifier encoding");
+	    rb_raise(eKryptASN1Error, "Invalid object identifier encoding");
     }
 
     num <<= 7;
@@ -459,7 +459,7 @@ int_decode_object_id(unsigned char *bytes, int len)
     
     buffer = krypt_buffer_new();
     if ((cur = int_parse_sub_id(bytes, len, &offset)) == -1)
-	rb_raise(eAsn1Error, "Error while parsing object identifier");
+	rb_raise(eKryptASN1Error, "Error while parsing object identifier");
     
     int_set_first_sub_ids(cur, &first, &second);
     numlen = sprintf((char *)numbuf, "%ld", first);
@@ -507,7 +507,7 @@ int_encode_utc_time(VALUE value, unsigned char **out)
 
     if (r > 20) {
 	xfree(ret);
-	rb_raise(eAsn1Error, "Error while encoding UTC time value");
+	rb_raise(eKryptASN1Error, "Error while encoding UTC time value");
     }
 
     *out = (unsigned char *) ret;
@@ -521,7 +521,7 @@ int_parse_utc_time(unsigned char *bytes, int len)
     struct tm tm = { 0 };
 
     if (len != 13)
-	rb_raise(eAsn1Error, "Invalid UTC time format. Value must be 15 characters");
+	rb_raise(eKryptASN1Error, "Invalid UTC time format. Value must be 15 characters");
 
     if (sscanf((const char *) bytes,
 		"%2d%2d%2d%2d%2d%2dZ",
@@ -531,7 +531,7 @@ int_parse_utc_time(unsigned char *bytes, int len)
 		&tm.tm_hour,
 		&tm.tm_min,
 		&tm.tm_sec) != 6) {
-	    rb_raise(eAsn1Error, "Invalid UTC time format");
+	    rb_raise(eKryptASN1Error, "Invalid UTC time format");
     }
     if (tm.tm_year < 69)
 	tm.tm_year += 2000;
@@ -573,7 +573,7 @@ int_encode_generalized_time(VALUE value, unsigned char **out)
 		 tm.tm_sec);
     if (r  > 20) {
 	xfree(ret);
-	rb_raise(eAsn1Error, "Error while encoding generalized time value");
+	rb_raise(eKryptASN1Error, "Error while encoding generalized time value");
     }
 
     *out = (unsigned char *)ret;
@@ -587,7 +587,7 @@ int_parse_generalized_time(unsigned char *bytes, int len)
     struct tm tm = { 0 };
 
     if (len != 15)
-	rb_raise(eAsn1Error, "Invalid generalized time format. Value must be 13 characters");
+	rb_raise(eKryptASN1Error, "Invalid generalized time format. Value must be 13 characters");
 
     if (sscanf((const char *)bytes,
 		"%4d%2d%2d%2d%2d%2dZ",
@@ -597,7 +597,7 @@ int_parse_generalized_time(unsigned char *bytes, int len)
 		&tm.tm_hour,
 		&tm.tm_min,
 		&tm.tm_sec) != 6) {
-	rb_raise(eAsn1Error, "Invalid generalized time format" );
+	rb_raise(eKryptASN1Error, "Invalid generalized time format" );
     }
 
     argv[0] = INT2NUM(tm.tm_year);

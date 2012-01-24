@@ -79,7 +79,7 @@ int_read_new_header(int_instream_chunked *in)
     ret = krypt_asn1_next_header(in->inner, &next);
     if (ret == 0) {
 	xfree(next);
-	rb_raise(eParseError, "Premature end of value detected");
+	rb_raise(eKryptParseError, "Premature end of value detected");
     }
     else {
 	if (in->cur_header)
@@ -191,7 +191,7 @@ int_read_single_element(int_instream_chunked *in, unsigned char *buf, int len)
 	    buf += read;
 	    return total;
 	default:
-	    rb_raise(eParseError, "Internal error");
+	    rb_raise(eKryptParseError, "Internal error");
 	    return 0; /* dummy */
     }
 }
