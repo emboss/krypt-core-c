@@ -379,9 +379,9 @@ int_encode_object_id(unsigned char *str, int len, unsigned char **out)
 
     buffer = krypt_buffer_new();
     if ((first = int_get_sub_id(str, len, &offset)) == -1)
-	rb_raise(eAsn1Error, "Error while parsing object identifier");
+	rb_raise(eAsn1Error, "Error while encoding object identifier");
     if ((second = int_get_sub_id(str, len, &offset)) == -1)
-	rb_raise(eAsn1Error, "Error while parsing object identifier");
+	rb_raise(eAsn1Error, "Error while encoding object identifier");
 
     cur = 40 * first + second;
     int_write_long(buffer, cur);
@@ -458,7 +458,9 @@ int_decode_object_id(unsigned char *bytes, int len)
     sanity_check(bytes, len);
     
     buffer = krypt_buffer_new();
-    cur = int_parse_sub_id(bytes, len, &offset);
+    if ((cur = int_parse_sub_id(bytes, len, &offset)) == -1)
+	rb_raise(eAsn1Error, "Error while parsing object identifier");
+    
     int_set_first_sub_ids(cur, &first, &second);
     numlen = sprintf((char *)numbuf, "%ld", first);
     krypt_buffer_write(buffer, numbuf, numlen);
