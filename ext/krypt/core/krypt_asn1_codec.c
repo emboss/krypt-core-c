@@ -316,7 +316,7 @@ int_get_sub_id(unsigned char *str, int len, long *offset)
     if (c == '.')
 	rb_raise(eAsn1Error, "Sub identifier cannot start with '.'");
 
-    while (c != '.' && off < len) {
+    while (off < len && (c = str[off]) != '.') {
 	if (c < '0' || c > '9')
 	    rb_raise(eAsn1Error, "Invalid character in object id: %x", c);
 	if (ret > SUB_ID_LIMIT_ENCODE)
@@ -326,7 +326,7 @@ int_get_sub_id(unsigned char *str, int len, long *offset)
 
 	ret *= 10;
 	ret += c - '0';
-	c = str[++off];
+	off++;
     }
 
     *offset = ++off; /* skip '.' */
