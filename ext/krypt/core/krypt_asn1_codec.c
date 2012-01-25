@@ -14,7 +14,7 @@
 #include <time.h>
 
 int
-krypt_asn1_encode_default(VALUE value, unsigned char **out)
+krypt_asn1_encode_default(VALUE self, VALUE value, unsigned char **out)
 {
     int len;
     unsigned char *ret;
@@ -28,12 +28,12 @@ krypt_asn1_encode_default(VALUE value, unsigned char **out)
 }
 
 VALUE
-krypt_asn1_decode_default(unsigned char *bytes, int len)
+krypt_asn1_decode_default(VALUE self, unsigned char *bytes, int len)
 {
     if (len < 0)
-	rb_raise(eKryptASN1Error, "Error while default decoding value");
+	rb_raise(eKryptASN1Error, "Error while default-decoding value");
     if (len == 0 || bytes == NULL)
-	return Qnil;
+	return rb_str_new2("");
     return rb_str_new((const char *)bytes, len);
 }
 
@@ -63,20 +63,20 @@ do {						\
 } while (0)
 
 static int
-int_asn1_encode_eoc(VALUE value, unsigned char **out)
+int_asn1_encode_eoc(VALUE self, VALUE value, unsigned char **out)
 {
     *out = NULL;
     return 0;
 }
 
 static VALUE
-int_asn1_decode_eoc(unsigned char *bytes, int len)
+int_asn1_decode_eoc(VALUE self, unsigned char *bytes, int len)
 {
     return Qnil;
 }
 
 static int
-int_asn1_encode_boolean(VALUE value, unsigned char **out)
+int_asn1_encode_boolean(VALUE self, VALUE value, unsigned char **out)
 {
     unsigned char *b;
 
@@ -87,7 +87,7 @@ int_asn1_encode_boolean(VALUE value, unsigned char **out)
 }
 
 static VALUE
-int_asn1_decode_boolean(unsigned char *bytes, int len)
+int_asn1_decode_boolean(VALUE self, unsigned char *bytes, int len)
 {
     unsigned char b;
 
@@ -103,7 +103,7 @@ int_asn1_decode_boolean(unsigned char *bytes, int len)
 
 /* TODO: broken!!! */
 static int
-int_asn1_encode_integer(VALUE value, unsigned char **out)
+int_asn1_encode_integer(VALUE self, VALUE value, unsigned char **out)
 {
     long num;
     int len, i, j = 0;
@@ -132,7 +132,7 @@ int_asn1_encode_integer(VALUE value, unsigned char **out)
 }
 
 static VALUE
-int_asn1_decode_integer(unsigned char *bytes, int len)
+int_asn1_decode_integer(VALUE self, unsigned char *bytes, int len)
 {
     long num = 0;
     int i;
@@ -150,58 +150,57 @@ int_asn1_decode_integer(unsigned char *bytes, int len)
 }
 
 static int
-int_asn1_encode_bit_string(VALUE value, unsigned char **out)
+int_asn1_encode_bit_string(VALUE self, VALUE value, unsigned char **out)
 {
     int unused_bits;
     long len;
     unsigned char *bytes;
 
-    unused_bits = NUM2INT(rb_ivar_get(value, sIV_UNUSED_BITS));
+    unused_bits = NUM2INT(rb_ivar_get(self, sIV_UNUSED_BITS));
     StringValue(value);
     len = RSTRING_LEN(value);
     bytes = (unsigned char *)xmalloc(len + 1);
     bytes[0] = unused_bits & 0xff;
-    bytes++;
-    memcpy(bytes, RSTRING_PTR(value), len);
+    memcpy(bytes + 1, RSTRING_PTR(value), len);
     *out = bytes;
 
     return len + 1;
 }
 
 static VALUE
-int_asn1_decode_bit_string(unsigned char *bytes, int len)
+int_asn1_decode_bit_string(VALUE self, unsigned char *bytes, int len)
 {
     int unused_bits;
     VALUE ret;
 
     sanity_check(bytes, len);
     unused_bits = bytes[0];
-    ret = krypt_asn1_decode_default(bytes + 1, len -1);
+    ret = krypt_asn1_decode_default(self, bytes + 1, len - 1);
     rb_ivar_set(ret, sIV_UNUSED_BITS, INT2NUM(unused_bits));
     return ret;
 }
 
 static int
-int_asn1_encode_octet_string(VALUE value, unsigned char **out)
+int_asn1_encode_octet_string(VALUE self, VALUE value, unsigned char **out)
 {
-    return krypt_asn1_encode_default(value, out);
+    return krypt_asn1_encode_default(self, value, out);
 }
 
 static VALUE
-int_asn1_decode_octet_string(unsigned char *bytes, int len)
+int_asn1_decode_octet_string(VALUE self, unsigned char *bytes, int len)
 {
-    return krypt_asn1_decode_default(bytes, len);
+    return krypt_asn1_decode_default(self, bytes, len);
 }
 
 static int
-int_asn1_encode_null(VALUE value, unsigned char **out)
+int_asn1_encode_null(VALUE self, VALUE value, unsigned char **out)
 {
     *out = NULL;
     return 0;
 }
 
 static VALUE
-int_asn1_decode_null(unsigned char *bytes, int len)
+int_asn1_decode_null(VALUE self, unsigned char *bytes, int len)
 {
     if (len != 0)
 	rb_raise(eKryptASN1Error, "Invalid encoding for Null value");
@@ -209,7 +208,7 @@ int_asn1_decode_null(unsigned char *bytes, int len)
 }
 
 static int
-int_asn1_encode_object_id(VALUE value, unsigned char **out)
+int_asn1_encode_object_id(VALUE self, VALUE value, unsigned char **out)
 {
     unsigned char *str;
 
@@ -219,63 +218,63 @@ int_asn1_encode_object_id(VALUE value, unsigned char **out)
 }
 
 static VALUE
-int_asn1_decode_object_id(unsigned char *bytes, int len)
+int_asn1_decode_object_id(VALUE self, unsigned char *bytes, int len)
 {
     sanity_check(bytes, len);
     return int_decode_object_id(bytes, len);
 }
 
 static int
-int_asn1_encode_enumerated(VALUE value, unsigned char **out)
+int_asn1_encode_enumerated(VALUE self, VALUE value, unsigned char **out)
 {
-    return int_asn1_encode_integer(value, out);
+    return int_asn1_encode_integer(self, value, out);
 }
 
 static VALUE
-int_asn1_decode_enumerated(unsigned char *bytes, int len)
+int_asn1_decode_enumerated(VALUE self, unsigned char *bytes, int len)
 {
-    return int_asn1_decode_integer(bytes, len);
+    return int_asn1_decode_integer(self, bytes, len);
 }
 
 static int
-int_asn1_encode_utf8_string(VALUE value, unsigned char **out)
+int_asn1_encode_utf8_string(VALUE self, VALUE value, unsigned char **out)
 {
     rb_enc_associate(value, rb_utf8_encoding());
-    return krypt_asn1_encode_default(value, out);
+    return krypt_asn1_encode_default(self, value, out);
 }
 
 static VALUE
-int_asn1_decode_utf8_string(unsigned char *bytes, int len)
+int_asn1_decode_utf8_string(VALUE self, unsigned char *bytes, int len)
 {
     VALUE ret;
 
     sanity_check(bytes, len);
-    ret = krypt_asn1_decode_default(bytes, len);
+    ret = krypt_asn1_decode_default(self, bytes, len);
     rb_enc_associate(ret, rb_utf8_encoding());
     return ret;
 }
 
 static int
-int_asn1_encode_utc_time(VALUE value, unsigned char **out)
+int_asn1_encode_utc_time(VALUE self, VALUE value, unsigned char **out)
 {
     return int_encode_utc_time(value, out);
 }
 
 static VALUE
-int_asn1_decode_utc_time(unsigned char *bytes, int len)
+int_asn1_decode_utc_time(VALUE self, unsigned char *bytes, int len)
 {
     sanity_check(bytes, len);
     return int_parse_utc_time(bytes, len);
 }
 
 static int
-int_asn1_encode_generalized_time(VALUE value, unsigned char **out)
+int_asn1_encode_generalized_time(VALUE self, VALUE value, unsigned char **out)
 {
     return int_encode_generalized_time(value, out);
 }
 
 static VALUE
-int_asn1_decode_generalized_time(unsigned char *bytes, int len)
+int_asn1_decode_generalized_time(VALUE self, unsigned char *bytes, int len)
 {
     sanity_check(bytes, len);
     return int_parse_generalized_time(bytes, len);

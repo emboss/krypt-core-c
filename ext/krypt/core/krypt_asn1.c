@@ -85,8 +85,8 @@ static int krypt_asn1_infos_size = (sizeof(krypt_asn1_infos)/sizeof(krypt_asn1_i
 
 struct krypt_asn1_data_st;
 typedef struct krypt_asn1_data_st krypt_asn1_data;
-typedef VALUE (*int_asn1_decode_cb)(krypt_asn1_data *);
-typedef void (*int_asn1_encode_cb)(krypt_outstream *, VALUE, krypt_asn1_data *);
+typedef VALUE (*int_asn1_decode_cb)(VALUE, krypt_asn1_data *);
+typedef void (*int_asn1_encode_cb)(VALUE, krypt_outstream *, VALUE, krypt_asn1_data *);
 
 struct krypt_asn1_data_st {
     krypt_asn1_object *object;
@@ -160,13 +160,13 @@ do { 								\
 #define int_asn1_data_set_value(o, v)			rb_ivar_set((o), sIV_VALUE, (v))
 
 /* Declaration of en-/decode callbacks */
-static VALUE int_asn1_data_value_decode(krypt_asn1_data *data);
-static VALUE int_asn1_cons_value_decode(krypt_asn1_data *data);
-static VALUE int_asn1_prim_value_decode(krypt_asn1_data *data);
+static VALUE int_asn1_data_value_decode(VALUE self, krypt_asn1_data *data);
+static VALUE int_asn1_cons_value_decode(VALUE self, krypt_asn1_data *data);
+static VALUE int_asn1_prim_value_decode(VALUE self, krypt_asn1_data *data);
 
-static void int_asn1_data_encode_to(krypt_outstream *out, VALUE value, krypt_asn1_data *data);
-static void int_asn1_cons_encode_to(krypt_outstream *out, VALUE value, krypt_asn1_data *data);
-static void int_asn1_prim_encode_to(krypt_outstream *out, VALUE value, krypt_asn1_data *data);
+static void int_asn1_data_encode_to(VALUE self, krypt_outstream *out, VALUE value, krypt_asn1_data *data);
+static void int_asn1_cons_encode_to(VALUE self, krypt_outstream *out, VALUE value, krypt_asn1_data *data);
+static void int_asn1_prim_encode_to(VALUE self, krypt_outstream *out, VALUE value, krypt_asn1_data *data);
 
 /* This initializer is used with freshly parsed values */
 static VALUE
@@ -372,6 +372,34 @@ krypt_asn1_null_initialize(int argc, VALUE *argv, VALUE self)
 				       int_asn1_prim_encode_to);
 }
 
+/* Special treatment for BIT_STRING: set @unused_bits */
+static VALUE
+krypt_asn1_bit_string_initialize(int argc, VALUE *argv, VALUE self)
+{
+    VALUE value;
+    VALUE tag;
+    VALUE tag_class;
+    rb_scan_args(argc, argv, "12", &value, &tag, &tag_class);
+    if (!NIL_P(tag_class) && NIL_P(tag))
+	rb_raise(rb_eArgError, "Tag must be specified if tag class is");
+    if (NIL_P(tag))
+	tag = INT2NUM(TAGS_BIT_STRING);
+    if (NIL_P(tag_class))
+	tag_class = ID2SYM(sTC_UNIVERSAL);
+
+    self = int_asn1_default_initialize(self,
+	    			       value,
+				       tag,
+				       TAGS_BIT_STRING,
+				       tag_class,
+				       0,
+				       int_asn1_prim_encode_to);
+
+    rb_ivar_set(self, sIV_UNUSED_BITS, INT2NUM(0));
+
+    return self;
+}
+
 #define KRYPT_ASN1_DEFINE_CTOR(klass, t, cons, cb)					\
 static VALUE										\
 krypt_asn1_##klass##_initialize(int argc, VALUE *argv, VALUE self)			\
@@ -394,7 +422,6 @@ krypt_asn1_##klass##_initialize(int argc, VALUE *argv, VALUE self)			\
 KRYPT_ASN1_DEFINE_CTOR(boolean,    	 TAGS_BOOLEAN,    	 0, int_asn1_prim_encode_to)
 KRYPT_ASN1_DEFINE_CTOR(integer,    	 TAGS_INTEGER,    	 0, int_asn1_prim_encode_to)
 KRYPT_ASN1_DEFINE_CTOR(enumerated,    	 TAGS_ENUMERATED,    	 0, int_asn1_prim_encode_to)
-KRYPT_ASN1_DEFINE_CTOR(bit_string, 	 TAGS_BIT_STRING, 	 0, int_asn1_prim_encode_to)
 KRYPT_ASN1_DEFINE_CTOR(octet_string,     TAGS_OCTET_STRING, 	 0, int_asn1_prim_encode_to)
 KRYPT_ASN1_DEFINE_CTOR(utf8_string,      TAGS_UTF8_STRING, 	 0, int_asn1_prim_encode_to)
 KRYPT_ASN1_DEFINE_CTOR(numeric_string,   TAGS_NUMERIC_STRING, 	 0, int_asn1_prim_encode_to)
@@ -529,12 +556,12 @@ krypt_asn1_data_set_inf_length(VALUE self, VALUE inf_length)
 }
 
 static VALUE
-int_asn1_data_value_decode(krypt_asn1_data *data)
+int_asn1_data_value_decode(VALUE self, krypt_asn1_data *data)
 {
     if (data->object->header->is_constructed)
-	return int_asn1_cons_value_decode(data);
+	return int_asn1_cons_value_decode(self, data);
     else
-	return int_asn1_prim_value_decode(data);
+	return int_asn1_prim_value_decode(self, data);
 }
 
 static VALUE
@@ -549,7 +576,7 @@ krypt_asn1_data_get_value(VALUE self)
 	int_asn1_data_get(self, data);
 	/* Only try to decode when there is something to */
 	if (data->object->bytes) {
-	    value = data->decode_cb(data);
+	    value = data->decode_cb(self, data);
 	    int_asn1_data_set_value(self, value);
 	}
     }
@@ -579,12 +606,12 @@ krypt_asn1_data_set_value(VALUE self, VALUE value)
 }
 
 static void
-int_asn1_data_encode_to(krypt_outstream *out, VALUE value, krypt_asn1_data *data)
+int_asn1_data_encode_to(VALUE self, krypt_outstream *out, VALUE value, krypt_asn1_data *data)
 {
     if (data->object->header->is_constructed)
-	return int_asn1_cons_encode_to(out, value, data);
+	return int_asn1_cons_encode_to(self, out, value, data);
     else
-	return int_asn1_prim_encode_to(out, value, data);
+	return int_asn1_prim_encode_to(self, out, value, data);
 }
 
 static void
@@ -601,7 +628,7 @@ int_asn1_encode_to(krypt_outstream *out, VALUE self)
 	VALUE value;
 
 	value = int_asn1_data_get_value(self);
-	data->encode_cb(out, value, data);
+	data->encode_cb(self, out, value, data);
     }
     else {
 	krypt_asn1_object_encode(out, object);
@@ -650,7 +677,7 @@ krypt_asn1_cons_each(VALUE self)
 }
 
 static VALUE
-int_asn1_cons_value_decode(krypt_asn1_data *data)
+int_asn1_cons_value_decode(VALUE self, krypt_asn1_data *data)
 {
     VALUE ary;
     VALUE cur;
@@ -676,7 +703,7 @@ int_asn1_cons_value_decode(krypt_asn1_data *data)
 }
 
 static void
-int_asn1_cons_encode_to(krypt_outstream *out, VALUE ary, krypt_asn1_data *data)
+int_asn1_cons_encode_to(VALUE self, krypt_outstream *out, VALUE ary, krypt_asn1_data *data)
 {
     VALUE cur;
     long size, i;
@@ -702,31 +729,31 @@ int_asn1_cons_encode_to(krypt_outstream *out, VALUE ary, krypt_asn1_data *data)
 /* ASN1Primitive methods */
 
 static VALUE
-int_asn1_prim_value_decode(krypt_asn1_data *data)
+int_asn1_prim_value_decode(VALUE self, krypt_asn1_data *data)
 {
     VALUE value;
     krypt_asn1_object *object;
 
     object = data->object;
     if (data->codec)
-	value = data->codec->decoder(object->bytes, object->bytes_len);
+	value = data->codec->decoder(self, object->bytes, object->bytes_len);
     else
-	value = krypt_asn1_decode_default(object->bytes, object->bytes_len);
+	value = krypt_asn1_decode_default(self, object->bytes, object->bytes_len);
 
     return value;
 }
 
 static void
-int_asn1_prim_encode_to(krypt_outstream *out, VALUE value, krypt_asn1_data *data)
+int_asn1_prim_encode_to(VALUE self, krypt_outstream *out, VALUE value, krypt_asn1_data *data)
 {
     krypt_asn1_object *object;
 
     object = data->object;
     if (data->codec) {
-	object->bytes_len = data->codec->encoder(value, &object->bytes);
+	object->bytes_len = data->codec->encoder(self, value, &object->bytes);
     }
     else {
-	object->bytes_len = krypt_asn1_encode_default(value, &object->bytes);
+	object->bytes_len = krypt_asn1_encode_default(self, value, &object->bytes);
     }
 
     object->header->length = object->bytes_len;
@@ -831,6 +858,8 @@ Init_krypt_asn1(void)
     KRYPT_ASN1_DEFINE_CLASS(GeneralizedTime, Primitive, generalized_time)
     KRYPT_ASN1_DEFINE_CLASS(Sequence, 	     Constructive, sequence)
     KRYPT_ASN1_DEFINE_CLASS(Set, 	     Constructive, set)
+
+    rb_attr(cKryptASN1BitString, rb_intern("unused_bits"), 1, 1, 0);
    
     Init_krypt_asn1_parser();
     Init_krypt_instream_adapter();
