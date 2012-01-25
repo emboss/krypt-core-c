@@ -288,6 +288,7 @@ static VALUE
 int_asn1_default_initialize(VALUE self,
 			    VALUE value,
 			    VALUE vtag,
+			    int default_tag,
 			    VALUE vtag_class,
 			    int is_constructed,
 			    int_asn1_encode_cb cb)
@@ -310,6 +311,13 @@ int_asn1_default_initialize(VALUE self,
 			     0,
 			     cb);
 
+    /* Override default behavior to support tag classes other than UNIVERSAL */
+    if (default_tag <= 30) {
+	krypt_asn1_data *data;
+	int_asn1_data_get(self, data);
+	data->codec = &krypt_asn1_codecs[default_tag];
+    }
+
     int_asn1_data_set_tag(self, vtag);
     int_asn1_data_set_tag_class(self, vtag_class);
     int_asn1_data_set_infinite_length(self, Qfalse);
@@ -325,6 +333,7 @@ krypt_asn1_end_of_contents_initialize(VALUE self)
     return int_asn1_default_initialize(self,
 	    	  		       Qnil,
 				       INT2NUM(TAGS_END_OF_CONTENTS),
+				       TAGS_END_OF_CONTENTS,
 				       ID2SYM(sTC_UNIVERSAL),
 				       0,
 				       int_asn1_prim_encode_to);
@@ -346,6 +355,8 @@ krypt_asn1_null_initialize(int argc, VALUE *argv, VALUE self)
 	rb_scan_args(argc, argv, "12", &value, &tag, &tag_class);
 	if (!NIL_P(tag_class) && NIL_P(tag))
 	    rb_raise(rb_eArgError, "Tag must be specified if tag class is");
+	if (NIL_P(tag))
+	    tag = INT2NUM(TAGS_NULL);
 	if (NIL_P(tag_class))
 	    tag_class = ID2SYM(sTC_UNIVERSAL);
 	if (!NIL_P(value))
@@ -355,6 +366,7 @@ krypt_asn1_null_initialize(int argc, VALUE *argv, VALUE self)
     return int_asn1_default_initialize(self,
 	    			       value,
 				       tag,
+				       TAGS_NULL,
 				       tag_class,
 				       0,
 				       int_asn1_prim_encode_to);
@@ -376,7 +388,7 @@ krypt_asn1_##klass##_initialize(int argc, VALUE *argv, VALUE self)			\
 	tag = INT2NUM((t));								\
 	tag_class = ID2SYM(sTC_UNIVERSAL);						\
     }											\
-    return int_asn1_default_initialize(self, value, tag, tag_class, (cons), (cb));	\
+    return int_asn1_default_initialize(self, value, tag, (t), tag_class, (cons), (cb));	\
 }
 
 KRYPT_ASN1_DEFINE_CTOR(boolean,    	 TAGS_BOOLEAN,    	 0, int_asn1_prim_encode_to)
@@ -535,8 +547,11 @@ krypt_asn1_data_get_value(VALUE self)
     if (NIL_P(value)) {
 	krypt_asn1_data *data;
 	int_asn1_data_get(self, data);
-	value = data->decode_cb(data);
-	int_asn1_data_set_value(self, value);
+	/* Only try to decode when there is something to */
+	if (data->object->bytes) {
+	    value = data->decode_cb(data);
+	    int_asn1_data_set_value(self, value);
+	}
     }
     return value;
 }
