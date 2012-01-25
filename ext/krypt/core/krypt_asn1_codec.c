@@ -176,7 +176,7 @@ int_asn1_decode_bit_string(VALUE self, unsigned char *bytes, int len)
     sanity_check(bytes, len);
     unused_bits = bytes[0];
     ret = krypt_asn1_decode_default(self, bytes + 1, len - 1);
-    rb_ivar_set(ret, sIV_UNUSED_BITS, INT2NUM(unused_bits));
+    rb_ivar_set(self, sIV_UNUSED_BITS, INT2NUM(unused_bits));
     return ret;
 }
 
