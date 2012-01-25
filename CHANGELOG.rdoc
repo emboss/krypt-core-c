@@ -1,3 +1,6 @@
+=== 0.1.0 / 2012-01-25 [emboss]
+* Fix bugs revealed by specs
+
 === 0.1.0 / 2012-01-24 [emboss]
 * Rename Asn1 to ASN1
 * Properly namespace globals

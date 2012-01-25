@@ -200,8 +200,9 @@ krypt_asn1_object_encode(krypt_outstream *out, krypt_asn1_object *object)
 
     krypt_asn1_header_encode(out, object->header);
 
-    if (!object->bytes) 
-	rb_raise(eKryptSerializeError, "Value bytes have not been set");
+    if (!object->bytes)
+	return;	
+	/* rb_raise(eKryptSerializeError, "Value bytes have not been set"); */
 
     krypt_outstream_write(out, object->bytes, object->bytes_len);
 }

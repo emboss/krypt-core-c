@@ -48,17 +48,18 @@ static VALUE int_parse_generalized_time(unsigned char *bytes, int len);
 static int int_encode_utc_time(VALUE, unsigned char **);
 static int int_encode_generalized_time(VALUE, unsigned char **);
 
-#define sanity_check(b, len)			\
-do {						\
-    if (!b || len < 0)				\
+#define sanity_check(b, len)				\
+do {							\
+    if (!b || len < 0)					\
         rb_raise(eKryptASN1Error, "Invalid value"); 	\
 } while (0)
 
-#define int_long_byte_len(ret, l)	\
-do {					\
-    (ret) = 1;				\
-    while ((l) >> (ret))		\
-        (ret)++;			\
+#define int_long_byte_len(ret, l)		\
+do {						\
+    unsigned long tmp = (unsigned long)(l); 	\
+    (ret) = 1;					\
+    while (tmp >>= (ret) * CHAR_BIT)		\
+        (ret)++;				\
 } while (0)
 
 static int
@@ -78,6 +79,7 @@ static int
 int_asn1_encode_boolean(VALUE value, unsigned char **out)
 {
     unsigned char *b;
+
     b = (unsigned char *)xmalloc(sizeof(unsigned char));
     *b = RTEST(value) ? 0xff : 0x0;
     *out = b;
@@ -99,19 +101,31 @@ int_asn1_decode_boolean(unsigned char *bytes, int len)
 	return Qtrue;
 }
 
+/* TODO: broken!!! */
 static int
 int_asn1_encode_integer(VALUE value, unsigned char **out)
 {
     long num;
-    int len;
+    int len, i, j = 0;
     unsigned char *bytes;
+    unsigned char *numbytes;
 
-    num = rb_big2long(value);
+    num = NUM2LONG(value);
+
+    if (num == 0) {
+	bytes = (unsigned char *)xmalloc(sizeof(unsigned char));
+	bytes[0] = 0x0;
+	*out = bytes;
+	return 1;
+    }
+
     int_long_byte_len(len, num);
 
     bytes = (unsigned char *)xmalloc(len);
-    num <<= sizeof(long) - len;
-    memcpy(bytes, (unsigned char *) num, len);
+    numbytes = (unsigned char *) &num;
+    for (i= len - 1; i >= 0; i--) {
+	bytes[j++] = numbytes[i];
+    }
     *out = bytes;
 
     return len;
@@ -130,7 +144,7 @@ int_asn1_decode_integer(unsigned char *bytes, int len)
 	rb_raise(eKryptASN1Error, "Size 0 for integer value");
     
     for (i = 0; i < len; i++)
-       num |= bytes[i] << (len - i - 1);	
+       num |= bytes[i] << (len - i - 1) * CHAR_BIT;	
 
     return rb_int2inum(num);
 }
@@ -176,7 +190,6 @@ int_asn1_encode_octet_string(VALUE value, unsigned char **out)
 static VALUE
 int_asn1_decode_octet_string(unsigned char *bytes, int len)
 {
-    sanity_check(bytes, len);
     return krypt_asn1_decode_default(bytes, len);
 }
 
@@ -427,7 +440,7 @@ int_set_first_sub_ids(long combined, long *first, long *second)
 {
     long f = 1;
 
-    while (40 * f < combined)
+    while (40 * f <= combined)
        f++;	
 
     *first = f - 1;
