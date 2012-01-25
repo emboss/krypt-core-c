@@ -40,8 +40,8 @@ extern VALUE cKryptASN1UTCTime, cKryptASN1GeneralizedTime;     /* TIME          
 /* CONSTRUCTIVE */
 extern VALUE cKryptASN1Sequence, cKryptASN1Set;
 
-typedef VALUE (*krypt_asn1_decoder)(unsigned char *bytes, int len);
-typedef int (*krypt_asn1_encoder)(VALUE value, unsigned char **out);
+typedef VALUE (*krypt_asn1_decoder)(VALUE self, unsigned char *bytes, int len);
+typedef int (*krypt_asn1_encoder)(VALUE self, VALUE value, unsigned char **out);
 typedef struct krypt_asn1_codec_st {
     krypt_asn1_encoder encoder;
     krypt_asn1_decoder decoder;
@@ -66,8 +66,8 @@ void Init_krypt_instream_adapter(void);
 
 VALUE krypt_instream_adapter_new(krypt_instream *in);
 
-int krypt_asn1_encode_default(VALUE value, unsigned char **out);
-VALUE krypt_asn1_decode_default(unsigned char *bytes, int len);
+int krypt_asn1_encode_default(VALUE self, VALUE value, unsigned char **out);
+VALUE krypt_asn1_decode_default(VALUE self, unsigned char *bytes, int len);
 
 #endif /* _KRYPT_ASN1_H_ */
 
