@@ -703,24 +703,43 @@ int_asn1_cons_value_decode(VALUE self, krypt_asn1_data *data)
 }
 
 static void
-int_asn1_cons_encode_to(VALUE self, krypt_outstream *out, VALUE ary, krypt_asn1_data *data)
+int_cons_encode_sub_elems(krypt_outstream *out, VALUE ary) 
 {
-    VALUE cur;
     long size, i;
-    krypt_asn1_header *header;
+    VALUE cur;
 
-    header = data->object->header;
-    if (header->length_bytes == NULL) {
-	/* TODO compute and update length */
-	rb_raise(rb_eNotImpError, "Not implemented yet");
-    }
-
-    krypt_asn1_header_encode(out, data->object->header);
     size = RARRAY_LEN(ary);
 
     for (i=0; i < size; i++) {
 	cur = rb_ary_entry(ary, i);
 	int_asn1_encode_to(out, cur);
+    }
+}
+
+static void
+int_asn1_cons_encode_to(VALUE self, krypt_outstream *out, VALUE ary, krypt_asn1_data *data)
+{
+    krypt_asn1_header *header;
+
+    header = data->object->header;
+    if (header->length_bytes == NULL) {
+	/* compute and update length */
+	unsigned char *bytes;
+	size_t len;
+	krypt_outstream *bos = krypt_outstream_new_bytes();
+
+	int_cons_encode_sub_elems(bos, ary);
+	len = krypt_outstream_bytes_get_bytes_free(bos, &bytes);
+	krypt_outstream_free(bos);
+	if (len > INT_MAX)
+	    rb_raise(eKryptASN1Error, "Size of constructed value too large");
+	header->length = (int) len;
+	krypt_asn1_header_encode(out, header);
+	krypt_outstream_write(out, bytes, header->length);
+	xfree(bytes);
+    } else {
+	krypt_asn1_header_encode(out, header);
+	int_cons_encode_sub_elems(out, ary);
     }
 }
 
