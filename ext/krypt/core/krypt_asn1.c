@@ -133,12 +133,12 @@ int_asn1_data_free(krypt_asn1_data *data)
     xfree(data);
 }
 
-#define int_asn1_data_set(klass, obj, data)	 		\
-do { 							    	\
-    if (!(data)) { 					    	\
-	rb_raise(eKryptError, "Uninitialized krypt_asn1_data");	\
-    } 								\
-    (obj) = Data_Wrap_Struct((klass), 0, int_asn1_data_free, (data)); \
+#define int_asn1_data_set(klass, obj, data)	 			\
+do { 							    		\
+    if (!(data)) { 					    		\
+	rb_raise(eKryptError, "Uninitialized krypt_asn1_data");		\
+    } 									\
+    (obj) = Data_Wrap_Struct((klass), 0, int_asn1_data_free, (data)); 	\
 } while (0)
 
 #define int_asn1_data_get(obj, data)				\
@@ -722,7 +722,10 @@ int_asn1_cons_encode_to(VALUE self, krypt_outstream *out, VALUE ary, krypt_asn1_
     krypt_asn1_header *header;
 
     header = data->object->header;
-    if (header->length_bytes == NULL) {
+    /* If the length encoding is still cached or we have an infinite length
+     * value, we don't need to compute the length first, we can simply start
+     * encoding */ 
+    if (header->length_bytes == NULL && !header->is_infinite) {
 	/* compute and update length */
 	unsigned char *bytes;
 	size_t len;
