@@ -63,6 +63,12 @@ krypt_instream_adapter_new(krypt_instream *in)
     return obj;
 }
 
+/**
+ * call-seq:
+ *    in.read([len=nil], [buf=nil]) -> String or nil
+ *
+ * Please see IO#read for details.
+ */
 static VALUE
 krypt_instream_adapter_read(int argc, VALUE *argv, VALUE self)
 {
@@ -98,6 +104,12 @@ int_whence_for(VALUE vwhence)
     return Qnil; /* dummy */
 }
 
+/**
+ * call-seq:
+ *    in.seek(n, [whence=:SEEK_SET]) -> 0
+ *
+ * Please see IO#seek for details.
+ */
 static VALUE
 krypt_instream_adapter_seek(int argc, VALUE *argv, VALUE self)
 {
@@ -117,6 +129,27 @@ krypt_instream_adapter_seek(int argc, VALUE *argv, VALUE self)
 void
 Init_krypt_instream_adapter(void)
 {
+#if 0
+    mKrypt = rb_define_module("Krypt");
+    mKryptASN1 = rb_define_module_under(mKrypt, "ASN1"); /* Let RDoc know */ 
+#endif
+
+    /**
+     * Document-class: Krypt::ASN1::Instream
+     *
+     * Acts as a drop-in replacement for an IO. It cannot be instantiated on
+     * its own, instances may be obtained by calling Header#value_io. Instream
+     * supports a reduced subset of the interface defined by IO.
+     *
+     * == Example usage
+     *
+     * === Reading the contents of an Instream
+     *   der_io = # some IO representing a DER-encoded ASN.1 value 
+     *   parser = Krypt::ASN1::Parser.new
+     *   token = parser.next(der_io)
+     *   instream = token.value_io
+     *   value = instream.read # contains the raw bytes of the token's value
+     */
     cKryptASN1Instream = rb_define_class_under(mKryptASN1, "Instream", rb_cObject);
     rb_define_method(cKryptASN1Instream, "read", krypt_instream_adapter_read, -1);
     rb_define_method(cKryptASN1Instream, "seek", krypt_instream_adapter_seek, -1);
