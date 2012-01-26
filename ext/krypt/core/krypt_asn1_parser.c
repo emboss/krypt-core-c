@@ -290,6 +290,14 @@ int_krypt_instream_new(VALUE io)
     }
 }
 
+/**
+ * call-seq:
+ *    parser.next(io) -> Header or nil
+ *
+ * * +io+: an IO-like object supporting IO#read and IO#seek
+ * Returns a Header if parsing was successful or nil if the end of the stream
+ * has been reached. May raise ParseError in case an error occurred.
+ */
 static VALUE
 krypt_asn1_parser_next(VALUE self, VALUE io)
 {
@@ -308,6 +316,96 @@ krypt_asn1_parser_next(VALUE self, VALUE io)
 void
 Init_krypt_asn1_parser(void)
 {
+#if 0
+    mKrypt = rb_define_module("Krypt");
+    mKryptASN1 = rb_define_module_under(mKrypt, "ASN1"); /* Let RDoc know */ 
+#endif
+
+    /**
+     * Document-class: Krypt::ASN1::Parser
+     *
+     * Low-level interface that allows to parse DER-encoded ASN.1 structures
+     * in a truly streaming fashion using a "Pull Parser" model. The Pull
+     * Parser model for stream-based parsing is considered as more convenient
+     * than an event-based model due to its similarity to an equivalent
+     * non-streaming parsing model and the fact that the typical callback-based
+     * implementation of an event-based model gets complicated very quickly.
+     * 
+     * Pull parsing can be imagined as moving a cursor forward on the stream
+     * by deciding to parse a particular token at the current stream position,
+     * thus "pulling" stream tokens on demand.
+     *
+     * The Parser itself is stateless (i.e. can be reused safely on different
+     * streams) and operates on any IO-like object that supports IO#read and
+     * IO#seek.
+     *
+     * Calling Parser#next on an IO will attempt to read a DER Header of
+     * a DER-encoded object (cf. http://www.itu.int/ITU-T/studygroups/com17/languages/X.690-0207.pdf).
+     * DER, the Distinguished Encoding Rules, are an encoding scheme for
+     * encoding ASN.1 data structures into a binary format. DER is a TLV
+     * (Tag-Length-Value) encoding, that is the Header of a DER-encoded
+     * object can be thought of as the combination of Tag and Length.
+     *
+     * Parser#next may either return a Header, +nil+ if the end of the stream
+     * was reached or raise a ParseError if an error occured. Upon succesful
+     * parsing of a Header, there are several choices on how to proceed. 
+     *
+     * If the current Header represents a primitive value (may be detected
+     * by verifying that Header#constructed? is +false+), the ways to move
+     * forward on the stream are:
+     * * skipping over the Header's value (the V in TLV) using 
+     *   Header#skip_value 
+     * * reading the value in one pass using Header#value
+     * * obtaining an Instream of the value in order to read it 
+     *   streaming-based using Header#value_io
+     * Please note that immediately calling Parser#next on a stream from
+     * whom a Header of a primitive value was just read will fail because
+     * the only option to proceed in that case is either skipping or
+     * consuming the value first. For more details on primitive values,
+     * please have a look at Krypt::ASN1::Primitive.
+     *
+     * If the current Header represents a constructed value 
+     * (Header#constructed? is +true+), there is another option still.
+     * First, you may interpret the value of the constructed value in
+     * its entirety, using the methods described above for primitive
+     * values. The value in such a case represents the raw encoding of the
+     * <b>entire</b> sequence of inner elements of that constructed encoding.
+     * For example, for a SEQUENCE with n elements, the value will be the
+     * concatenated encodings of every single of the n elements in successive
+     * order. But, if you wish to parse the inner elements, too, there is the
+     * additional option of parsing another Header immediately, effectively
+     * "descending" into the nested structure. Similarly to how constructed
+     * values can be nested, one can recursively descend with Parser into
+     * these nested structures by parsing another Header with Parser#next
+     * instead of merely consuming the constructed Header's value. This is
+     * best illustrated using an
+     *
+     * === Example: Reading all objects contained within a constructed DER
+     *   io = # IO representing a DER-encoded ASN.1 structure
+     *   parser = Krypt::ASN1::Parser.new
+     *   while header = parser.next do
+     *     unless header.constructed?
+     *       # Primitive -> consume/skip value
+     *       value = header.value
+     *       # Process value
+     *     end
+     *     # Constructed -> parse another Header immediately
+     *   end
+     * 
+     * in contrast to
+     *
+     * === Example: Reading the entire value of a constructed DER at once
+     *   io = # IO representing a DER-encoded ASN.1 structure
+     *   parser = Krypt::ASN1::Parser.new
+     *   header = parser.next
+     *   value = header.value # Reads the entire encodings of the nested elements
+     *   puts parser.next == nil # -> true, since the header and value of the
+     *                             outmost constructed value is the entire
+     *                             content of the stream
+     * 
+     * More details on constructed values can be found in the documentation
+     * of Krypt::ASN1::Constructive.
+     */
     cKryptASN1Parser = rb_define_class_under(mKryptASN1, "Parser", rb_cObject);
     rb_define_method(cKryptASN1Parser, "next", krypt_asn1_parser_next, 1);
 

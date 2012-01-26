@@ -1,4 +1,8 @@
 === 0.1.0 / 2012-01-26 [emboss]
+* Add Parser docs
+  [Issue #3]
+
+=== 0.1.0 / 2012-01-26 [emboss]
 * Add Instream docs
   [Issue #5]
 
