@@ -48,27 +48,15 @@ VALUE
 int_read_all(krypt_instream *in, VALUE vbuf)
 {
     unsigned char *buf;
-    size_t num_read = 0;
-    size_t buf_len = KRYPT_IO_BUF_SIZE;
     ssize_t r;
 
-    int_size_buffer(&vbuf, buf_len);
-    buf = (unsigned char *) RSTRING_PTR(vbuf);
+    buf = ALLOC_N(unsigned char, KRYPT_IO_BUF_SIZE);
 
     while ((r = krypt_instream_read(in, buf, KRYPT_IO_BUF_SIZE)) != -1) {
-	if (num_read > SIZE_MAX - r)
-	    rb_raise(rb_eRuntimeError, "Stream too large to read at once");
-	num_read += r;
-	buf += r;
-	if (buf_len - num_read < KRYPT_IO_BUF_SIZE) {
-	    if (buf_len >= SIZE_MAX / 2)
-		rb_raise(rb_eRuntimeError, "Stream too large to read at once");
-	    buf_len *= 2;
-	    int_size_buffer(&vbuf, buf_len);
-	    buf = ((unsigned char *) RSTRING_PTR(vbuf)) + num_read;
-	}
+	rb_str_buf_cat(vbuf, (const char *) buf, r);
     }
-    rb_str_resize(vbuf, num_read);
+
+    xfree(buf);
     return vbuf;
 }
 
@@ -79,6 +67,10 @@ int_rb_read_generic(krypt_instream *in, VALUE vlen, VALUE vbuf)
     long len;
     size_t tlen;
     ssize_t r;
+    unsigned char *buf;
+
+    if (NIL_P(vbuf))
+	vbuf = rb_str_new2("");
 
     if (NIL_P(vlen))
 	return int_read_all(in, vbuf);
@@ -86,25 +78,30 @@ int_rb_read_generic(krypt_instream *in, VALUE vlen, VALUE vbuf)
     len = NUM2LONG(vlen);
     if (len < 0)
 	rb_raise(rb_eArgError, "Negative length %ld", len);
-    tlen = (size_t) len;
-    if (tlen > SIZE_MAX)
+    if (len > (long) SIZE_MAX)
 	rb_raise(rb_eArgError, "Length too large: %ld", len);
 
-    int_size_buffer(&vbuf, tlen);
-    if (len == 0)
+    tlen = (size_t) len;
+    if (len == 0) {
+	rb_str_resize(vbuf, 0);
 	return vbuf;
+    }
 
-    r = krypt_instream_read(in, (unsigned char *) RSTRING_PTR(vbuf), (size_t)len);
+    buf = ALLOC_N(unsigned char, tlen);
+    r = krypt_instream_read(in, buf, tlen);
 
     if (r == 0) {
+	xfree(buf);
 	rb_raise(eKryptError, "Error while reading from stream");
     }
     else if (r == -1) {
+	xfree(buf);
 	rb_str_resize(vbuf, 0);
 	return Qnil;
     }
     else {
-	rb_str_resize(vbuf, r);
+	rb_str_buf_cat(vbuf, (const char *)buf, r);
+	xfree(buf);
 	return vbuf;
     }
 }

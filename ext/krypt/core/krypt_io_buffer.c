@@ -33,6 +33,7 @@ int_buffer_grow(krypt_byte_buffer *buffer, size_t cur_len)
 	return;
     }
 
+    /* avoid infinite loop for limit == 1 */
     new_size = buffer->limit == 1 ? 2 : buffer->limit;
 
     while (new_size - buffer->size < cur_len) {

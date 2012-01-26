@@ -19,6 +19,9 @@
 extern "C" {
 #endif
 
+#define RSTRING_NOT_MODIFIED 1
+#define RUBY_READONLY_STRING 1
+
 #include <ruby.h>
 #include "krypt-os.h"
 
