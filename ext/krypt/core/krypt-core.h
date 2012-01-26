@@ -26,6 +26,8 @@ extern "C" {
 #include <ruby/io.h>
 #endif
 
+/* This is just a precaution to take remind us of thread safety
+ * issues in case there would be no GVL */ 
 #ifndef InitVM
 #define InitVM(ext) {void InitVM_##ext(void);InitVM_##ext();}
 #endif

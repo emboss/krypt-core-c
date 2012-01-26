@@ -51,10 +51,12 @@ Init_kryptcore(void)
     Init_krypt_io();
     Init_krypt_asn1();
 
-    /* Init per VM */
+    /* Init per VM, just a precaution */
     InitVM(kryptcore);
 }
 
+/* This is just a precaution to take remind us of thread safety
+ * issues in case there would be no GVL */ 
 void
 InitVM_kryptcore(void)
 {
