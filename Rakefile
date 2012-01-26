@@ -42,3 +42,5 @@ end
 
 desc 'Build ext for coverage and generate a coverage report of spec.'
 task 'coverage' => ['enable-coverage', 'compile', 'spec', 'report-coverage']
+
+task :build => :compile
