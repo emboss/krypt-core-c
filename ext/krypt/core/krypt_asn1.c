@@ -177,7 +177,7 @@ krypt_asn1_data_new(krypt_instream *in, krypt_asn1_header *header)
     krypt_asn1_data *data;
     krypt_asn1_object *encoding;
     unsigned char *value;
-    int value_len;
+    size_t value_len;
 
     if (!header)
 	rb_raise(rb_eArgError, "Uninitialized header");
@@ -734,9 +734,7 @@ int_asn1_cons_encode_to(VALUE self, krypt_outstream *out, VALUE ary, krypt_asn1_
 	int_cons_encode_sub_elems(bos, ary);
 	len = krypt_outstream_bytes_get_bytes_free(bos, &bytes);
 	krypt_outstream_free(bos);
-	if (len > INT_MAX)
-	    rb_raise(eKryptASN1Error, "Size of constructed value too large");
-	header->length = (int) len;
+	header->length = len;
 	krypt_asn1_header_encode(out, header);
 	krypt_outstream_write(out, bytes, header->length);
 	xfree(bytes);

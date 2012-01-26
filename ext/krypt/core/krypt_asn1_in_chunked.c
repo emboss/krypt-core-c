@@ -28,14 +28,14 @@ typedef struct int_instream_chunked {
     enum int_state state;
     krypt_asn1_header *cur_header;
     krypt_instream *cur_value_stream;
-    unsigned int header_offset;
+    size_t header_offset;
 } int_instream_chunked;
 
 #define int_safe_cast(out, in)		krypt_safe_cast_instream((out), (in), INSTREAM_TYPE_CHUNKED, int_instream_chunked)
 
 static int_instream_chunked* int_chunked_alloc(void);
-static int int_chunked_read(krypt_instream *in, unsigned char *buf, int len);
-static void int_chunked_seek(krypt_instream *in, int offset, int whence);
+static ssize_t int_chunked_read(krypt_instream *in, unsigned char *buf, size_t len);
+static void int_chunked_seek(krypt_instream *in, off_t offset, int whence);
 static void int_chunked_mark(krypt_instream *in);
 static void int_chunked_free(krypt_instream *in);
 
@@ -90,16 +90,16 @@ int_read_new_header(int_instream_chunked *in)
     }
 }
 
-static int
+static size_t
 int_read_header_bytes(int_instream_chunked *in,
 		      unsigned char* bytes, 
-		      int bytes_len, 
+		      size_t bytes_len, 
 		      enum int_state next_state,
 		      unsigned char *buf,
-		      int len)
+		      size_t len)
 {
-    int to_read;
-    int available = bytes_len - in->header_offset;
+    size_t to_read;
+    size_t available = bytes_len - in->header_offset;
         
     if (len < available) {
 	in->header_offset += len;
@@ -115,10 +115,10 @@ int_read_header_bytes(int_instream_chunked *in,
     return to_read;
 }
 
-static int
-int_read_value(int_instream_chunked *in, unsigned char *buf, int len)
+static size_t
+int_read_value(int_instream_chunked *in, unsigned char *buf, size_t len)
 {
-    int read;
+    ssize_t read;
 
     if (!in->cur_value_stream)
 	in->cur_value_stream = krypt_asn1_get_value_stream(in->inner, in->cur_header, in->values_only);
@@ -148,10 +148,11 @@ do {								\
     }								\
 } while (0)
 
-static int
-int_read_single_element(int_instream_chunked *in, unsigned char *buf, int len)
+/* TODO: check overflow */
+static size_t
+int_read_single_element(int_instream_chunked *in, unsigned char *buf, size_t len)
 {
-    int read = 0, total = 0;
+    size_t read = 0, total = 0;
     
     switch (in->state) {
 	case NEW_HEADER:
@@ -196,37 +197,43 @@ int_read_single_element(int_instream_chunked *in, unsigned char *buf, int len)
     }
 }
 
-static int
-int_read(int_instream_chunked *in, unsigned char *buf, int len)
+static size_t
+int_read(int_instream_chunked *in, unsigned char *buf, size_t len)
 {
-    int read = 0, total = 0;
+    size_t read = 0, total = 0;
 
     while (total != len && in->state != DONE) {
 	read = int_read_single_element(in, buf, len);
+	if (total > SIZE_MAX - read)
+	    rb_raise(rb_eRuntimeError, "Stream too large");
 	total += read;
 	buf += read;
     }
     return total;
 }
 
-static int
-int_chunked_read(krypt_instream *instream, unsigned char *buf, int len)
+static ssize_t
+int_chunked_read(krypt_instream *instream, unsigned char *buf, size_t len)
 {
     int_instream_chunked *in;
+    size_t read;
     
     int_safe_cast(in, instream);
     
-    if (!buf || len < 0)
+    if (!buf)
 	rb_raise(rb_eArgError, "Buffer not initialized or length negative");
 
     if (in->state == DONE)
 	return -1;
 
-    return int_read(in, buf, len);
+    read = int_read(in, buf, len);
+    if (read > SSIZE_MAX)
+	rb_raise(rb_eRuntimeError, "Stream too large");
+    return read;
 }
 
 static void
-int_chunked_seek(krypt_instream *instream, int offset, int whence)
+int_chunked_seek(krypt_instream *instream, off_t offset, int whence)
 {
     /* int_instream_chunked *in;
 

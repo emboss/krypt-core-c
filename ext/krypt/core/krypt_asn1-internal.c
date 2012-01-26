@@ -15,7 +15,7 @@
 #include "krypt_asn1-internal.h"
 
 static const int TAG_LIMIT = INT_MAX >> CHAR_BIT_MINUS_ONE;
-static const int LENGTH_LIMIT = INT_MAX >> CHAR_BIT;
+static const size_t LENGTH_LIMIT = SIZE_MAX >> CHAR_BIT;
 
 #define int_next_byte(in, b)				 	\
 do {							  	\
@@ -23,21 +23,21 @@ do {							  	\
     	rb_raise(eKryptParseError, "Error while parsing.");     \
 } while (0)						  	\
 
+static void int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
+static void int_parse_primitive_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
+static void int_parse_length(krypt_instream *in, krypt_asn1_header *out);
+static void int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
+static unsigned char *int_parse_read_exactly(krypt_instream *in, size_t n);
+static size_t int_consume_stream(krypt_instream *in, unsigned char **out);
+static void int_compute_tag(krypt_asn1_header *header);
+static void int_compute_length(krypt_asn1_header *header);
+
 #define int_parse_tag(b, in, out)			\
 do {							\
     (((b) & COMPLEX_TAG_MASK) == COMPLEX_TAG_MASK) ? 	\
     int_parse_complex_tag((b), (in), (out)) : 		\
     int_parse_primitive_tag((b), (in), (out));		\
 } while (0)
-
-static void int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
-static void int_parse_primitive_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
-static void int_parse_length(krypt_instream *in, krypt_asn1_header *out);
-static void int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
-static unsigned char *int_parse_read_exactly(krypt_instream *in, int n);
-static int int_consume_stream(krypt_instream *in, unsigned char **out);
-static void int_compute_tag(krypt_asn1_header *header);
-static void int_compute_length(krypt_asn1_header *header);
 
 /**
  * Parses a krypt_asn1_header from the krypt_instream at its current
@@ -54,7 +54,7 @@ static void int_compute_length(krypt_asn1_header *header);
 int
 krypt_asn1_next_header(krypt_instream *in, krypt_asn1_header **out)
 {
-    int read;
+    ssize_t read;
     unsigned char b;
     krypt_asn1_header *header;
 
@@ -107,7 +107,7 @@ krypt_asn1_skip_value(krypt_instream *in, krypt_asn1_header *last)
  * @raises	Krypt::Asn1::ParseError if reading the value failed
  * @raises	ArgumentError if in or last is NULL	
  */
-int
+size_t
 krypt_asn1_get_value(krypt_instream *in, krypt_asn1_header *last, unsigned char **out)
 {
     if (!in) rb_raise(rb_eArgError, "Stream is not initialized");
@@ -298,18 +298,15 @@ krypt_asn1_header_free(krypt_asn1_header *header)
  * @param value		The raw byte encoding of the value
  * @param len		The length of the byte encoding
  * @raises		NoMemoryError if allocation fails
- * @raises		ArgumentError if either header or value is NULL or
- * 			len is negative
+ * @raises		ArgumentError if header or value is NULL
  */
 krypt_asn1_object *
-krypt_asn1_object_new_value(krypt_asn1_header *header, unsigned char *value, int len)
+krypt_asn1_object_new_value(krypt_asn1_header *header, unsigned char *value, size_t len)
 {
     krypt_asn1_object *obj;
 
     if (!value)
 	rb_raise(rb_eArgError, "header or value not initialized");
-    if (len < 0)
-	rb_raise(rb_eArgError, "Negative length %d provided", len);
 
     obj = krypt_asn1_object_new(header);
     obj->bytes = value;
@@ -373,10 +370,18 @@ int_parse_primitive_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *
     out->tag_len = 1;
 }
 
-#define int_buffer_add_byte(buf, b, out)		\
-do {							\
-    krypt_buffer_write((buf), &(b), 1);			\
-    (out)->header_length++;				\
+#define int_buffer_add_byte(buf, b, out)			\
+do {								\
+    krypt_buffer_write((buf), &(b), 1);				\
+    if ((out)->header_length == SIZE_MAX)			\
+    	rb_raise(eKryptParseError, "Complex tag too long");	\
+    (out)->header_length++;					\
+} while (0)
+
+#define int_check_tag(t)					\
+do {								\
+    if ((t) > TAG_LIMIT)					\
+	rb_raise(eKryptParseError, "Complex tag too long");	\
 } while (0)
 
 static void
@@ -393,14 +398,14 @@ int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *ou
     int_next_byte(in, b);
 
     while ((b & INFINITE_LENGTH_MASK) == INFINITE_LENGTH_MASK) {
-	if (tag > TAG_LIMIT)
-	    rb_raise(eKryptParseError, "Complex tag too long");
+	int_check_tag(tag);
 	int_buffer_add_byte(buffer, b, out);
 	tag <<= CHAR_BIT_MINUS_ONE;
 	tag |= (b & 0x7f);
 	int_next_byte(in, b);
     }
 
+    int_check_tag(tag);
     int_buffer_add_byte(buffer, b, out);
     tag <<= CHAR_BIT_MINUS_ONE;
     tag |= (b & 0x7f);
@@ -427,7 +432,7 @@ int_parse_length(krypt_instream *in, krypt_asn1_header *out)
 
     if (b == INFINITE_LENGTH_MASK) {
 	out->is_infinite = 1;
-	out->length = -1;
+	out->length = 0;
 	int_set_single_byte_length(out, b);
     }
     else if ((b & INFINITE_LENGTH_MASK) == INFINITE_LENGTH_MASK) {
@@ -444,13 +449,12 @@ int_parse_length(krypt_instream *in, krypt_asn1_header *out)
 static void
 int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn1_header *out)
 {
-    int len = 0;
-    int offset = 0;
-    int i;
-    unsigned int num_bytes;
+    size_t len = 0;
+    size_t offset = 0;
+    size_t i, num_bytes;
 
     num_bytes = b & 0x7f;
-    if (num_bytes > sizeof(int))
+    if (num_bytes + 1 > sizeof(size_t))
 	rb_raise(eKryptParseError, "Definite value length too long");
 
     out->length_bytes = ALLOC_N(unsigned char, num_bytes + 1);
@@ -461,7 +465,7 @@ int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn
 	out->header_length++;
 	len <<= CHAR_BIT;
 	len |= b;
-	if (len > LENGTH_LIMIT)
+	if (len > LENGTH_LIMIT || offset == SIZE_MAX || out->header_length == SIZE_MAX)
 	    rb_raise(eKryptParseError, "Complex length too long");
 	out->length_bytes[offset++] = b;
     }
@@ -472,10 +476,11 @@ int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn
 
 
 static unsigned char *
-int_parse_read_exactly(krypt_instream *in, int n)
+int_parse_read_exactly(krypt_instream *in, size_t n)
 {
     unsigned char *ret, *p;
-    int offset = 0, read;
+    size_t offset = 0;
+    ssize_t read;
 
     ret = ALLOC_N(unsigned char, n);
     p = ret;
@@ -491,12 +496,12 @@ int_parse_read_exactly(krypt_instream *in, int n)
     return ret;
 }
 
-static int
+static size_t
 int_consume_stream(krypt_instream *in, unsigned char **out)
 {
     krypt_byte_buffer *out_buf;
     unsigned char *in_buf;
-    int read;
+    ssize_t read;
     size_t size;
 
     in_buf = ALLOC_N(unsigned char, KRYPT_IO_BUF_SIZE);
@@ -508,20 +513,14 @@ int_consume_stream(krypt_instream *in, unsigned char **out)
     *out = krypt_buffer_get_data(out_buf);
     size = krypt_buffer_get_size(out_buf);
 
-    if (size > INT_MAX) {
-	krypt_buffer_free(out_buf);
-	xfree(in_buf);
-	rb_raise(eKryptParseError, "Value too long to be parsed");
-    }
-
     krypt_buffer_resize_free(out_buf);
     xfree(in_buf);
-    return (int) size;
+    return size;
 }
 
 #define int_determine_num_shifts(i, value, by)		\
 do {							\
-    int tmp = (value);					\
+    size_t tmp = (value);				\
     for ((i) = 0; tmp > 0; (i)++) {			\
 	tmp >>= (by);					\
     }							\
@@ -531,7 +530,8 @@ do {							\
 static void
 int_compute_complex_tag(krypt_asn1_header *header)
 {
-    int num_shifts, i, tmp_tag;
+    size_t num_shifts, i;
+    int tmp_tag;
     unsigned char b;
    
     b = header->is_constructed ? CONSTRUCTED_MASK : 0x00;
@@ -574,7 +574,7 @@ int_compute_tag(krypt_asn1_header *header)
 static void
 int_compute_complex_length(krypt_asn1_header *header)
 {
-    int num_shifts, tmp_len, i;
+    size_t num_shifts, tmp_len, i;
 
     int_determine_num_shifts(num_shifts, header->length, CHAR_BIT);
     tmp_len = header->length;

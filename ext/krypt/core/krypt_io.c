@@ -50,15 +50,19 @@ int_read_all(krypt_instream *in, VALUE vbuf)
     unsigned char *buf;
     size_t num_read = 0;
     size_t buf_len = KRYPT_IO_BUF_SIZE;
-    int r;
+    ssize_t r;
 
     int_size_buffer(&vbuf, buf_len);
     buf = (unsigned char *) RSTRING_PTR(vbuf);
 
     while ((r = krypt_instream_read(in, buf, KRYPT_IO_BUF_SIZE)) != -1) {
+	if (num_read > SIZE_MAX - r)
+	    rb_raise(rb_eRuntimeError, "Stream too large to read at once");
 	num_read += r;
 	buf += r;
 	if (buf_len - num_read < KRYPT_IO_BUF_SIZE) {
+	    if (buf_len >= SIZE_MAX / 2)
+		rb_raise(rb_eRuntimeError, "Stream too large to read at once");
 	    buf_len *= 2;
 	    int_size_buffer(&vbuf, buf_len);
 	    buf = ((unsigned char *) RSTRING_PTR(vbuf)) + num_read;
@@ -72,20 +76,25 @@ static VALUE
 int_rb_read_generic(krypt_instream *in, VALUE vlen, VALUE vbuf)
 {
 
-    int len, r;
+    long len;
+    size_t tlen;
+    ssize_t r;
 
     if (NIL_P(vlen))
 	return int_read_all(in, vbuf);
 
-    len = NUM2INT(vlen);
+    len = NUM2LONG(vlen);
     if (len < 0)
-	rb_raise(rb_eArgError, "Negative length %d", len);
+	rb_raise(rb_eArgError, "Negative length %ld", len);
+    tlen = (size_t) len;
+    if (tlen > SIZE_MAX)
+	rb_raise(rb_eArgError, "Length too large: %ld", len);
 
-    int_size_buffer(&vbuf, (size_t)len);
+    int_size_buffer(&vbuf, tlen);
     if (len == 0)
 	return vbuf;
 
-    r = krypt_instream_read(in, (unsigned char *) RSTRING_PTR(vbuf), len);
+    r = krypt_instream_read(in, (unsigned char *) RSTRING_PTR(vbuf), (size_t)len);
 
     if (r == 0) {
 	rb_raise(eKryptError, "Error while reading from stream");
@@ -113,15 +122,17 @@ krypt_instream_rb_read(krypt_instream *in, VALUE vlen, VALUE vbuf)
     }
 }
 
-int 
-krypt_instream_read(krypt_instream *in, unsigned char *buf, int len)
+ssize_t 
+krypt_instream_read(krypt_instream *in, unsigned char *buf, size_t len)
 {
     int_check_stream_has(in, read);
+    if (len > SSIZE_MAX)
+	rb_raise(rb_eRuntimeError, "Length too large");
     return in->methods->read(in, buf, len);
 }
 
 void
-krypt_instream_seek(krypt_instream *in, int offset, int whence)
+krypt_instream_seek(krypt_instream *in, off_t offset, int whence)
 {
     int_check_stream_has(in, seek);
     in->methods->seek(in, offset, whence);
@@ -181,8 +192,8 @@ krypt_instream_new_value(VALUE value)
 
 /* outstream */
 
-int 
-krypt_outstream_write(krypt_outstream *out, unsigned char *buf, int len)
+size_t 
+krypt_outstream_write(krypt_outstream *out, unsigned char *buf, size_t len)
 {
     int_check_stream_has(out, write);
     return out->methods->write(out, buf, len);
@@ -197,7 +208,7 @@ krypt_outstream_rb_write(krypt_outstream *out, VALUE vbuf)
 	return out->methods->rb_write(out, vbuf);
     }
     else {
-	return krypt_outstream_write(out, (unsigned char *) RSTRING_PTR(vbuf), (int)RSTRING_LEN(vbuf));
+	return krypt_outstream_write(out, (unsigned char *) RSTRING_PTR(vbuf), RSTRING_LEN(vbuf));
     }
 }
 

@@ -53,31 +53,31 @@ typedef struct krypt_asn1_header_st {
     int tag_class;
     int is_constructed;
     int is_infinite;
-    int header_length;
-    int length;
+    size_t header_length;
+    size_t length;
     unsigned char *tag_bytes;
-    int tag_len;
+    size_t tag_len;
     unsigned char *length_bytes;
-    int length_len;
+    size_t length_len;
 } krypt_asn1_header;
 
 typedef struct krypt_asn1_object_st {
     krypt_asn1_header *header;
     unsigned char *bytes;
-    int bytes_len;
+    size_t bytes_len;
 } krypt_asn1_object;
 
 krypt_asn1_header *krypt_asn1_header_new(void);
 void krypt_asn1_header_free(krypt_asn1_header *header);
 krypt_asn1_object *krypt_asn1_object_new(krypt_asn1_header *header);
-krypt_asn1_object *krypt_asn1_object_new_value(krypt_asn1_header *header, unsigned char *value, int len);
+krypt_asn1_object *krypt_asn1_object_new_value(krypt_asn1_header *header, unsigned char *value, size_t len);
 void krypt_asn1_object_free(krypt_asn1_object *object);
 
 ID krypt_asn1_tag_class_for_int(int tag_class);
 int krypt_asn1_tag_class_for_id(ID tag_class);
 int krypt_asn1_next_header(krypt_instream *in, krypt_asn1_header **out);
 void krypt_asn1_skip_value(krypt_instream *in, krypt_asn1_header *last);
-int krypt_asn1_get_value(krypt_instream *in, krypt_asn1_header *last, unsigned char **out);
+size_t krypt_asn1_get_value(krypt_instream *in, krypt_asn1_header *last, unsigned char **out);
 krypt_instream *krypt_asn1_get_value_stream(krypt_instream *in, krypt_asn1_header *last, int values_only);
 
 void krypt_asn1_header_encode(krypt_outstream *out, krypt_asn1_header *header);

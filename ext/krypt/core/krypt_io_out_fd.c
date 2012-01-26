@@ -22,7 +22,7 @@ typedef struct int_outstream_fd_st {
 #define int_safe_cast(out, in)		krypt_safe_cast_outstream((out), (in), OUTSTREAM_TYPE_FD, int_outstream_fd)
 
 static int_outstream_fd* int_fd_alloc(void);
-static int int_fd_write(krypt_outstream *out, unsigned char *buf, int len);
+static size_t int_fd_write(krypt_outstream *out, unsigned char *buf, size_t len);
 static void int_fd_free(krypt_outstream *out);
 
 static krypt_outstream_interface interface_fd = {
@@ -62,15 +62,16 @@ int_fd_alloc(void)
     return ret;
 }
 
-static int
-int_fd_write(krypt_outstream *outstream, unsigned char *buf, int len)
+static size_t
+int_fd_write(krypt_outstream *outstream, unsigned char *buf, size_t len)
 {
-    int fd, w;
+    int fd;
+    ssize_t w;
     int_outstream_fd *out;
    
     int_safe_cast(out, outstream); 
 
-    if (!buf || len < 0)
+    if (!buf)
 	rb_raise(rb_eArgError, "Buffer not initialized or length negative");
 
     fd = out->fd;
@@ -78,7 +79,7 @@ int_fd_write(krypt_outstream *outstream, unsigned char *buf, int len)
     /* no need to increase out->num_written */
     w = write(fd, buf, len);
     
-    if (w == -1) {
+    if (w < 0) {
 	krypt_raise_io_error(eKryptSerializeError);
 	return 0; /* dummy */
     }

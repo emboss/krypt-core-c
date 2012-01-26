@@ -20,7 +20,7 @@ typedef struct int_outstream_io_st {
 #define int_safe_cast(out, in)		krypt_safe_cast_outstream((out), (in), OUTSTREAM_TYPE_IO_GENERIC, int_outstream_io)
 
 static int_outstream_io* int_io_alloc(void);
-static int int_io_write(krypt_outstream *out, unsigned char *buf, int len);
+static size_t int_io_write(krypt_outstream *out, unsigned char *buf, size_t len);
 static VALUE int_io_rb_write(krypt_outstream *out, VALUE vbuf);
 static void int_io_mark(krypt_outstream *out);
 static void int_io_free(krypt_outstream *out);
@@ -53,17 +53,17 @@ int_io_alloc(void)
     return ret;
 }
 
-static int
-int_io_write(krypt_outstream *outstream, unsigned char *buf, int len)
+static size_t
+int_io_write(krypt_outstream *outstream, unsigned char *buf, size_t len)
 {
     VALUE vbuf, ret;
 
-    if (!buf || len < 0)
+    if (!buf)
 	rb_raise(rb_eArgError, "Buffer not initialized or length negative");
 
     vbuf = rb_str_new((const char *)buf, len);
     ret = int_io_rb_write(outstream, vbuf);
-    return NUM2INT(ret);
+    return NUM2LONG(ret);
 }
 
 static VALUE

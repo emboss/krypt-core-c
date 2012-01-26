@@ -21,9 +21,9 @@ typedef struct int_instream_io_st {
 #define int_safe_cast(out, in)		krypt_safe_cast_instream((out), (in), INSTREAM_TYPE_IO_GENERIC, int_instream_io)
 
 static int_instream_io* int_io_alloc(void);
-static int int_io_read(krypt_instream *in, unsigned char *buf, int read);
+static ssize_t int_io_read(krypt_instream *in, unsigned char *buf, size_t len);
 static VALUE int_io_rb_read(krypt_instream *in, VALUE vlen, VALUE vbuf);
-static void int_io_seek(krypt_instream *in, int offset, int whence);
+static void int_io_seek(krypt_instream *in, off_t offset, int whence);
 static void int_io_mark(krypt_instream *in);
 static void int_io_free(krypt_instream *in);
 
@@ -59,25 +59,25 @@ int_io_alloc(void)
     return ret;
 }
 
-static int
-int_io_read(krypt_instream *instream, unsigned char *buf, int len)
+static ssize_t
+int_io_read(krypt_instream *instream, unsigned char *buf, size_t len)
 {
     VALUE read;
     int_instream_io *in;
 
     int_safe_cast(in, instream);
 
-    if (!buf || len < 0)
+    if (!buf)
 	rb_raise(rb_eArgError, "Buffer not initialized or length negative");
 
-    read = rb_funcall(in->io, ID_READ, 2, INT2NUM(len), in->vbuf);
+    read = rb_funcall(in->io, ID_READ, 2, LONG2NUM(len), in->vbuf);
 
     if (read == Qnil) {
 	return -1;
     }
     else {
-	int r;
-	r = (int)RSTRING_LEN(read);
+	size_t r;
+	r = RSTRING_LEN(read);
 	memcpy(buf, RSTRING_PTR(read), r);
 	return r;
     }
@@ -111,7 +111,7 @@ int_whence_sym_for(int whence)
 }
 
 static void
-int_io_seek(krypt_instream *instream, int offset, int whence)
+int_io_seek(krypt_instream *instream, off_t offset, int whence)
 {
     VALUE io;
     int_instream_io *in;

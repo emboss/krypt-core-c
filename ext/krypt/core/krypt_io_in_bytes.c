@@ -14,20 +14,20 @@
 
 struct krypt_byte_ary_st {
     unsigned char *p;
-    long len;
+    size_t len;
 };
 
 typedef struct int_instream_bytes_st {
     krypt_instream_interface *methods;
     struct krypt_byte_ary_st *src;
-    long num_read;
+    size_t num_read;
 } int_instream_bytes;
 
 #define int_safe_cast(out, in)		krypt_safe_cast_instream((out), (in), INSTREAM_TYPE_BYTES, int_instream_bytes)
 
 static int_instream_bytes* int_bytes_alloc(void);
-static int int_bytes_read(krypt_instream *in, unsigned char *buf, int len);
-static void int_bytes_seek(krypt_instream *in, int offset, int whence);
+static ssize_t int_bytes_read(krypt_instream *in, unsigned char *buf, size_t len);
+static void int_bytes_seek(krypt_instream *in, off_t offset, int whence);
 static void int_bytes_free(krypt_instream *in);
 
 static krypt_instream_interface interface_bytes = {
@@ -40,7 +40,7 @@ static krypt_instream_interface interface_bytes = {
 };
 
 krypt_instream *
-krypt_instream_new_bytes(unsigned char *bytes, long len)
+krypt_instream_new_bytes(unsigned char *bytes, size_t len)
 {
     int_instream_bytes *in;
     struct krypt_byte_ary_st *byte_ary;
@@ -63,16 +63,16 @@ int_bytes_alloc(void)
     return ret;
 }
 
-static int
-int_bytes_read(krypt_instream *instream, unsigned char *buf, int len)
+static ssize_t
+int_bytes_read(krypt_instream *instream, unsigned char *buf, size_t len)
 {
     struct krypt_byte_ary_st *src;
-    int to_read;
+    size_t to_read;
     int_instream_bytes *in;
 
     int_safe_cast(in, instream);
 
-    if (!buf || len < 0)
+    if (!buf)
 	rb_raise(rb_eArgError, "Buffer not initialized or length negative");
 
     src = in->src;
@@ -92,18 +92,19 @@ int_bytes_read(krypt_instream *instream, unsigned char *buf, int len)
 }
 
 static inline void
-int_bytes_set_pos(struct krypt_byte_ary_st *src, int offset, long num_read)
+int_bytes_set_pos(struct krypt_byte_ary_st *src, off_t offset, size_t num_read)
 {
-    if (num_read + offset < 0 || num_read + offset >= src->len)
+    if (src->len - offset <= num_read)
 	rb_raise(eKryptParseError, "Unreachable seek position");
     src->p += offset;
 }
 
+/* TODO check overflow */
 static void
-int_bytes_seek(krypt_instream *instream, int offset, int whence)
+int_bytes_seek(krypt_instream *instream, off_t offset, int whence)
 {
     struct krypt_byte_ary_st *src;
-    long num_read;
+    size_t num_read;
     int_instream_bytes *in;
 
     int_safe_cast(in, instream);

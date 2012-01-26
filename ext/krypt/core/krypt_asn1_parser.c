@@ -87,8 +87,8 @@ int_krypt_asn1_header_new(krypt_instream *in, krypt_asn1_header *header)
     parsed_header->tag_class = ID2SYM(krypt_asn1_tag_class_for_int(header->tag_class));
     parsed_header->constructed = header->is_constructed ? Qtrue : Qfalse;
     parsed_header->infinite = header->is_infinite ? Qtrue : Qfalse;
-    parsed_header->length = INT2NUM(header->length);
-    parsed_header->header_length = INT2NUM(header->header_length);
+    parsed_header->length = LONG2NUM(header->length);
+    parsed_header->header_length = LONG2NUM(header->header_length);
     parsed_header->in = in;
     parsed_header->header = header;
     parsed_header->value = Qnil;
@@ -192,7 +192,7 @@ krypt_asn1_header_value(VALUE self)
     /* TODO: sync */
     if (!header->consumed && header->value == Qnil) {
 	unsigned char *value;
-	int length;
+	size_t length;
 	int tag;
 
 	length = krypt_asn1_get_value(header->in, header->header, &value);

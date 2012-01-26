@@ -15,15 +15,15 @@
 typedef struct int_instream_definite_st {
     krypt_instream_interface *methods;
     krypt_instream *inner;
-    int max_read;
-    long num_read;
+    size_t max_read;
+    size_t num_read;
 } int_instream_definite;
 
 #define int_safe_cast(out, in)		krypt_safe_cast_instream((out), (in), INSTREAM_TYPE_DEFINITE, int_instream_definite)
 
 static int_instream_definite* int_definite_alloc(void);
-static int int_definite_read(krypt_instream *in, unsigned char *buf, int len);
-static void int_definite_seek(krypt_instream *in, int offset, int whence);
+static ssize_t int_definite_read(krypt_instream *in, unsigned char *buf, size_t len);
+static void int_definite_seek(krypt_instream *in, off_t offset, int whence);
 static void int_definite_mark(krypt_instream *in);
 static void int_definite_free(krypt_instream *in);
 
@@ -37,7 +37,7 @@ static krypt_instream_interface interface_definite = {
 };
 
 krypt_instream *
-krypt_instream_new_definite(krypt_instream *original, int len)
+krypt_instream_new_definite(krypt_instream *original, size_t len)
 {
     int_instream_definite *in;
 
@@ -57,11 +57,12 @@ int_definite_alloc(void)
     return ret;
 }
 
-static int
-int_definite_read(krypt_instream *instream, unsigned char *buf, int len)
+static ssize_t
+int_definite_read(krypt_instream *instream, unsigned char *buf, size_t len)
 {
     int_instream_definite *in;
-    int to_read, r;
+    size_t to_read;
+    ssize_t r;
     
     int_safe_cast(in, instream);
 
@@ -79,14 +80,18 @@ int_definite_read(krypt_instream *instream, unsigned char *buf, int len)
     if (r == -1)
 	rb_raise(eKryptParseError, "Premature end of value detected");
 
+    if (in->num_read >= SIZE_MAX - r)
+	rb_raise(rb_eRuntimeError, "Size of stream too large");
+
     in->num_read += r;
     return r;
 }
 
 static void
-int_definite_seek(krypt_instream *instream, int offset, int whence)
+int_definite_seek(krypt_instream *instream, off_t offset, int whence)
 {
-    int real_off;
+    off_t real_off;
+    long numread;
     int_instream_definite *in;
 
     int_safe_cast(in, instream);
@@ -105,7 +110,8 @@ int_definite_seek(krypt_instream *instream, int offset, int whence)
 	    rb_raise(eKryptParseError, "Unknown 'whence': %d", whence);
     }
     
-    if (in->num_read + real_off < 0 || in->num_read + real_off >= in->max_read)
+    numread = in->num_read;
+    if (numread + real_off < 0 || numread + real_off >= (long)in->max_read)
 	rb_raise(eKryptParseError, "Unreachable seek position");
 
     krypt_instream_seek(in->inner, offset, whence);

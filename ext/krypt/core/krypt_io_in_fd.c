@@ -22,8 +22,8 @@ typedef struct int_instream_fd_st {
 #define int_safe_cast(out, in)	krypt_safe_cast_instream((out), (in), INSTREAM_TYPE_FD, int_instream_fd)
     
 static int_instream_fd *int_fd_alloc(void);
-static int int_fd_read(krypt_instream *in, unsigned char *, int len);
-static void int_fd_seek(krypt_instream *in, int offset, int whence);
+static ssize_t int_fd_read(krypt_instream *in, unsigned char *, size_t len);
+static void int_fd_seek(krypt_instream *in, off_t offset, int whence);
 static void int_fd_free(krypt_instream *in);
 
 static krypt_instream_interface interface_fd = {
@@ -64,14 +64,15 @@ int_fd_alloc(void)
     return ret;
 }
 
-static int
-int_fd_read(krypt_instream *instream, unsigned char *buf, int len)
+static ssize_t
+int_fd_read(krypt_instream *instream, unsigned char *buf, size_t len)
 {
-    int fd, r;
+    int fd;
+    ssize_t r;
     int_instream_fd *in;
 
     int_safe_cast(in, instream);
-    if (!buf || len < 0)
+    if (!buf)
 	rb_raise(rb_eArgError, "Buffer not initialized or length negative");
 
     fd = in->fd;
@@ -91,7 +92,7 @@ int_fd_read(krypt_instream *instream, unsigned char *buf, int len)
 }
 
 static void
-int_fd_seek(krypt_instream *instream, int offset, int whence)
+int_fd_seek(krypt_instream *instream, off_t offset, int whence)
 {
     int fd;
     long off;

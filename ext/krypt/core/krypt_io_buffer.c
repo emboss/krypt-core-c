@@ -20,6 +20,8 @@ krypt_byte_buffer *krypt_buffer_new(void)
     return ret;
 }
 
+static const size_t BUF_MAX = SIZE_MAX / KRYPT_BYTE_BUFFER_GROWTH_FACTOR;
+
 static void
 int_buffer_grow(krypt_byte_buffer *buffer, size_t cur_len)
 {
@@ -33,8 +35,11 @@ int_buffer_grow(krypt_byte_buffer *buffer, size_t cur_len)
 
     new_size = buffer->limit == 1 ? 2 : buffer->limit;
 
-    while (new_size - buffer->size < cur_len)
+    while (new_size - buffer->size < cur_len) {
+	if (new_size >= BUF_MAX)
+	    rb_raise(rb_eRuntimeError, "Cannot grow buffer");
     	new_size *= KRYPT_BYTE_BUFFER_GROWTH_FACTOR;
+    }
 
     REALLOC_N(buffer->data, unsigned char, new_size);
     buffer->limit = new_size; 
