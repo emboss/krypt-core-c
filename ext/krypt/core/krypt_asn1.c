@@ -258,6 +258,18 @@ int_asn1_data_initialize(VALUE self,
 }
 
 /* Used by non-UNIVERSAL values */
+/*
+ * call-seq:
+ *    ASN1Data.new(value, tag, tag_class) -> ASN1Data
+ *
+ * * +value+: the value to be associated. See Primitive for the mappings
+ * between ASN.1 types and Ruby types.
+ * * +tag+:   a +Number+ representing this value's tag.
+ * * +tag_class+: a +Symbol+ representing one of the four valid tag classes
+ * +:UNIVERSAL+, +:CONTEXT_SPECIFIC+, +:APPLICATION+ or +:PRIVATE+.
+ *
+ * Creates a ASN1Data from scratch.
+ */ 
 static VALUE
 krypt_asn1_data_initialize(VALUE self, VALUE value, VALUE vtag, VALUE vtag_class)
 {
@@ -473,12 +485,26 @@ do {							\
     int_invalidate_length((o)->header);			\
 } while (0)
 
+/*
+ * call-seq:
+ *    asn1.tag -> Number
+ *
+ * Returns a +Number+ representing the tag number of this ASN1Data. 
+ * Never +nil+.
+ */
 static VALUE
 krypt_asn1_data_get_tag(VALUE self)
 {
     return int_asn1_data_get_tag(self);
 }
 
+/*
+ * call-seq:
+ *    asn1.tag=(number) -> Number
+ *
+ * * +number+: a +Number+ representing the tag number of this ASN1Data. 
+ * Must not be +nil+.
+ */
 static VALUE
 krypt_asn1_data_set_tag(VALUE self, VALUE tag)
 {
@@ -501,12 +527,26 @@ krypt_asn1_data_set_tag(VALUE self, VALUE tag)
     return tag;
 }
 
+/*
+ * call-seq:
+ *    asn1.tag_class -> Symbol
+ *
+ * Returns a +Symbol+ representing the tag class of this ASN1Data.
+ * Never +nil+. See ASN1Data for possible values.
+ */
 static VALUE
 krypt_asn1_data_get_tag_class(VALUE self)
 {
     return int_asn1_data_get_tag_class(self);
 }
 
+/*
+ * call-seq:
+ *    asn1.tag_class=(sym) -> Symbol
+ *
+ * * +sym+: A +Symbol+ representing the tag class of this ASN1Data.
+ * Must not be +nil+. See ASN1Data for possible values.
+ */
 static VALUE
 krypt_asn1_data_set_tag_class(VALUE self, VALUE tag_class)
 {
@@ -528,12 +568,42 @@ krypt_asn1_data_set_tag_class(VALUE self, VALUE tag_class)
     return tag_class;
 }
 
+/*
+ * call-seq:
+ *    asn1.infinite_length -> bool
+ *
+ * Returns either true or false, depending on whether the value
+ * is to be or was encoded using infinite length. See
+ * ASN1Data#infinite_length= for details.
+ */
 static VALUE
 krypt_asn1_data_get_inf_length(VALUE self)
 {
     return int_asn1_data_get_infinite_length(self);
 }
 
+/*
+ * call-seq:
+ *    asn1.infinite_length=(bool) -> bool
+ *
+ * * +bool+: either true or false, depending on whether the value shall be
+ * encoded using infinite length encoding or not
+ *
+ * Set a +Boolean+ indicating whether the encoding shall be infinite
+ * length or not.
+ * In DER, every value has a finite length associated with it. But in
+ * scenarios where large amounts of data need to be transferred, it
+ * might be desirable to have some kind of streaming support available.
+ * For example, huge OCTET STRINGs are preferably sent in smaller-sized
+ * chunks, each at a time.
+ * This is possible in BER by setting the length bytes of an encoding
+ * to zero and thus indicating that the following value will be
+ * sent in chunks. Infinite length encodings are always constructed.
+ * The end of such a stream of chunks is indicated by sending a 
+ * EndOfContents value. SETs and SEQUENCEs may use an infinite length
+ * encoding, but also primitive types such as e.g. OCTET STRINGS or
+ * BIT STRINGS may leverage this functionality (cf. ITU-T X.690).
+ */
 static VALUE
 krypt_asn1_data_set_inf_length(VALUE self, VALUE inf_length)
 {
@@ -564,6 +634,14 @@ int_asn1_data_value_decode(VALUE self, krypt_asn1_data *data)
 	return int_asn1_prim_value_decode(self, data);
 }
 
+/*
+ * call-seq:
+ *    asn1.value -> value
+ *
+ * Obtain the value of an ASN1Data.
+ * Please see Constructive and Primitive docs for the mappings between
+ * ASN.1 data types and Ruby classes.
+ */
 static VALUE
 krypt_asn1_data_get_value(VALUE self)
 {
@@ -583,6 +661,14 @@ krypt_asn1_data_get_value(VALUE self)
     return value;
 }
 
+/*
+ * call-seq:
+ *    asn1.value=(value) -> value
+ *
+ * Set the value of an ASN1Data.
+ * Please see Constructive and Primitive docs for the mappings between
+ * ASN.1 data types and Ruby classes.
+ */
 static VALUE
 krypt_asn1_data_set_value(VALUE self, VALUE value)
 {
@@ -635,6 +721,19 @@ int_asn1_encode_to(krypt_outstream *out, VALUE self)
     }
 }
 
+/*
+ * call-seq:
+ *    asn1.encode_to(io) -> self
+ *
+ * * +io+: an IO-like object supporting IO#write
+ *
+ * Encodes this ASN1Data into a DER-encoded String value by writing the
+ * contents to an IO-like object.
+ * Newly created ASN1Data are DER-encoded except for the possibility of
+ * infinite length encodings. If a value with BER encoding was parsed and
+ * is not modified, the BER encoding will be preserved when encoding it
+ * again.
+ */
 static VALUE
 krypt_asn1_data_encode_to(VALUE self, VALUE io)
 {
@@ -646,6 +745,15 @@ krypt_asn1_data_encode_to(VALUE self, VALUE io)
     return self;
 }
 
+/*
+ * call-seq:
+ *    asn1.to_der -> DER-/BER-encoded String
+ *
+ * Encodes this ASN1Data into a DER-encoded String value. Newly created 
+ * ASN1Data are DER-encoded except for the possibility of infinite length
+ * encodings. If a value with BER encoding was parsed and is not modified,
+ * the BER encoding will be preserved when encoding it again.
+ */
 static VALUE
 krypt_asn1_data_to_der(VALUE self)
 {
@@ -669,6 +777,19 @@ krypt_asn1_data_to_der(VALUE self)
 
 /* ASN1Constructive methods */
 
+/*
+ * call-seq:
+ *    asn1_ary.each { |asn1| block } -> asn1_ary
+ *
+ * Calls <i>block</i> once for each element in +self+, passing that element
+ * as parameter +asn1+. If no block is given, an enumerator is returned
+ * instead.
+ *
+ * == Example
+ *   asn1_ary.each do |asn1|
+ *     pp asn1
+ *   end
+ */
 static VALUE
 krypt_asn1_cons_each(VALUE self)
 {
@@ -782,6 +903,34 @@ int_asn1_prim_encode_to(VALUE self, krypt_outstream *out, VALUE value, krypt_asn
 
 /* End ASN1Primitive methods */
 
+/**
+ * call-seq:
+ *    ASN1.decode(der) -> ASN1Data
+ *
+ * * +io+: May either be a +String+ containing a DER-encoded value, an
+ *         IO-like object supporting IO#read and IO#seek or any arbitrary
+ *         object that supports a +to_der+ method transforming it into a
+ *         DER-/BER-encoded +String+.
+ *
+ * Decodes a DER-encoded ASN.1 object and returns an instance (or a subclass)
+ * of ASN1Data.
+ *
+ * == Examples
+ *   io = File.open("my.der", "rb")
+ *   asn1 = Krypt::ASN1.decode(io)
+ *   io.close
+ *
+ *   str = #some DER-encoded string
+ *   asn1 = Krypt::ASN1.decode(str)
+ *
+ *   tagged = Krypt::ASN1::Integer.new(1, 0, :CONTEXT_SPECIFIC)
+ *   tagged.tag = Krypt::ASN1::INTEGER
+ *   tagged.tag_class = :UNIVERSAL
+ *   int = Krypt::ASN1.decode(tagged)
+ *   puts int.tag # => 2
+ *   puts int.tag_class # => :UNIVERSAL
+ *   puts int.value # => 1
+ */
 static VALUE
 krypt_asn1_decode(VALUE self, VALUE obj)
 {
