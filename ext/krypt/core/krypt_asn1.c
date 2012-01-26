@@ -48,37 +48,37 @@ typedef struct krypt_asn1_info_st {
 } krypt_asn1_info;
 
 static krypt_asn1_info krypt_asn1_infos[] = {
-    { "END_OF_CONTENTS",   &cKryptASN1EndOfContents,	  },  /*  0 */
-    { "BOOLEAN",           &cKryptASN1Boolean,         },  /*  1 */
-    { "INTEGER",           &cKryptASN1Integer,         },  /*  2 */
-    { "BIT_STRING",        &cKryptASN1BitString,	  },  /*  3 */
-    { "OCTET_STRING",      &cKryptASN1OctetString,  	  },  /*  4 */
-    { "NULL",              &cKryptASN1Null,         	  },  /*  5 */
-    { "OBJECT_ID",         &cKryptASN1ObjectId,     	  },  /*  6 */
-    { "OBJECT_DESCRIPTOR", NULL,                  },  /*  7 */
-    { "EXTERNAL",          NULL,                  },  /*  8 */
-    { "REAL",              NULL,                  },  /*  9 */
-    { "ENUMERATED",        &cKryptASN1Enumerated,   	  },  /* 10 */
-    { "EMBEDDED_PDV",      NULL,                  },  /* 11 */
-    { "UTF8_STRING",       &cKryptASN1UTF8String,   	  },  /* 12 */
-    { "RELATIVE_OID",      NULL,                  },  /* 13 */
-    { "[UNIVERSAL 14]",    NULL,                  },  /* 14 */
-    { "[UNIVERSAL 15]",    NULL,                  },  /* 15 */
-    { "SEQUENCE",          &cKryptASN1Sequence,     	  },  /* 16 */
-    { "SET",               &cKryptASN1Set,          	  },  /* 17 */
-    { "NUMERIC_STRING",    &cKryptASN1NumericString,	  },  /* 18 */
-    { "PRINTABLE_STRING",  &cKryptASN1PrintableString, },  /* 19 */
-    { "T61_STRING",        &cKryptASN1T61String,       },  /* 20 */
-    { "VIDEOTEX_STRING",   &cKryptASN1VideotexString,  },  /* 21 */
-    { "IA5_STRING",        &cKryptASN1IA5String,       },  /* 22 */
-    { "UTC_TIME",          &cKryptASN1UTCTime,         },  /* 23 */
-    { "GENERALIZED_TIME",  &cKryptASN1GeneralizedTime, },  /* 24 */
-    { "GRAPHIC_STRING",    &cKryptASN1GraphicString,   },  /* 25 */
-    { "ISO64_STRING",      &cKryptASN1ISO64String,     },  /* 26 */
-    { "GENERAL_STRING",    &cKryptASN1GeneralString,   },  /* 27 */
-    { "UNIVERSAL_STRING",  &cKryptASN1UniversalString, },  /* 28 */
-    { "CHARACTER_STRING",  NULL,                  },  /* 29 */
-    { "BMP_STRING",        &cKryptASN1BMPString,       },  /* 30 */
+    { "END_OF_CONTENTS",   &cKryptASN1EndOfContents,	},  /*  0 */
+    { "BOOLEAN",           &cKryptASN1Boolean,         	},  /*  1 */
+    { "INTEGER",           &cKryptASN1Integer,         	},  /*  2 */
+    { "BIT_STRING",        &cKryptASN1BitString,	},  /*  3 */
+    { "OCTET_STRING",      &cKryptASN1OctetString,  	},  /*  4 */
+    { "NULL",              &cKryptASN1Null,         	},  /*  5 */
+    { "OBJECT_ID",         &cKryptASN1ObjectId,     	},  /*  6 */
+    { "OBJECT_DESCRIPTOR", NULL,                  	},  /*  7 */
+    { "EXTERNAL",          NULL,                  	},  /*  8 */
+    { "REAL",              NULL,                  	},  /*  9 */
+    { "ENUMERATED",        &cKryptASN1Enumerated,   	},  /* 10 */
+    { "EMBEDDED_PDV",      NULL,                  	},  /* 11 */
+    { "UTF8_STRING",       &cKryptASN1UTF8String,   	},  /* 12 */
+    { "RELATIVE_OID",      NULL,                  	},  /* 13 */
+    { "[UNIVERSAL 14]",    NULL,                  	},  /* 14 */
+    { "[UNIVERSAL 15]",    NULL,                  	},  /* 15 */
+    { "SEQUENCE",          &cKryptASN1Sequence,        	},  /* 16 */
+    { "SET",               &cKryptASN1Set,             	},  /* 17 */
+    { "NUMERIC_STRING",    &cKryptASN1NumericString,   	},  /* 18 */
+    { "PRINTABLE_STRING",  &cKryptASN1PrintableString, 	},  /* 19 */
+    { "T61_STRING",        &cKryptASN1T61String,       	},  /* 20 */
+    { "VIDEOTEX_STRING",   &cKryptASN1VideotexString,  	},  /* 21 */
+    { "IA5_STRING",        &cKryptASN1IA5String,       	},  /* 22 */
+    { "UTC_TIME",          &cKryptASN1UTCTime,         	},  /* 23 */
+    { "GENERALIZED_TIME",  &cKryptASN1GeneralizedTime, 	},  /* 24 */
+    { "GRAPHIC_STRING",    &cKryptASN1GraphicString,   	},  /* 25 */
+    { "ISO64_STRING",      &cKryptASN1ISO64String,     	},  /* 26 */
+    { "GENERAL_STRING",    &cKryptASN1GeneralString,   	},  /* 27 */
+    { "UNIVERSAL_STRING",  &cKryptASN1UniversalString, 	},  /* 28 */
+    { "CHARACTER_STRING",  NULL,                  	},  /* 29 */
+    { "BMP_STRING",        &cKryptASN1BMPString,       	},  /* 30 */
 };
 
 static int krypt_asn1_infos_size = (sizeof(krypt_asn1_infos)/sizeof(krypt_asn1_infos[0]));

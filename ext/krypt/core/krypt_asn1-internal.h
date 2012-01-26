@@ -13,6 +13,8 @@
 #if !defined(_KRYPT_ASN1_INTERNAL_H_)
 #define _KRYPT_ASN1_INTERNAL_H_
 
+#define CHAR_BIT_MINUS_ONE     (CHAR_BIT - 1)
+
 #define CONSTRUCTED_MASK     0x20
 #define COMPLEX_TAG_MASK     0x1f
 #define INFINITE_LENGTH_MASK 0x80

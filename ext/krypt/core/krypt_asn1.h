@@ -13,6 +13,8 @@
 #if !defined(_KRYPT_ASN1_H_)
 #define _KRYPT_ASN1_H_
 
+#define CHAR_BITS_MINUS_ONE     (CHAR_BITS - 1)
+
 extern VALUE mKryptASN1;
 extern VALUE cKryptASN1Parser;
 extern VALUE cKryptASN1Header;

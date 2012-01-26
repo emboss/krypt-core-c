@@ -14,14 +14,14 @@
 #include "krypt-core.h"
 #include "krypt_asn1-internal.h"
 
-static const int TAG_LIMIT = INT_MAX >> 7;
-static const int LENGTH_LIMIT = INT_MAX >> 8;
+static const int TAG_LIMIT = INT_MAX >> CHAR_BIT_MINUS_ONE;
+static const int LENGTH_LIMIT = INT_MAX >> CHAR_BIT;
 
-#define int_next_byte(in, b)				  \
-do {							  \
-    if (krypt_instream_read((in), &(b), 1) != 1)	  \
-    	rb_raise(eKryptParseError, "Error while parsing."); 	  \
-} while (0)						  \
+#define int_next_byte(in, b)				 	\
+do {							  	\
+    if (krypt_instream_read((in), &(b), 1) != 1)	  	\
+    	rb_raise(eKryptParseError, "Error while parsing.");     \
+} while (0)						  	\
 
 #define int_parse_tag(b, in, out)			\
 do {							\
@@ -396,13 +396,13 @@ int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *ou
 	if (tag > TAG_LIMIT)
 	    rb_raise(eKryptParseError, "Complex tag too long");
 	int_buffer_add_byte(buffer, b, out);
-	tag <<= 7;
+	tag <<= CHAR_BIT_MINUS_ONE;
 	tag |= (b & 0x7f);
 	int_next_byte(in, b);
     }
 
     int_buffer_add_byte(buffer, b, out);
-    tag <<= 7;
+    tag <<= CHAR_BIT_MINUS_ONE;
     tag |= (b & 0x7f);
     out->tag = tag;
     out->tag_len = krypt_buffer_get_size(buffer);
@@ -459,7 +459,7 @@ int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn
     for (i = num_bytes; i > 0; i--) {
 	int_next_byte(in, b);
 	out->header_length++;
-	len <<= 8;
+	len <<= CHAR_BIT;
 	len |= b;
 	if (len > LENGTH_LIMIT)
 	    rb_raise(eKryptParseError, "Complex length too long");
@@ -538,7 +538,7 @@ int_compute_complex_tag(krypt_asn1_header *header)
     b |= header->tag_class & 0xff;
     b |= COMPLEX_TAG_MASK;
 
-    int_determine_num_shifts(num_shifts, header->tag, 7);
+    int_determine_num_shifts(num_shifts, header->tag, CHAR_BIT_MINUS_ONE);
     header->tag_bytes = (unsigned char *)xmalloc(num_shifts + 1);
     header->tag_bytes[0] = b;
 
@@ -549,7 +549,7 @@ int_compute_complex_tag(krypt_asn1_header *header)
 	if (i != num_shifts)
 	    b |= INFINITE_LENGTH_MASK;
 	header->tag_bytes[i] = b;
-	tmp_tag >>= 7;
+	tmp_tag >>= CHAR_BIT_MINUS_ONE;
     }
 
     header->tag_len = num_shifts + 1;
@@ -576,7 +576,7 @@ int_compute_complex_length(krypt_asn1_header *header)
 {
     int num_shifts, tmp_len, i;
 
-    int_determine_num_shifts(num_shifts, header->length, 8);
+    int_determine_num_shifts(num_shifts, header->length, CHAR_BIT);
     tmp_len = header->length;
     header->length_bytes = (unsigned char *)xmalloc(num_shifts + 1);
     header->length_bytes[0] = num_shifts & 0xff;
@@ -584,7 +584,7 @@ int_compute_complex_length(krypt_asn1_header *header)
 
     for (i = num_shifts; i > 0; i--) {
 	header->length_bytes[i] = tmp_len & 0xff;
-	tmp_len >>= 8;
+	tmp_len >>= CHAR_BIT;
     }
 
     header->length_len = num_shifts + 1;
