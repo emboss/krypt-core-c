@@ -56,7 +56,7 @@ static int_outstream_fd*
 int_fd_alloc(void)
 {
     int_outstream_fd *ret;
-    ret = (int_outstream_fd*)xmalloc(sizeof(int_outstream_fd));
+    ret = ALLOC(int_outstream_fd);
     memset(ret, 0, sizeof(int_outstream_fd));
     ret->methods = &interface_fd;
     return ret;

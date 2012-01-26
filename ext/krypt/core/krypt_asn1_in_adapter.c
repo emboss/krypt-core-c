@@ -57,7 +57,7 @@ krypt_instream_adapter_new(krypt_instream *in)
     VALUE obj;
     krypt_instream_adapter *adapter;
 
-    adapter = (krypt_instream_adapter *)xmalloc(sizeof(krypt_instream_adapter));
+    adapter = ALLOC(krypt_instream_adapter);
     adapter->in = in;
     int_krypt_instream_adapter_set(cKryptASN1Instream, obj, adapter);
     return obj;

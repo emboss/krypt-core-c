@@ -51,7 +51,7 @@ static int_instream_definite*
 int_definite_alloc(void)
 {
     int_instream_definite *ret;
-    ret = (int_instream_definite*)xmalloc(sizeof(int_instream_definite));
+    ret = ALLOC(int_instream_definite);
     memset(ret, 0, sizeof(int_instream_definite));
     ret->methods = &interface_definite;
     return ret;

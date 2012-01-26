@@ -118,7 +118,7 @@ int_asn1_data_new(krypt_asn1_object *object)
 {
     krypt_asn1_data *ret;
 
-    ret = (krypt_asn1_data *)xmalloc(sizeof(krypt_asn1_data));
+    ret = ALLOC(krypt_asn1_data);
     ret->object = object;
     ret->codec = int_codec_for(object);
 

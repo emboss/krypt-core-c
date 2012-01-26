@@ -15,7 +15,7 @@
 krypt_byte_buffer *krypt_buffer_new(void)
 {
     krypt_byte_buffer *ret;
-    ret = (krypt_byte_buffer *)xmalloc(sizeof(krypt_byte_buffer));
+    ret = ALLOC(krypt_byte_buffer);
     memset(ret, 0, sizeof(krypt_byte_buffer));
     return ret;
 }
@@ -26,7 +26,7 @@ int_buffer_grow(krypt_byte_buffer *buffer, size_t cur_len)
     size_t new_size;
 
     if (buffer->data == NULL) {
-	buffer->data = (unsigned char *)xmalloc(cur_len);
+	buffer->data = ALLOC_N(unsigned char, cur_len);
 	buffer->limit = cur_len;
 	return;
     }
@@ -36,7 +36,7 @@ int_buffer_grow(krypt_byte_buffer *buffer, size_t cur_len)
     while (new_size - buffer->size < cur_len)
     	new_size *= KRYPT_BYTE_BUFFER_GROWTH_FACTOR;
 
-    buffer->data = (unsigned char *)xrealloc(buffer->data, new_size);
+    REALLOC_N(buffer->data, unsigned char, new_size);
     buffer->limit = new_size; 
 }
 

@@ -46,7 +46,7 @@ krypt_instream_new_bytes(unsigned char *bytes, long len)
     struct krypt_byte_ary_st *byte_ary;
 
     in = int_bytes_alloc();
-    byte_ary = (struct krypt_byte_ary_st *)xmalloc(sizeof(struct krypt_byte_ary_st));
+    byte_ary = ALLOC(struct krypt_byte_ary_st);
     byte_ary->p = bytes;
     byte_ary->len = len;
     in->src = byte_ary;
@@ -57,7 +57,7 @@ static int_instream_bytes*
 int_bytes_alloc(void)
 {
     int_instream_bytes *ret;
-    ret = (int_instream_bytes*)xmalloc(sizeof(int_instream_bytes));
+    ret = ALLOC(int_instream_bytes);
     memset(ret, 0, sizeof(int_instream_bytes));
     ret->methods = &interface_bytes;
     return ret;

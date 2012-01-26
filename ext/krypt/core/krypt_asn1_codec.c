@@ -13,6 +13,8 @@
 #include "krypt-core.h"
 #include <time.h>
 
+#define CHAR_BIT_MINUS_ONE     (CHAR_BIT - 1)
+
 int
 krypt_asn1_encode_default(VALUE self, VALUE value, unsigned char **out)
 {
@@ -21,7 +23,7 @@ krypt_asn1_encode_default(VALUE self, VALUE value, unsigned char **out)
 
     StringValue(value);
     len = (int)RSTRING_LEN(value);
-    ret = (unsigned char *)xmalloc(len);
+    ret = ALLOC_N(unsigned char, len);
     memcpy(ret, RSTRING_PTR(value), len);
     *out = ret;
     return len;
@@ -38,7 +40,7 @@ krypt_asn1_decode_default(VALUE self, unsigned char *bytes, int len)
 }
 
 static const long SUB_ID_LIMIT_ENCODE = LONG_MAX / 10;
-static const long SUB_ID_LIMIT_PARSE = LONG_MAX >> 7;
+static const long SUB_ID_LIMIT_PARSE = LONG_MAX >> CHAR_BIT_MINUS_ONE;
 static const size_t MAX_LONG_DIGITS = sizeof(long) * 2 * 1.21f + 1; /* times 2 -> hex representation, 1.21 ~ log10(16) */
 
 static int int_encode_object_id(unsigned char*, int, unsigned char **);
@@ -80,7 +82,7 @@ int_asn1_encode_boolean(VALUE self, VALUE value, unsigned char **out)
 {
     unsigned char *b;
 
-    b = (unsigned char *)xmalloc(sizeof(unsigned char));
+    b = ALLOC(unsigned char);
     *b = RTEST(value) ? 0xff : 0x0;
     *out = b;
     return 1;
@@ -113,7 +115,7 @@ int_asn1_encode_integer(VALUE self, VALUE value, unsigned char **out)
     num = NUM2LONG(value);
 
     if (num == 0) {
-	bytes = (unsigned char *)xmalloc(sizeof(unsigned char));
+	bytes = ALLOC(unsigned char);
 	bytes[0] = 0x0;
 	*out = bytes;
 	return 1;
@@ -121,7 +123,7 @@ int_asn1_encode_integer(VALUE self, VALUE value, unsigned char **out)
 
     int_long_byte_len(len, num);
 
-    bytes = (unsigned char *)xmalloc(len);
+    bytes = ALLOC_N(unsigned char, len);
     numbytes = (unsigned char *) &num;
     for (i= len - 1; i >= 0; i--) {
 	bytes[j++] = numbytes[i];
@@ -159,7 +161,7 @@ int_asn1_encode_bit_string(VALUE self, VALUE value, unsigned char **out)
     unused_bits = NUM2INT(rb_ivar_get(self, sIV_UNUSED_BITS));
     StringValue(value);
     len = RSTRING_LEN(value);
-    bytes = (unsigned char *)xmalloc(len + 1);
+    bytes = ALLOC_N(unsigned char, len + 1);
     bytes[0] = unused_bits & 0xff;
     memcpy(bytes + 1, RSTRING_PTR(value), len);
     *out = bytes;
@@ -367,15 +369,15 @@ int_write_long(krypt_byte_buffer *buf, long cur)
 	return;
     }
 
-    int_determine_num_shifts(num_shifts, cur, 7);
-    bytes = (unsigned char *)xmalloc(num_shifts);
+    int_determine_num_shifts(num_shifts, cur, CHAR_BIT_MINUS_ONE);
+    bytes = ALLOC_N(unsigned char, num_shifts);
 
     for (i = num_shifts - 1; i >= 0; i--) {
 	b = cur & 0x7f;
 	if (i  < num_shifts - 1)
 	    b |= 0x80;
 	bytes[i] = b;
-	cur >>= 7;
+	cur >>= CHAR_BIT_MINUS_ONE;
     }
     krypt_buffer_write(buf, bytes, num_shifts);
     xfree(bytes);
@@ -422,13 +424,13 @@ int_parse_sub_id(unsigned char* bytes, long len, long *offset)
     while (bytes[off] & 0x80) {
 	if (num > SUB_ID_LIMIT_PARSE)
 	    rb_raise(eKryptASN1Error, "Sub identifier too large");
-	num <<= 7;
+	num <<= CHAR_BIT_MINUS_ONE;
 	num |= bytes[off++] & 0x7f;
 	if (off >= len)
 	    rb_raise(eKryptASN1Error, "Invalid object identifier encoding");
     }
 
-    num <<= 7;
+    num <<= CHAR_BIT_MINUS_ONE;
     num |= bytes[off++];
     *offset = off;
     return num;
@@ -506,7 +508,7 @@ int_encode_utc_time(VALUE value, unsigned char **out)
     if (!(gmtime_r(&time, &tm)))
 	rb_raise(rb_eNoMemError, NULL);
 
-    ret = (char *)xmalloc(20);
+    ret = ALLOC_N(char, 20);
     
     r = snprintf(ret, 20, 
 	        "%02d%02d%02d%02d%02d%02dZ",
@@ -573,7 +575,7 @@ int_encode_generalized_time(VALUE value, unsigned char **out)
     if (!(gmtime_r(&time, &tm)))
 	rb_raise(rb_eNoMemError, NULL);
 
-    ret = (char *)xmalloc(20);
+    ret = ALLOC_N(char, 20);
     
     r = snprintf(ret, 20,
 		 "%04d%02d%02d%02d%02d%02dZ",

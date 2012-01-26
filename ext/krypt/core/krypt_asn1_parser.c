@@ -82,7 +82,7 @@ int_krypt_asn1_header_new(krypt_instream *in, krypt_asn1_header *header)
     VALUE obj;
     krypt_asn1_parsed_header *parsed_header;
 
-    parsed_header = (krypt_asn1_parsed_header *)xmalloc(sizeof(krypt_asn1_parsed_header));
+    parsed_header = ALLOC(krypt_asn1_parsed_header);
     parsed_header->tag = INT2NUM(header->tag);
     parsed_header->tag_class = ID2SYM(krypt_asn1_tag_class_for_int(header->tag_class));
     parsed_header->constructed = header->is_constructed ? Qtrue : Qfalse;

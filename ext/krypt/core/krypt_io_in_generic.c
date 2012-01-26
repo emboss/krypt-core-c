@@ -53,7 +53,7 @@ static int_instream_io*
 int_io_alloc(void)
 {
     int_instream_io *ret;
-    ret = (int_instream_io*)xmalloc(sizeof(int_instream_io));
+    ret = ALLOC(int_instream_io);
     memset(ret, 0, sizeof(int_instream_io));
     ret->methods = &interface_io_generic;
     return ret;

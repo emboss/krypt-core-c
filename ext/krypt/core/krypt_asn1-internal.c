@@ -268,7 +268,7 @@ krypt_asn1_header_new(void)
 {
     krypt_asn1_header *ret;
 
-    ret = (krypt_asn1_header *)xmalloc(sizeof(krypt_asn1_header));
+    ret = ALLOC(krypt_asn1_header);
     memset(ret, 0, sizeof(krypt_asn1_header));
     return ret;
 }
@@ -335,7 +335,7 @@ krypt_asn1_object_new(krypt_asn1_header *header)
     if (!header)
 	rb_raise(rb_eArgError, "header not initialized");
 
-    obj = (krypt_asn1_object *)xmalloc(sizeof(krypt_asn1_object));
+    obj = ALLOC(krypt_asn1_object);
     obj->header = header;
     obj->bytes = NULL;
     obj->bytes_len = 0;
@@ -368,7 +368,7 @@ int_parse_primitive_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *
     out->is_constructed = (b & CONSTRUCTED_MASK) == CONSTRUCTED_MASK;
     out->tag_class = b & TAG_CLASS_PRIVATE;
     out->header_length++;
-    out->tag_bytes = (unsigned char *)xmalloc(sizeof(unsigned char));
+    out->tag_bytes = ALLOC(unsigned char);
     out->tag_bytes[0] = b;
     out->tag_len = 1;
 }
@@ -410,11 +410,11 @@ int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *ou
     krypt_buffer_resize_free(buffer);
 }
 
-#define int_set_single_byte_length(h, b)					\
-do {										\
-    (h)->length_bytes = (unsigned char *)xmalloc(sizeof(unsigned char)); 	\
-    (h)->length_bytes[0] = (b);						\
-    (h)->length_len = 1;							\
+#define int_set_single_byte_length(h, b)	\
+do {						\
+    (h)->length_bytes = ALLOC(unsigned char); 	\
+    (h)->length_bytes[0] = (b);			\
+    (h)->length_len = 1;			\
 } while (0)
 
 static void
@@ -453,7 +453,7 @@ int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn
     if (num_bytes > sizeof(int))
 	rb_raise(eKryptParseError, "Definite value length too long");
 
-    out->length_bytes = (unsigned char *)xmalloc((num_bytes + 1) * sizeof(unsigned char));
+    out->length_bytes = ALLOC_N(unsigned char, num_bytes + 1);
     out->length_bytes[offset++] = b;
 
     for (i = num_bytes; i > 0; i--) {
@@ -477,7 +477,7 @@ int_parse_read_exactly(krypt_instream *in, int n)
     unsigned char *ret, *p;
     int offset = 0, read;
 
-    ret = (unsigned char *)xmalloc(n);
+    ret = ALLOC_N(unsigned char, n);
     p = ret;
     while (offset != n) {
 	read = krypt_instream_read(in, p, n - offset);
@@ -499,7 +499,7 @@ int_consume_stream(krypt_instream *in, unsigned char **out)
     int read;
     size_t size;
 
-    in_buf = (unsigned char *)xmalloc(KRYPT_IO_BUF_SIZE * sizeof(unsigned char));
+    in_buf = ALLOC_N(unsigned char, KRYPT_IO_BUF_SIZE);
     out_buf = krypt_buffer_new();
     while ((read = krypt_instream_read(in, in_buf, KRYPT_IO_BUF_SIZE)) != -1) {
 	krypt_buffer_write(out_buf, in_buf, read);
@@ -539,7 +539,7 @@ int_compute_complex_tag(krypt_asn1_header *header)
     b |= COMPLEX_TAG_MASK;
 
     int_determine_num_shifts(num_shifts, header->tag, CHAR_BIT_MINUS_ONE);
-    header->tag_bytes = (unsigned char *)xmalloc(num_shifts + 1);
+    header->tag_bytes = ALLOC_N(unsigned char, num_shifts + 1);
     header->tag_bytes[0] = b;
 
     tmp_tag = header->tag;
@@ -563,7 +563,7 @@ int_compute_tag(krypt_asn1_header *header)
 	b = header->is_constructed ? CONSTRUCTED_MASK : 0x00;
 	b |= (header->tag_class & 0xff);
 	b |= (header->tag & 0xff);
-	header->tag_bytes = (unsigned char *)xmalloc(sizeof(unsigned char));
+	header->tag_bytes = ALLOC(unsigned char);
 	*(header->tag_bytes) = b;
 	header->tag_len = 1;
     } else {
@@ -578,7 +578,7 @@ int_compute_complex_length(krypt_asn1_header *header)
 
     int_determine_num_shifts(num_shifts, header->length, CHAR_BIT);
     tmp_len = header->length;
-    header->length_bytes = (unsigned char *)xmalloc(num_shifts + 1);
+    header->length_bytes = ALLOC_N(unsigned char, num_shifts + 1);
     header->length_bytes[0] = num_shifts & 0xff;
     header->length_bytes[0] |= INFINITE_LENGTH_MASK;
 
@@ -594,12 +594,12 @@ static void
 int_compute_length(krypt_asn1_header *header)
 {
     if (header->is_infinite) {
-	header->length_bytes = (unsigned char *)xmalloc(sizeof(unsigned char));
+	header->length_bytes = ALLOC(unsigned char);
 	*(header->length_bytes) = INFINITE_LENGTH_MASK;
 	header->length_len = 1;
     }
     else if (header->length <= 127) {
-	header->length_bytes = (unsigned char *)xmalloc(sizeof(unsigned char));
+	header->length_bytes = ALLOC(unsigned char);
 	*(header->length_bytes) = header->length & 0xFF;
 	header->length_len = 1;
     }

@@ -47,7 +47,7 @@ static int_outstream_io *
 int_io_alloc(void)
 {
     int_outstream_io *ret;
-    ret = (int_outstream_io*)xmalloc(sizeof(int_outstream_io));
+    ret = ALLOC(int_outstream_io);
     memset(ret, 0, sizeof(int_outstream_io));
     ret->methods = &interface_io;
     return ret;

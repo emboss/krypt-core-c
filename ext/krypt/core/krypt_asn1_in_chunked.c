@@ -64,7 +64,7 @@ static int_instream_chunked*
 int_chunked_alloc(void)
 {
     int_instream_chunked *ret;
-    ret = (int_instream_chunked*)xmalloc(sizeof(int_instream_chunked));
+    ret = ALLOC(int_instream_chunked);
     memset(ret, 0, sizeof(int_instream_chunked));
     ret->methods = &interface_chunked;
     return ret;

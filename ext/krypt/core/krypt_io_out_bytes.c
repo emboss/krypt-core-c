@@ -59,7 +59,7 @@ static int_outstream_bytes *
 int_bytes_alloc(void)
 {
     int_outstream_bytes *ret;
-    ret = (int_outstream_bytes*)xmalloc(sizeof(int_outstream_bytes));
+    ret = ALLOC(int_outstream_bytes);
     memset(ret, 0, sizeof(int_outstream_bytes));
     ret->methods = &interface_bytes;
     return ret;
