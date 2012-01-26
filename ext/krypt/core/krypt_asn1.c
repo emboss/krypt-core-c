@@ -798,6 +798,10 @@ krypt_asn1_decode(VALUE self, VALUE obj)
 void
 Init_krypt_asn1(void)
 { 
+#if 0
+    mKrypt = rb_define_module("Krypt"); /* Let RDoc know */
+#endif
+
     VALUE ary;
     int i;
 
@@ -812,13 +816,154 @@ Init_krypt_asn1(void)
     sIV_VALUE = rb_intern("@value");
     sIV_UNUSED_BITS = rb_intern("@unused_bits");
 
+    /*
+     * Document-module: Krypt::ASN1
+     *
+     * Abstract Syntax Notation One (or ASN.1) is a notation syntax to
+     * describe data structures and is defined in ITU-T X.680. ASN.1 itself
+     * does not mandate any encoding or parsing rules, but usually ASN.1 data
+     * structures are encoded using the Distinguished Encoding Rules (DER) or
+     * less often the Basic Encoding Rules (BER) described in ITU-T X.690. DER
+     * and BER encodings are binary Tag-Length-Value (TLV) encodings that are
+     * quite concise compared to other popular data description formats such
+     * as XML, JSON etc.
+     * ASN.1 data structures are very common in cryptographic applications,
+     * e.g. X.509 public key certificates or certificate revocation lists
+     * (CRLs) are all defined in ASN.1 and DER-encoded. ASN.1, DER and BER are
+     * the building blocks of applied cryptography.
+     * The ASN1 module provides the necessary classes that allow generation
+     * of ASN.1 data structures and the methods to encode them using a DER
+     * encoding. The decode method allows parsing arbitrary BER-/DER-encoded
+     * data to a Ruby object that can then be modified and re-encoded at will.
+     * 
+     * BER encodings of a parsed value are preserved when re-encoding them in
+     * order to avoid breaking digital signatures that were computed over these
+     * encodings. Once a parsed value is replaced by another manually,
+     * the new value will be encoded in DER format, regardless of the previous
+     * encoding of the old value.
+     *
+     * == ASN.1 class hierarchy
+     *
+     * The base class representing ASN.1 structures is ASN1Data. ASN1Data offers
+     * attributes to read and set the +tag+, the +tag_class+ and finally the
+     * +value+ of a particular ASN.1 item. Upon parsing, any tagged values
+     * (implicit or explicit) will be represented by ASN1Data instances because
+     * their "real type" can only be determined using out-of-band information
+     * from the ASN.1 type declaration.
+     *
+     * === Constructive
+     *
+     * Constructive is, as its name implies, the base class for all
+     * constructed encodings, i.e. those that consist of several values,
+     * opposed to "primitive" encodings with just one single value.
+     * Primitive values that are encoded with "infinite length" are typically
+     * constructed (their values come in multiple chunks) and are therefore
+     * represented by instances of Constructive. The value of a parsed 
+     * Constructive is always an Array.
+     *
+     * ==== ASN1::Set and ASN1::Sequence
+     *
+     * The most common constructive encodings are SETs and SEQUENCEs, which is
+     * why there are two sub-classes of Constructive representing each of
+     * them.
+     *
+     * === Primitive
+     *
+     * This is the super class of all primitive values. Primitive
+     * itself is not used when parsing ASN.1 data, all values are either
+     * instances of a corresponding sub-class of Primitive or they are
+     * instances of ASN1Data if the value was tagged implicitly or explicitly.
+     * Please cf. Primitive documentation for details on sub-classes and
+     * their respective mappings of ASN.1 data types to Ruby objects.
+     *
+     * == Possible values for +tag_class+
+     *
+     * It is possible to create arbitrary ASN1Data objects that also support
+     * a PRIVATE or APPLICATION tag class. Possible values for the +tag_class+
+     * attribute are:
+     * * +:UNIVERSAL+ (the default for untagged values)
+     * * +:CONTEXT_SPECIFIC+ (the default for tagged values)
+     * * +:APPLICATION+
+     * * +:PRIVATE+
+     *
+     * == Tag constants
+     *
+     * There is a constant defined for each universal tag:
+     * * Krypt::ASN1::EOC (0)
+     * * Krypt::ASN1::BOOLEAN (1)
+     * * Krypt::ASN1::INTEGER (2)
+     * * Krypt::ASN1::BIT_STRING (3)
+     * * Krypt::ASN1::OCTET_STRING (4)
+     * * Krypt::ASN1::NULL (5)
+     * * Krypt::ASN1::OBJECT (6)
+     * * Krypt::ASN1::ENUMERATED (10)
+     * * Krypt::ASN1::UTF8STRING (12)
+     * * Krypt::ASN1::SEQUENCE (16)
+     * * Krypt::ASN1::SET (17)
+     * * Krypt::ASN1::NUMERICSTRING (18)
+     * * Krypt::ASN1::PRINTABLESTRING (19)
+     * * Krypt::ASN1::T61STRING (20)
+     * * Krypt::ASN1::VIDEOTEXSTRING (21)
+     * * Krypt::ASN1::IA5STRING (22)
+     * * Krypt::ASN1::UTCTIME (23)
+     * * Krypt::ASN1::GENERALIZEDTIME (24)
+     * * Krypt::ASN1::GRAPHICSTRING (25)
+     * * Krypt::ASN1::ISO64STRING (26)
+     * * Krypt::ASN1::GENERALSTRING (27)
+     * * Krypt::ASN1::UNIVERSALSTRING (28)
+     * * Krypt::ASN1::BMPSTRING (30)
+     *
+     * == UNIVERSAL_TAG_NAME constant
+     *
+     * An Array that stores the name of a given tag number. These names are
+     * the same as the name of the tag constant that is additionally defined,
+     * e.g. UNIVERSAL_TAG_NAME[2] = "INTEGER" and Krypt::ASN1::INTEGER = 2.
+     *
+     * == Example usage
+     *
+     * === Decoding and viewing a DER-encoded file
+     *   require 'krypt'
+     *   require 'pp'
+     *   File.open('data.der', 'rb') do |f|
+     *     pp Krypt::ASN1.decode(f)
+     *   end
+     *
+     * === Creating an ASN.1 structure and DER-encoding it
+     *   require 'krypt'
+     *   version = Krypt::ASN1::Integer.new(1)
+     *   # 0-tagged with context-specific tag class
+     *   serial = Krypt::ASN1::Integer.new(12345, 0, :CONTEXT_SPECIFIC)
+     *   name = Krypt::ASN1::PrintableString.new('Data 1')
+     *   sequence = Krypt::ASN1::Sequence.new( [ version, serial, name ] )
+     *   der = sequence.to_der
+     */
     mKryptASN1 = rb_define_module_under(mKrypt, "ASN1");
 
+    /* Document-class: Krypt::ASN1::ASN1Error
+     *
+     * Generic error class for all errors raised in ASN1 and any of the
+     * classes defined under it.
+     */
     eKryptASN1Error = rb_define_class_under(mKryptASN1, "ASN1Error", eKryptError);
+
+    /* Document-class: Krypt::ASN1::ParseError
+     *
+     * Generic error class for all errors raised while parsing from a stream
+     * with Krypt::ASN1::Parser or Krypt::ASN1::Header.
+     */
     eKryptParseError = rb_define_class_under(mKryptASN1, "ParseError", eKryptASN1Error);
+
+    /* Document-class: Krypt::ASN1::SerializeError
+     *
+     * Generic error class for all errors raised while writing to a stream
+     * with Krypt::ASN1::Header#encode_to.
+     */
     eKryptSerializeError = rb_define_class_under(mKryptASN1, "SerializeError", eKryptASN1Error);
 
     ary = rb_ary_new();
+    /*
+     * Array storing tag names at the tag's index.
+     */
     rb_define_const(mKryptASN1, "UNIVERSAL_TAG_NAME", ary);
     for(i = 0; i < krypt_asn1_infos_size; i++){
 	if(krypt_asn1_infos[i].name[0] == '[') continue;
@@ -828,6 +973,87 @@ Init_krypt_asn1(void)
 
     rb_define_module_function(mKryptASN1, "decode", krypt_asn1_decode, 1);
 
+    /* Document-class: Krypt::ASN1::ASN1Data
+     *
+     * The top-level class representing any ASN.1 object. When parsed by
+     * ASN1.decode, tagged values are always represented by an instance
+     * of ASN1Data.
+     *
+     * == The role of ASN1Data for parsing tagged values
+     *
+     * When encoding an ASN.1 type it is inherently clear what original
+     * type (e.g. INTEGER, OCTET STRING etc.) this value has, regardless
+     * of its tagging.
+     * But opposed to the time an ASN.1 type is to be encoded, when parsing
+     * them it is not possible to deduce the "real type" of tagged
+     * values. This is why tagged values are generally parsed into ASN1Data
+     * instances, but with a different outcome for implicit and explicit
+     * tagging.
+     *
+     * === Example of a parsed implicitly tagged value
+     *
+     * An implicitly 1-tagged INTEGER value will be parsed as an
+     * ASN1Data with
+     * * +tag+ equal to 1
+     * * +tag_class+ equal to +:CONTEXT_SPECIFIC+
+     * * +value+ equal to a +String+ that carries the raw encoding
+     *   of the INTEGER.
+     * This implies that a subsequent decoding step is required to
+     * completely decode implicitly tagged values.
+     *
+     * === Example of a parsed explicitly tagged value
+     *
+     * An explicitly 1-tagged INTEGER value will be parsed as an
+     * ASN1Data with
+     * * +tag+ equal to 1
+     * * +tag_class+ equal to +:CONTEXT_SPECIFIC+
+     * * +value+ equal to an +Array+ with one single element, an
+     *   instance of Krypt::ASN1::Integer, i.e. the inner element
+     *   is the non-tagged primitive value, and the tagging is represented
+     *   in the outer ASN1Data
+     *
+     * == Example - Decoding an implicitly tagged INTEGER
+     *   int = Krypt::ASN1::Integer.new(1, 0, :CONTEXT_SPECIFIC) # implicit 0-tagged
+     *   seq = Krypt::ASN1::Sequence.new( [int] )
+     *   der = seq.to_der
+     *   asn1 = Krypt::ASN1.decode(der)
+     *   # pp asn1 => #<Krypt::ASN1::Sequence:0x87326e0
+     *   #              @infinite_length=false,
+     *   #              @tag=16,
+     *   #              @tag_class=:UNIVERSAL>
+     *   # pp asn1.value => [#<Krypt::ASN1::ASN1Data:0x87326f4
+     *   #                   @infinite_length=false,
+     *   #                   @tag=0,
+     *   #                   @tag_class=:CONTEXT_SPECIFIC>]
+     *   # pp asn1.value[0].value => "\x01"
+     *   raw_int = asn1.value[0]
+     *   # manually rewrite tag and tag class to make it an UNIVERSAL value
+     *   raw_int.tag = OpenSSL::ASN1::INTEGER
+     *   raw_int.tag_class = :UNIVERSAL
+     *   int2 = Krypt::ASN1.decode(raw_int)
+     *   puts int2.value # => 1
+     *
+     * == Example - Decoding an explicitly tagged INTEGER
+     *   int = Krypt::ASN1::Integer.new(1)
+     *   data = Krypt::ASN1Data.new([int], 0, :CONTEXT_SPECIFIC) # explicit 0-tagged
+     *   seq = Krypt::ASN1::Sequence.new( [data] )
+     *   der = seq.to_der
+     *   asn1 = Krypt::ASN1.decode(der)
+     *   # pp asn1 => #<Krypt::ASN1::Sequence:0x87326e0
+     *   #              @infinite_length=false,
+     *   #              @tag=16,
+     *   #              @tag_class=:UNIVERSAL>
+     *   # pp asn1.value => [#<Krypt::ASN1::ASN1Data:0x87326f4
+     *   #                   @infinite_length=false,
+     *   #                   @tag=0,
+     *   #                   @tag_class=:CONTEXT_SPECIFIC>]
+     *   # pp asn1.value[0].value => [#<Krypt::ASN1::Integer:0x85bf308
+     *   #                            @infinite_length=false,
+     *   #                            @tag=2,
+     *   #                            @tag_class=:UNIVERSAL>]
+     *   int2 = asn1.value[0].value[0]
+     *   puts int2.value # => 1
+     */
     cKryptASN1Data = rb_define_class_under(mKryptASN1, "ASN1Data", rb_cObject);
     rb_define_alloc_func(cKryptASN1Data, krypt_asn1_data_alloc);
     rb_define_method(cKryptASN1Data, "initialize", krypt_asn1_data_initialize, -1);
@@ -842,17 +1068,126 @@ Init_krypt_asn1(void)
     rb_define_method(cKryptASN1Data, "to_der", krypt_asn1_data_to_der, 0);
     rb_define_method(cKryptASN1Data, "encode_to", krypt_asn1_data_encode_to, 1);
 
+    /* Document-class: Krypt::ASN1::Primitive
+     *
+     * The parent class for all primitive encodings. Attributes are the same as
+     * for ASN1Data.
+     * Primitive values can never be infinite length encodings, thus it is not
+     * possible to set the +infinite_length+ attribute for Primitive and its
+     * sub-classes.
+     *
+     * == Primitive sub-classes and their mapping to Ruby classes
+     * * Krypt::ASN1::EndOfContents   <=> +value+ is always +nil+
+     * * Krypt::ASN1::Boolean         <=> +value+ is a +Boolean+
+     * * Krypt::ASN1::Integer         <=> +value+ is a +Number+
+     * * Krypt::ASN1::BitString       <=> +value+ is a +String+
+     * * Krypt::ASN1::OctetString     <=> +value+ is a +String+
+     * * Krypt::ASN1::Null            <=> +value+ is always +nil+
+     * * Krypt::ASN1::Object          <=> +value+ is a +String+
+     * * Krypt::ASN1::Enumerated      <=> +value+ is a +Number+
+     * * Krypt::ASN1::UTF8String      <=> +value+ is a +String+
+     * * Krypt::ASN1::NumericString   <=> +value+ is a +String+
+     * * Krypt::ASN1::PrintableString <=> +value+ is a +String+
+     * * Krypt::ASN1::T61String       <=> +value+ is a +String+
+     * * Krypt::ASN1::VideotexString  <=> +value+ is a +String+
+     * * Krypt::ASN1::IA5String       <=> +value+ is a +String+
+     * * Krypt::ASN1::UTCTime         <=> +value+ is a +Time+ (or a Number when creating them)
+     * * Krypt::ASN1::GeneralizedTime <=> +value+ is a +Time+ (or a Number when creating them)
+     * * Krypt::ASN1::GraphicString   <=> +value+ is a +String+
+     * * Krypt::ASN1::ISO64String     <=> +value+ is a +String+
+     * * Krypt::ASN1::GeneralString   <=> +value+ is a +String+
+     * * Krypt::ASN1::UniversalString <=> +value+ is a +String+
+     * * Krypt::ASN1::BMPString       <=> +value+ is a +String+
+     *
+     * == Krypt::ASN1::BitString
+     *
+     * === Additional attribute
+     * +unused_bits+: if the underlying BIT STRING's
+     * length is a multiple of 8 then +unused_bits+ is 0. Otherwise
+     * +unused_bits+ indicates the number of bits that are to be ignored in
+     * the final octet of the +BitString+'s +value+.
+     *
+     * == Examples
+     * With the Exception of Krypt::ASN1::EndOfContents and Krypt::ASN1::Null,
+     * each Primitive class constructor takes at least one parameter, the
+     * +value+. Since the value of the former two is always +nil+, they also
+     * support a no-arg constructor.
+     *
+     * === Creating EndOfContents and Null
+     *   eoc = Krypt::ASN1::EndOfContents.new
+     *   null = Krypt::ASN1::Null.new
+     *
+     * === Creating any other Primitive
+     *   prim = <class>.new(value) # <class> being one of the sub-classes except EndOfContents of Null
+     *   prim_zero_context = <class>.new(value, 0, :CONTEXT_SPECIFIC)
+     *   prim_zero_private = <class>.new(value, 0, :PRIVATE)
+     */
     cKryptASN1Primitive = rb_define_class_under(mKryptASN1, "Primitive", cKryptASN1Data);
     rb_define_method(cKryptASN1Primitive, "initialize", krypt_asn1_data_initialize, -1);
     rb_undef_method(cKryptASN1Primitive, "infinite_length=");
 
+    /* Document-class: Krypt::ASN1::Constructive
+     *
+     * The parent class for all constructed encodings. The +value+ attribute
+     * of a parsed Constructive is always an +Array+. Attributes are the same as
+     * for ASN1Data.
+     *
+     * == SET and SEQUENCE
+     *
+     * Most constructed encodings come in the form of a SET or a SEQUENCE.
+     * These encodings are represented by one of the two sub-classes of
+     * Constructive:
+     * * Krypt::ASN1::Set
+     * * Krypt::ASN1::Sequence
+     * Please note that tagged sequences and sets are still parsed as
+     * instances of ASN1Data. Find further details on tagged values
+     * there.
+     *
+     * === Example - constructing a SEQUENCE
+     *   int = Krypt::ASN1::Integer.new(1)
+     *   str = Krypt::ASN1::PrintableString.new('abc')
+     *   sequence = Krypt::ASN1::Sequence.new( [ int, str ] )
+     *
+     * === Example - constructing a SET
+     *   int = Krypt::ASN1::Integer.new(1)
+     *   str = Krypt::ASN1::PrintableString.new('abc')
+     *   set = Krypt::ASN1::Set.new( [ int, str ] )
+     *
+     * == Infinite length primitive values
+     *
+     * The only case where Constructive is used directly is for infinite
+     * length encodings of primitive values. These encodings are always
+     * constructed, with the contents of the +value+ +Array+ being either
+     * UNIVERSAL non-infinite length partial encodings of the actual value
+     * or again constructive encodings with infinite length (i.e. infinite
+     * length primitive encodings may be constructed recursively with another
+     * infinite length value within an already infinite length value). Each
+     * partial encoding must be of the same UNIVERSAL type as the overall
+     * encoding. The value of the overall encoding consists of the
+     * concatenation of each partial encoding taken in sequence. The +value+
+     * array of the outer infinite length value must end with a
+     * Krypt::ASN1::EndOfContents instance.
+     *
+     * === Example - Infinite length OCTET STRING
+     *   partial1 = Krypt::ASN1::OctetString.new("\x01")
+     *   partial2 = Krypt::ASN1::OctetString.new("\x02")
+     *   inf_octets = Krypt::ASN1::OctetString.new( [ partial1,
+     *                                                partial2,
+     *                                                Krypt::ASN1::EndOfContent.new ])
+     *   # The real value of inf_octets is "\x01\x02", i.e. the concatenation
+     *   # of partial1 and partial2
+     *   inf_octets.infinite_length = true
+     *   der = inf_octets.to_der
+     *   asn1 = Krypt::ASN1.decode(der)
+     *   puts asn1.infinite_length # => true
+     */
     cKryptASN1Constructive = rb_define_class_under(mKryptASN1, "Constructive", cKryptASN1Data);
     rb_include_module(cKryptASN1Constructive, rb_mEnumerable);
     rb_define_method(cKryptASN1Constructive, "initialize", krypt_asn1_data_initialize, -1);
     rb_define_method(cKryptASN1Constructive, "each", krypt_asn1_cons_each, 0);
 
-#define KRYPT_ASN1_DEFINE_CLASS(name, super, init)					\
-    cKryptASN1##name = rb_define_class_under(mKryptASN1, #name, cKryptASN1##super);			\
+#define KRYPT_ASN1_DEFINE_CLASS(name, super, init)						\
+    cKryptASN1##name = rb_define_class_under(mKryptASN1, #name, cKryptASN1##super);		\
     rb_define_method(cKryptASN1##name, "initialize", krypt_asn1_##init##_initialize, -1);
 
     KRYPT_ASN1_DEFINE_CLASS(EndOfContents,   Primitive, end_of_contents)
