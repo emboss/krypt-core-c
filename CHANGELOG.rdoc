@@ -1,4 +1,8 @@
 === 0.1.0 / 2012-01-26 [emboss]
+* Add Header docs
+  [Issue #4]
+
+=== 0.1.0 / 2012-01-26 [emboss]
 * Add Parser docs
   [Issue #3]
 

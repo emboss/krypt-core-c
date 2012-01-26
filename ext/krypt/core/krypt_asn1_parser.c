@@ -108,16 +108,70 @@ krypt_asn1_header_get_##attr(VALUE self)			\
     return header->attr;					\
 }
 
+/**
+ * Document-method: Krypt::ASN1::Header#tag
+ * 
+ * call-seq:
+ *    header.tag -> Number
+ *
+ * A +Number+ representing the tag of this Header. Never +nil+.
+ */
 KRYPT_ASN1_HEADER_GET_DEFINE(tag)
 
+/**
+ * Document-method: Krypt::ASN1::Header#tag_class
+ * 
+ * call-seq:
+ *    header.tag_class -> Symbol
+ *
+ * A +Symbol+ representing the tag class of this Header. Never +nil+.
+ * See Krypt::ASN1::ASN1Data for possible values.
+ */
 KRYPT_ASN1_HEADER_GET_DEFINE(tag_class)
 
+/**
+ * Document-method: Krypt::ASN1::Header#constructed?
+ * 
+ * call-seq:
+ *    header.constructed? -> true or false
+ *
+ * +true+ if the current Header belongs to a constructed value, +false+
+ * otherwise.
+ */
 KRYPT_ASN1_HEADER_GET_DEFINE(constructed)
 
+/**
+ * Document-method: Krypt::ASN1::Header#infinite?
+ * 
+ * call-seq:
+ *    header.infinite? -> true or false
+ *
+ * +true+ if the current Header is encoded using infinite length, +false+
+ * otherwise. Note that an infinite length-encoded value is automatically
+ * constructed, i.e. header.constructed? => header.infinite?
+ */
 KRYPT_ASN1_HEADER_GET_DEFINE(infinite)
-    
+
+/**
+ * Document-method: Krypt::ASN1::Header#length
+ * 
+ * call-seq:
+ *    header.length -> Number
+ *
+ * Returns a +Number+ representing the raw byte length of the associated value.
+ * It is +0+ is the Header represents an infinite length-encoded value. Never
+ * +nil+.
+ */   
 KRYPT_ASN1_HEADER_GET_DEFINE(length)
 
+/**
+ * Document-method: Krypt::ASN1::Header#header_length
+ * 
+ * call-seq:
+ *    header.header_length -> Number
+ *
+ * Returns the byte size of the raw header encoding. Never +nil+.
+ */
 KRYPT_ASN1_HEADER_GET_DEFINE(header_length)
 
 static krypt_outstream *
@@ -137,6 +191,15 @@ int_krypt_outstream_new(VALUE io)
     }
 }
 
+/**
+ * call-seq:
+ *    header.encode_to(io) -> self
+ *
+ * * +io+: an IO-like object supporting IO#write
+ *
+ * Writes the raw Header encoding to an IO-like object supporting IO#write.
+ * May raise Krypt::ASN1::SerializeError if encoding fails.
+ */
 static VALUE
 krypt_asn1_header_encode_to(VALUE self, VALUE io)
 {
@@ -150,6 +213,12 @@ krypt_asn1_header_encode_to(VALUE self, VALUE io)
     return self;
 }
 
+/**
+ * call-seq:
+ *    header.bytes -> String
+ *
+ * Returns a +String+ containing the raw byte encoding of this Header.
+ */
 static VALUE
 krypt_asn1_header_bytes(VALUE self)
 {
@@ -169,6 +238,15 @@ krypt_asn1_header_bytes(VALUE self)
     return ret;
 }
 
+/**
+ * call-seq:
+ *    header.skip_value -> nil
+ *
+ * Simply moves the "cursor" on the underlying IO forward by skipping over
+ * the bytes that represent the value associated with this Header. After
+ * having called +skip_value+, the next Header can be parsed from the
+ * underlying IO with Parser#next.
+ */
 static VALUE
 krypt_asn1_header_skip_value(VALUE self)
 {
@@ -179,6 +257,22 @@ krypt_asn1_header_skip_value(VALUE self)
     return Qnil;
 }
 
+/**
+ * call-seq:
+ *    header.value -> String or nil
+ *
+ * Returns the raw byte encoding of the associated value. Also moves the
+ * "cursor" on the underlying IO forward. After having called value, the
+ * next Header can be parsed from the underlying IO with Parser#next.
+ * Once read, the value will be cached and subsequent calls to #value will
+ * have no effect on the underlying stream. 
+ * 
+ * If there is no value (indicated * by Header#length == 0), it returns
+ * +nil+. 
+ * 
+ * May raise Krypt::ASN1::ParseError if an Instream was already obtained by
+ * Header#value_io, because the underlying stream can only be consumed once. 
+ */
 static VALUE
 krypt_asn1_header_value(VALUE self)
 {
@@ -217,6 +311,19 @@ int_header_cache_stream(krypt_instream *in, krypt_asn1_header *header, int value
     return krypt_instream_adapter_new(value_stream);
 }
 
+/**
+ * call-seq:
+ *    header.value_io -> Instream
+ *
+ * Returns a Krypt::ASN1::Instream that allows consuming the value in
+ * streaming manner rather than buffering it in a +String+ and consuming
+ * it at once. Note that once an Instream was obtained in this way,
+ * all calls to Header#value will raise a ParseError. Subsequent calls
+ * to +value_io+ are possible, however, the Instream instance is cached. 
+ *
+ * May raise Krypt::ASN1::ParseError if the associated value was already
+ * consumed by a call to Header#value.
+ */
 static VALUE
 krypt_asn1_header_value_io(int argc, VALUE *argv, VALUE self)
 {
@@ -243,6 +350,14 @@ krypt_asn1_header_value_io(int argc, VALUE *argv, VALUE self)
     return header->cached_stream;
 }
 
+/**
+ * call-seq:
+ *    header.to_s -> String
+ *
+ * Prints out the information about this Header in a human-readable format
+ * without consuming (and therefore also not displaying) the associated
+ * value.
+ */
 static VALUE
 krypt_asn1_header_to_s(VALUE self)
 {
@@ -409,6 +524,36 @@ Init_krypt_asn1_parser(void)
     cKryptASN1Parser = rb_define_class_under(mKryptASN1, "Parser", rb_cObject);
     rb_define_method(cKryptASN1Parser, "next", krypt_asn1_parser_next, 1);
 
+    /**
+     * Document-class: Krypt::ASN1::Header
+     *
+     * These are the tokens returned by Parser#next and cannot be instantiated
+     * on their own. A Header represents the Tag and Length part of a TLV
+     * (Tag-Length-Value) DER encoding, and it also allows to move the "cursor"
+     * on an IO forward by consuming or skipping the associated value (the V).
+     *
+     * The Header itself contains tag and length information of what was just
+     * parsed:
+     *
+     * * tag number (Header#tag)
+     * * tag class (Header#tag_class)
+     * * whether the header is constructed or not (Header#constructed?)
+     * * whether it is an infinite length value or not (Header#infinite?)
+     * * the length in bytes of the associated value (Header#length/size)
+     * * the length of the raw Header encoding (Header#header_length/header_size)
+     *
+     * In addition, there are three ways to consume the value that is associated
+     * with a Header:
+     *
+     * * by skipping it (Header#skip_value)
+     * * by reading the value in one single pass (Header#value)
+     * * or by obtaining an Instream of the value bytes so that it can be consumed
+     *   in a streaming fashion (Header#value_io)
+     *
+     * Access to the raw encoding of the Header is given by either retrieving
+     * a String containing the encoding with Header#bytes or by encoding it to
+     * an IO-like object supporting IO#write using Header#encode_to.
+     */
     cKryptASN1Header = rb_define_class_under(mKryptASN1, "Header", rb_cObject);
     rb_define_method(cKryptASN1Header, "tag", krypt_asn1_header_get_tag, 0);
     rb_define_method(cKryptASN1Header, "tag_class", krypt_asn1_header_get_tag_class, 0);
