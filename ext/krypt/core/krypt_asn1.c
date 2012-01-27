@@ -103,13 +103,15 @@ int_codec_for(krypt_asn1_object *object)
 
     if (tag < 31 && object->header->tag_class == TAG_CLASS_UNIVERSAL) {
 	codec = &krypt_asn1_codecs[tag];
-	if (!codec->encoder)
-	    return &KRYPT_DEFAULT_CODEC;
-	else
+	if (!codec->validator) {
+	    return object->header->is_constructed ? &KRYPT_DEFAULT_CONS_CODEC : &KRYPT_DEFAULT_PRIM_CODEC;
+	}
+	else {
 	    return codec;
+	}
     }
     else {
-	return &KRYPT_DEFAULT_CODEC;
+	return object->header->is_constructed ? &KRYPT_DEFAULT_CONS_CODEC : &KRYPT_DEFAULT_PRIM_CODEC;
     }
 }
 
@@ -874,9 +876,10 @@ int_asn1_cons_encode_to(VALUE self, krypt_outstream *out, VALUE ary, krypt_asn1_
 	krypt_outstream_free(bos);
 	header->length = len;
 	krypt_asn1_header_encode(out, header);
-	if (header->length > 0)
+	if (header->length > 0) {
 	    krypt_outstream_write(out, bytes, header->length);
-	xfree(bytes);
+	    xfree(bytes);
+	}
     } else {
 	krypt_asn1_header_encode(out, header);
 	int_cons_encode_sub_elems(out, ary);

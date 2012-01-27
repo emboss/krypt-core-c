@@ -288,7 +288,15 @@ int_asn1_decode_generalized_time(VALUE self, unsigned char *bytes, size_t len)
     return int_parse_generalized_time(bytes, len);
 }
 
-krypt_asn1_codec KRYPT_DEFAULT_CODEC = { int_asn1_encode_default, int_asn1_decode_default, int_asn1_validate_default };
+static void
+int_asn1_validate_sequence(VALUE self, VALUE value)
+{
+    if (!rb_respond_to(value, sID_EACH))
+	rb_raise(rb_eArgError, "Value for constructed value must respond to 'each'");
+}
+
+krypt_asn1_codec KRYPT_DEFAULT_PRIM_CODEC = { int_asn1_encode_default, int_asn1_decode_default, int_asn1_validate_default  };
+krypt_asn1_codec KRYPT_DEFAULT_CONS_CODEC = { NULL		     , NULL,                    int_asn1_validate_sequence };
 
 krypt_asn1_codec krypt_asn1_codecs[] = {
     { int_asn1_encode_eoc,		int_asn1_decode_eoc             , int_asn1_validate_eoc 	},
@@ -307,8 +315,8 @@ krypt_asn1_codec krypt_asn1_codecs[] = {
     { NULL,				NULL				, NULL 				},
     { NULL,				NULL				, NULL 				},
     { NULL,				NULL				, NULL 				},
-    { NULL,				NULL				, NULL 				},
-    { NULL,				NULL				, NULL 				},
+    { NULL,				NULL				, int_asn1_validate_sequence	},
+    { NULL,				NULL				, int_asn1_validate_sequence	},
     { int_asn1_encode_default,		int_asn1_decode_default   	, int_asn1_validate_default 	},
     { int_asn1_encode_default,		int_asn1_decode_default    	, int_asn1_validate_default	},
     { int_asn1_encode_default,		int_asn1_decode_default    	, int_asn1_validate_default  	},
