@@ -56,8 +56,9 @@ do {							\
 
 #define int_long_byte_len(ret, l)		\
 do {						\
+    unsigned long tmp = (unsigned long) (l);	\
     (ret) = 1;					\
-    while ((l) >> ((ret) * CHAR_BIT))		\
+    while (tmp >>= ((ret) * CHAR_BIT))		\
         (ret)++;				\
 } while (0)
 

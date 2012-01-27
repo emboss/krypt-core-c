@@ -22,18 +22,18 @@ VALUE cKryptASN1Constructive;
 
 /* PRIMITIVE */
 VALUE cKryptASN1EndOfContents;
-VALUE cKryptASN1Boolean;                           /* BOOLEAN           */
-VALUE cKryptASN1Integer, cKryptASN1Enumerated;          /* INTEGER           */
-VALUE cKryptASN1BitString;                         /* BIT STRING        */
-VALUE cKryptASN1OctetString, cKryptASN1UTF8String;      /* STRINGs           */
+VALUE cKryptASN1Boolean;                           		/* BOOLEAN           */
+VALUE cKryptASN1Integer, cKryptASN1Enumerated;          	/* INTEGER           */
+VALUE cKryptASN1BitString;                        	  	/* BIT STRING        */
+VALUE cKryptASN1OctetString, cKryptASN1UTF8String;        	/* STRINGs           */
 VALUE cKryptASN1NumericString, cKryptASN1PrintableString;
 VALUE cKryptASN1T61String, cKryptASN1VideotexString;
 VALUE cKryptASN1IA5String, cKryptASN1GraphicString;
 VALUE cKryptASN1ISO64String, cKryptASN1GeneralString;
 VALUE cKryptASN1UniversalString, cKryptASN1BMPString;
-VALUE cKryptASN1Null;                              /* NULL              */
-VALUE cKryptASN1ObjectId;                          /* OBJECT IDENTIFIER */
-VALUE cKryptASN1UTCTime, cKryptASN1GeneralizedTime;     /* TIME              */
+VALUE cKryptASN1Null;                              		/* NULL              */
+VALUE cKryptASN1ObjectId;                          		/* OBJECT IDENTIFIER */
+VALUE cKryptASN1UTCTime, cKryptASN1GeneralizedTime;     	/* TIME              */
 
 /* CONSTRUCTIVE */
 VALUE cKryptASN1Sequence, cKryptASN1Set;
