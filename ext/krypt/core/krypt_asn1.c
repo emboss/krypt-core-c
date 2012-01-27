@@ -104,12 +104,12 @@ int_codec_for(krypt_asn1_object *object)
     if (tag < 31 && object->header->tag_class == TAG_CLASS_UNIVERSAL) {
 	codec = &krypt_asn1_codecs[tag];
 	if (!codec->encoder)
-	    return NULL;
+	    return &KRYPT_DEFAULT_CODEC;
 	else
 	    return codec;
     }
     else {
-	return NULL;
+	return &KRYPT_DEFAULT_CODEC;
     }
 }
 
@@ -307,6 +307,7 @@ int_asn1_default_initialize(VALUE self,
 {
     ID stag_class;
     int tag, tag_class;
+    krypt_asn1_data *data;
 
     if (!SYMBOL_P(vtag_class))
 	rb_raise(rb_eArgError, "tag_class must be a Symbol");
@@ -323,12 +324,13 @@ int_asn1_default_initialize(VALUE self,
 			     0,
 			     cb);
 
+    int_asn1_data_get(self, data);
+
     /* Override default behavior to support tag classes other than UNIVERSAL */
-    if (default_tag <= 30) {
-	krypt_asn1_data *data;
-	int_asn1_data_get(self, data);
+    if (default_tag <= 30)
 	data->codec = &krypt_asn1_codecs[default_tag];
-    }
+
+    data->codec->validator(self, value);
 
     int_asn1_data_set_tag(self, vtag);
     int_asn1_data_set_tag_class(self, vtag_class);
@@ -338,6 +340,22 @@ int_asn1_default_initialize(VALUE self,
     return self;
 }
 
+#define int_validate_args(tag, tc, argc, defaulttag)				\
+do {										\
+    if (!NIL_P((tc)) && NIL_P((tag)))						\
+	rb_raise(rb_eArgError, "Tag must be specified if tag class is");	\
+    if (NIL_P((tc))) {								\
+	if ((argc) == 3)							\
+	    rb_raise(rb_eArgError, "Tag class must be a Symbol");		\
+	if (NIL_P((tag)))							\
+	    (tc) = ID2SYM(sTC_UNIVERSAL);					\
+	else									\
+	    (tc) = ID2SYM(sTC_CONTEXT_SPECIFIC);				\
+    }										\
+    if (NIL_P((tag)))								\
+	(tag) = INT2NUM((defaulttag));						\
+} while (0)
+
 /* Special treatment for EOC: no-arg constructor */
 static VALUE
 krypt_asn1_end_of_contents_initialize(int argc, VALUE *argv, VALUE self)
@@ -345,29 +363,16 @@ krypt_asn1_end_of_contents_initialize(int argc, VALUE *argv, VALUE self)
     VALUE value;
     VALUE tag;
     VALUE tag_class;
+
     if (argc == 0) {
 	value = Qnil;
-	tag = INT2NUM(TAGS_END_OF_CONTENTS);
-	tag_class = ID2SYM(sTC_UNIVERSAL);
     }
     else {
-	rb_scan_args(argc, argv, "12", &value, &tag, &tag_class);
-	if (NIL_P(tag_class)) {
-	    if (argc == 3)
-		rb_raise(rb_eArgError, "Tag class must be a Symbol");
-	    tag_class = ID2SYM(sTC_UNIVERSAL);
-	}
-	if (NIL_P(tag)) {
-	    tag = INT2NUM(TAGS_END_OF_CONTENTS);
-	}
-	else {
-	    if (!NUM2INT(tag) == TAGS_END_OF_CONTENTS)
-		rb_raise(rb_eArgError, "Tag must be 0 for EndOfContents");
-	}
-	if (!NIL_P(value))
-	    rb_raise(rb_eArgError, "Value for ASN.1 End of Contents must be nil");
+	rb_scan_args(argc, argv, "10", &value);
     }
 
+    tag = INT2NUM(TAGS_END_OF_CONTENTS);
+    tag_class = ID2SYM(sTC_UNIVERSAL);
     return int_asn1_default_initialize(self,
 	    			       value,
 				       tag,
@@ -391,20 +396,7 @@ krypt_asn1_null_initialize(int argc, VALUE *argv, VALUE self)
     }
     else {
 	rb_scan_args(argc, argv, "12", &value, &tag, &tag_class);
-	if (!NIL_P(tag_class) && NIL_P(tag))
-	    rb_raise(rb_eArgError, "Tag must be specified if tag class is");
-	if (NIL_P(tag_class)) {
-	    if (argc == 3)
-		rb_raise(rb_eArgError, "Tag class must be a Symbol");
-	    if (NIL_P(tag))
-	    	tag_class = ID2SYM(sTC_UNIVERSAL);
-	    else
-		tag_class = ID2SYM(sTC_CONTEXT_SPECIFIC);
-	}
-	if (NIL_P(tag))
-	    tag = INT2NUM(TAGS_NULL);
-	if (!NIL_P(value))
-	    rb_raise(rb_eArgError, "Value for ASN.1 NULL must be nil");
+	int_validate_args(tag, tag_class, argc, TAGS_NULL);
     }
 
     return int_asn1_default_initialize(self,
@@ -424,19 +416,7 @@ krypt_asn1_bit_string_initialize(int argc, VALUE *argv, VALUE self)
     VALUE tag;
     VALUE tag_class;
     rb_scan_args(argc, argv, "12", &value, &tag, &tag_class);
-    if (!NIL_P(tag_class) && NIL_P(tag))
-	rb_raise(rb_eArgError, "Tag must be specified if tag class is");
-    if (NIL_P(tag_class)) {
-	if (argc == 3)
-	    rb_raise(rb_eArgError, "Tag class must be a Symbol");
-	if (NIL_P(tag))
-	    tag_class = ID2SYM(sTC_UNIVERSAL);
-	else
-	    tag_class = ID2SYM(sTC_CONTEXT_SPECIFIC);
-    }
-    if (NIL_P(tag))
-	tag = INT2NUM(TAGS_BIT_STRING);
-    
+    int_validate_args(tag, tag_class, argc, TAGS_BIT_STRING);
 
     self = int_asn1_default_initialize(self,
 	    			       value,
@@ -457,24 +437,7 @@ krypt_asn1_##klass##_initialize(int argc, VALUE *argv, VALUE self)			\
 {											\
     VALUE value, tag, tag_class;							\
     rb_scan_args(argc, argv, "12", &value, &tag, &tag_class);				\
-    if (argc > 1) {									\
-	if (!NIL_P(tag_class) && NIL_P(tag))						\
-	    rb_raise(rb_eArgError, "Tag must be specified if tag class is");		\
-	if(NIL_P(tag_class)) {								\
-	    if (argc == 3)								\
-	        rb_raise(rb_eArgError, "Tag class must be a Symbol");			\
-	    if (NIL_P(tag))								\
-	    	tag_class = ID2SYM(sTC_UNIVERSAL);					\
-	    else									\
-	        tag_class = ID2SYM(sTC_CONTEXT_SPECIFIC);				\
-	}										\
-	if (NIL_P(tag))									\
-	    tag = INT2NUM((t));								\
-    }											\
-    else {										\
-	tag = INT2NUM((t));								\
-	tag_class = ID2SYM(sTC_UNIVERSAL);						\
-    }											\
+    int_validate_args(tag, tag_class, argc, t);						\
     return int_asn1_default_initialize(self, value, tag, (t), tag_class, (cons), (cb));	\
 }
 
@@ -723,10 +686,11 @@ krypt_asn1_data_set_value(VALUE self, VALUE value)
     krypt_asn1_object *object;
     int is_constructed;
 
+    int_asn1_data_get(self, data);
+    data->codec->validator(self, value);
     int_asn1_data_set_value(self, value);
 
     /* Free data that is now stale */
-    int_asn1_data_get(self, data);
     object = data->object;
     int_invalidate_value(object);    
     is_constructed = rb_respond_to(value, sID_EACH);
@@ -930,11 +894,7 @@ int_asn1_prim_value_decode(VALUE self, krypt_asn1_data *data)
     krypt_asn1_object *object;
 
     object = data->object;
-    if (data->codec)
-	value = data->codec->decoder(self, object->bytes, object->bytes_len);
-    else
-	value = krypt_asn1_decode_default(self, object->bytes, object->bytes_len);
-
+    value = data->codec->decoder(self, object->bytes, object->bytes_len);
     return value;
 }
 
@@ -944,13 +904,7 @@ int_asn1_prim_encode_to(VALUE self, krypt_outstream *out, VALUE value, krypt_asn
     krypt_asn1_object *object;
 
     object = data->object;
-    if (data->codec) {
-	object->bytes_len = data->codec->encoder(self, value, &object->bytes);
-    }
-    else {
-	object->bytes_len = krypt_asn1_encode_default(self, value, &object->bytes);
-    }
-
+    object->bytes_len = data->codec->encoder(self, value, &object->bytes);
     object->header->length = object->bytes_len;
     krypt_asn1_object_encode(out, object);
 }

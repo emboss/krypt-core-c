@@ -15,8 +15,8 @@
 
 #define CHAR_BIT_MINUS_ONE     (CHAR_BIT - 1)
 
-size_t
-krypt_asn1_encode_default(VALUE self, VALUE value, unsigned char **out)
+static size_t
+int_asn1_encode_default(VALUE self, VALUE value, unsigned char **out)
 {
     size_t len;
     unsigned char *ret;
@@ -29,12 +29,19 @@ krypt_asn1_encode_default(VALUE self, VALUE value, unsigned char **out)
     return len;
 }
 
-VALUE
-krypt_asn1_decode_default(VALUE self, unsigned char *bytes, size_t len)
+static VALUE
+int_asn1_decode_default(VALUE self, unsigned char *bytes, size_t len)
 {
     if (len == 0 || bytes == NULL)
 	return rb_str_new2("");
     return rb_str_new((const char *)bytes, len);
+}
+
+static void
+int_asn1_validate_default(VALUE self, VALUE value)
+{
+    if (TYPE(value) != T_STRING)
+	rb_raise(rb_eArgError, "ASN.1 type must be a String");
 }
 
 static const long SUB_ID_LIMIT_ENCODE = LONG_MAX / 10;
@@ -69,6 +76,13 @@ int_asn1_decode_eoc(VALUE self, unsigned char *bytes, size_t len)
     return Qnil;
 }
 
+static void
+int_asn1_validate_eoc(VALUE self, VALUE value)
+{
+    if (!NIL_P(value))
+	rb_raise(rb_eArgError, "Value for END_OF_CONTENTS must be nil");
+}
+
 static size_t
 int_asn1_encode_boolean(VALUE self, VALUE value, unsigned char **out)
 {
@@ -95,7 +109,13 @@ int_asn1_decode_boolean(VALUE self, unsigned char *bytes, size_t len)
 	return Qtrue;
 }
 
-/* TODO: broken!!! */
+static void
+int_asn1_validate_boolean(VALUE self, VALUE value)
+{
+    if (!(value == Qfalse || value == Qtrue))
+	rb_raise(rb_eArgError, "Value for BOOLEAN must be either true or false");
+}
+
 static size_t
 int_asn1_encode_integer(VALUE self, VALUE value, unsigned char **out)
 {
@@ -115,8 +135,6 @@ int_asn1_encode_integer(VALUE self, VALUE value, unsigned char **out)
     return int_encode_integer(num, out);
 }
 
-
-
 static VALUE
 int_asn1_decode_integer(VALUE self, unsigned char *bytes, size_t len)
 {
@@ -129,6 +147,13 @@ int_asn1_decode_integer(VALUE self, unsigned char *bytes, size_t len)
     }
 
     return int_decode_integer(bytes, len);
+}
+
+static void
+int_asn1_validate_integer(VALUE self, VALUE value)
+{
+    if (!(FIXNUM_P(value) || rb_obj_is_kind_of(value, rb_cBignum)))
+	rb_raise(rb_eArgError, "Value for INTEGER must be a integer Number");
 }
 
 static size_t
@@ -159,21 +184,9 @@ int_asn1_decode_bit_string(VALUE self, unsigned char *bytes, size_t len)
 
     sanity_check(bytes);
     unused_bits = bytes[0];
-    ret = krypt_asn1_decode_default(self, bytes + 1, len - 1);
+    ret = int_asn1_decode_default(self, bytes + 1, len - 1);
     rb_ivar_set(self, sIV_UNUSED_BITS, INT2NUM(unused_bits));
     return ret;
-}
-
-static size_t
-int_asn1_encode_octet_string(VALUE self, VALUE value, unsigned char **out)
-{
-    return krypt_asn1_encode_default(self, value, out);
-}
-
-static VALUE
-int_asn1_decode_octet_string(VALUE self, unsigned char *bytes, size_t len)
-{
-    return krypt_asn1_decode_default(self, bytes, len);
 }
 
 static size_t
@@ -189,6 +202,13 @@ int_asn1_decode_null(VALUE self, unsigned char *bytes, size_t len)
     if (len != 0)
 	rb_raise(eKryptASN1Error, "Invalid encoding for Null value");
     return Qnil;
+}
+
+static void
+int_asn1_validate_null(VALUE self, VALUE value)
+{
+    if (!NIL_P(value))
+	rb_raise(rb_eArgError, "Value for NULL must be nil");
 }
 
 static size_t
@@ -208,23 +228,19 @@ int_asn1_decode_object_id(VALUE self, unsigned char *bytes, size_t len)
     return int_decode_object_id(bytes, len);
 }
 
-static size_t
-int_asn1_encode_enumerated(VALUE self, VALUE value, unsigned char **out)
+static void
+int_asn1_validate_object_id(VALUE self, VALUE value)
 {
-    return int_asn1_encode_integer(self, value, out);
-}
-
-static VALUE
-int_asn1_decode_enumerated(VALUE self, unsigned char *bytes, size_t len)
-{
-    return int_asn1_decode_integer(self, bytes, len);
+    /* TODO: validate more strictly */
+    if (TYPE(value) != T_STRING)
+	rb_raise(rb_eArgError, "Value for OBJECT_IDENTIFIER must be a String representing an Oid");
 }
 
 static size_t
 int_asn1_encode_utf8_string(VALUE self, VALUE value, unsigned char **out)
 {
     rb_enc_associate(value, rb_utf8_encoding());
-    return krypt_asn1_encode_default(self, value, out);
+    return int_asn1_encode_default(self, value, out);
 }
 
 static VALUE
@@ -233,7 +249,7 @@ int_asn1_decode_utf8_string(VALUE self, unsigned char *bytes, size_t len)
     VALUE ret;
 
     sanity_check(bytes);
-    ret = krypt_asn1_decode_default(self, bytes, len);
+    ret = int_asn1_decode_default(self, bytes, len);
     rb_enc_associate(ret, rb_utf8_encoding());
     return ret;
 }
@@ -251,6 +267,14 @@ int_asn1_decode_utc_time(VALUE self, unsigned char *bytes, size_t len)
     return int_parse_utc_time(bytes, len);
 }
 
+static void
+int_asn1_validate_time(VALUE self, VALUE value)
+{
+    int type = TYPE(value);
+    if (!(rb_obj_is_kind_of(value, rb_cTime) || type == T_FIXNUM || type == T_STRING))
+	rb_raise(rb_eArgError, "Value for TIME type must be a Time or a Fixnum");
+}
+
 static size_t
 int_asn1_encode_generalized_time(VALUE self, VALUE value, unsigned char **out)
 {
@@ -264,38 +288,40 @@ int_asn1_decode_generalized_time(VALUE self, unsigned char *bytes, size_t len)
     return int_parse_generalized_time(bytes, len);
 }
 
+krypt_asn1_codec KRYPT_DEFAULT_CODEC = { int_asn1_encode_default, int_asn1_decode_default, int_asn1_validate_default };
+
 krypt_asn1_codec krypt_asn1_codecs[] = {
-    { int_asn1_encode_eoc,		int_asn1_decode_eoc              },
-    { int_asn1_encode_boolean,		int_asn1_decode_boolean          },
-    { int_asn1_encode_integer,		int_asn1_decode_integer          },
-    { int_asn1_encode_bit_string,	int_asn1_decode_bit_string       },
-    { int_asn1_encode_octet_string,	int_asn1_decode_octet_string     },
-    { int_asn1_encode_null,		int_asn1_decode_null	         },
-    { int_asn1_encode_object_id,	int_asn1_decode_object_id        },
-    { NULL,				NULL				 },
-    { NULL,				NULL				 },
-    { NULL,				NULL				 },
-    { int_asn1_encode_enumerated,	int_asn1_decode_enumerated       },
-    { NULL,				NULL				 },
-    { int_asn1_encode_utf8_string,	int_asn1_decode_utf8_string      },
-    { NULL,				NULL				 },
-    { NULL,				NULL				 },
-    { NULL,				NULL				 },
-    { NULL,				NULL				 },
-    { NULL,				NULL				 },
-    { int_asn1_encode_octet_string,	int_asn1_decode_octet_string     },
-    { int_asn1_encode_octet_string,	int_asn1_decode_octet_string     },
-    { int_asn1_encode_octet_string,	int_asn1_decode_octet_string     },
-    { int_asn1_encode_octet_string,	int_asn1_decode_octet_string     },
-    { int_asn1_encode_octet_string,	int_asn1_decode_octet_string     },
-    { int_asn1_encode_utc_time,		int_asn1_decode_utc_time         },
-    { int_asn1_encode_generalized_time,	int_asn1_decode_generalized_time },
-    { int_asn1_encode_octet_string,	int_asn1_decode_octet_string     },
-    { int_asn1_encode_octet_string,	int_asn1_decode_octet_string     },
-    { int_asn1_encode_octet_string,	int_asn1_decode_octet_string     },
-    { int_asn1_encode_octet_string,	int_asn1_decode_octet_string     },
-    { int_asn1_encode_octet_string,	int_asn1_decode_octet_string     },
-    { int_asn1_encode_octet_string,	int_asn1_decode_octet_string     },
+    { int_asn1_encode_eoc,		int_asn1_decode_eoc             , int_asn1_validate_eoc 	},
+    { int_asn1_encode_boolean,		int_asn1_decode_boolean         , int_asn1_validate_boolean 	},
+    { int_asn1_encode_integer,		int_asn1_decode_integer         , int_asn1_validate_integer 	},
+    { int_asn1_encode_bit_string,	int_asn1_decode_bit_string      , int_asn1_validate_default	},
+    { int_asn1_encode_default,		int_asn1_decode_default    	, int_asn1_validate_default 	},
+    { int_asn1_encode_null,		int_asn1_decode_null	        , int_asn1_validate_null 	},
+    { int_asn1_encode_object_id,	int_asn1_decode_object_id       , int_asn1_validate_object_id 	},
+    { NULL,				NULL				, NULL 				},
+    { NULL,				NULL				, NULL 				},
+    { NULL,				NULL				, NULL 				},
+    { int_asn1_encode_integer,		int_asn1_decode_integer      	, int_asn1_validate_integer 	},
+    { NULL,				NULL				, NULL 				},
+    { int_asn1_encode_utf8_string,	int_asn1_decode_utf8_string     , int_asn1_validate_default 	},
+    { NULL,				NULL				, NULL 				},
+    { NULL,				NULL				, NULL 				},
+    { NULL,				NULL				, NULL 				},
+    { NULL,				NULL				, NULL 				},
+    { NULL,				NULL				, NULL 				},
+    { int_asn1_encode_default,		int_asn1_decode_default   	, int_asn1_validate_default 	},
+    { int_asn1_encode_default,		int_asn1_decode_default    	, int_asn1_validate_default	},
+    { int_asn1_encode_default,		int_asn1_decode_default    	, int_asn1_validate_default  	},
+    { int_asn1_encode_default,		int_asn1_decode_default    	, int_asn1_validate_default	},
+    { int_asn1_encode_default,		int_asn1_decode_default    	, int_asn1_validate_default 	},
+    { int_asn1_encode_utc_time,		int_asn1_decode_utc_time        , int_asn1_validate_time 	},
+    { int_asn1_encode_generalized_time,	int_asn1_decode_generalized_time, int_asn1_validate_time 	},
+    { int_asn1_encode_default,		int_asn1_decode_default    	, int_asn1_validate_default 	},
+    { int_asn1_encode_default,		int_asn1_decode_default    	, int_asn1_validate_default 	},
+    { int_asn1_encode_default,		int_asn1_decode_default    	, int_asn1_validate_default	},
+    { int_asn1_encode_default,		int_asn1_decode_default    	, int_asn1_validate_default 	},
+    { int_asn1_encode_default,		int_asn1_decode_default    	, int_asn1_validate_default 	},
+    { int_asn1_encode_default,		int_asn1_decode_default    	, int_asn1_validate_default 	},
 };
 
 #define int_check_offset(off) 					\
@@ -476,9 +502,12 @@ int_decode_object_id(unsigned char *bytes, size_t len)
     return ret;
 }
 
-#define int_as_time_t(t, time)				\
-do {							\
-    (t) = (time_t) NUM2LONG(rb_Integer((time)));	\
+#define int_as_time_t(t, time)					\
+do {								\
+    long tmp = NUM2LONG(rb_Integer((time)));			\
+    if (tmp < 0)						\
+	rb_raise(rb_eArgError, "Negative time value given");	\
+    (t) = (time_t) tmp;						\
 } while (0)
 
 static size_t

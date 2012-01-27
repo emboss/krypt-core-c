@@ -4,8 +4,7 @@ require 'stringio'
 require 'pp'
 require 'openssl'
 
-asn1 = Krypt::ASN1.decode(Krypt::ASN1::Set.new(nil).to_der)
-
-pp asn1
-pp asn1.value
+asn1 = Krypt::ASN1::Sequence.new([])
+pp asn1.to_der
+#it { should == "\xCE\x01\xFF" }
 

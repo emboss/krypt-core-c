@@ -43,11 +43,15 @@ extern VALUE cKryptASN1Sequence, cKryptASN1Set;
 
 typedef VALUE (*krypt_asn1_decoder)(VALUE self, unsigned char *bytes, size_t len);
 typedef size_t (*krypt_asn1_encoder)(VALUE self, VALUE value, unsigned char **out);
+typedef void (*krypt_asn1_validator)(VALUE, VALUE);
+
 typedef struct krypt_asn1_codec_st {
     krypt_asn1_encoder encoder;
     krypt_asn1_decoder decoder;
+    krypt_asn1_validator validator;
 } krypt_asn1_codec;
 
+extern krypt_asn1_codec KRYPT_DEFAULT_CODEC;
 extern krypt_asn1_codec krypt_asn1_codecs[];
 
 extern VALUE eKryptASN1Error;
@@ -66,9 +70,6 @@ void Init_krypt_asn1_parser(void);
 void Init_krypt_instream_adapter(void);
 
 VALUE krypt_instream_adapter_new(krypt_instream *in);
-
-size_t krypt_asn1_encode_default(VALUE self, VALUE value, unsigned char **out);
-VALUE krypt_asn1_decode_default(VALUE self, unsigned char *bytes, size_t len);
 
 #endif /* _KRYPT_ASN1_H_ */
 
