@@ -1,6 +1,8 @@
 require 'rake'
 require 'rake/extensiontask'
 require 'rspec/core/rake_task'
+require 'rdoc/task'
+require_relative 'lib/krypt-core/version'
 
 KRYPT_HOME = '../krypt'
 
@@ -12,6 +14,7 @@ task :clean do
   rm_f FileList['*.gcov']
   rm_f 'kryptcore.info'
   rm_rf 'coverage'
+  rm_rf 'doc'
 end
 
 Rake::ExtensionTask.new('kryptcore') do |ext|
@@ -45,3 +48,10 @@ desc 'Build ext for coverage and generate a coverage report of spec.'
 task 'coverage' => ['enable-coverage', 'compile', 'spec', 'report-coverage']
 
 task :build => :compile
+
+Rake::RDocTask.new("doc") do |rdoc|
+  rdoc.rdoc_dir = 'doc'
+  rdoc.title = "Krypt-Core API: Version #{Krypt::CORE_VERSION}"
+  rdoc.rdoc_files.include('README.rdoc')
+  rdoc.rdoc_files.include('ext/**/*')
+end
