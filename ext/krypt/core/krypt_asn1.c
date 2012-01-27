@@ -340,13 +340,39 @@ int_asn1_default_initialize(VALUE self,
 
 /* Special treatment for EOC: no-arg constructor */
 static VALUE
-krypt_asn1_end_of_contents_initialize(VALUE self)
+krypt_asn1_end_of_contents_initialize(int argc, VALUE *argv, VALUE self)
 {
+    VALUE value;
+    VALUE tag;
+    VALUE tag_class;
+    if (argc == 0) {
+	value = Qnil;
+	tag = INT2NUM(TAGS_END_OF_CONTENTS);
+	tag_class = ID2SYM(sTC_UNIVERSAL);
+    }
+    else {
+	rb_scan_args(argc, argv, "12", &value, &tag, &tag_class);
+	if (NIL_P(tag_class)) {
+	    if (argc == 3)
+		rb_raise(rb_eArgError, "Tag class must be a Symbol");
+	    tag_class = ID2SYM(sTC_UNIVERSAL);
+	}
+	if (NIL_P(tag)) {
+	    tag = INT2NUM(TAGS_END_OF_CONTENTS);
+	}
+	else {
+	    if (!NUM2INT(tag) == TAGS_END_OF_CONTENTS)
+		rb_raise(rb_eArgError, "Tag must be 0 for EndOfContents");
+	}
+	if (!NIL_P(value))
+	    rb_raise(rb_eArgError, "Value for ASN.1 End of Contents must be nil");
+    }
+
     return int_asn1_default_initialize(self,
-	    	  		       Qnil,
-				       INT2NUM(TAGS_END_OF_CONTENTS),
+	    			       value,
+				       tag,
 				       TAGS_END_OF_CONTENTS,
-				       ID2SYM(sTC_UNIVERSAL),
+				       tag_class,
 				       0,
 				       int_asn1_prim_encode_to);
 }
