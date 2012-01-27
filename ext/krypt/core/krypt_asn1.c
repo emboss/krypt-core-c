@@ -910,7 +910,8 @@ int_asn1_cons_encode_to(VALUE self, krypt_outstream *out, VALUE ary, krypt_asn1_
 	krypt_outstream_free(bos);
 	header->length = len;
 	krypt_asn1_header_encode(out, header);
-	krypt_outstream_write(out, bytes, header->length);
+	if (header->length > 0)
+	    krypt_outstream_write(out, bytes, header->length);
 	xfree(bytes);
     } else {
 	krypt_asn1_header_encode(out, header);
