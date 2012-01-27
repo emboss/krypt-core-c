@@ -43,23 +43,17 @@ static const size_t MAX_LONG_DIGITS = sizeof(long) * 2 * 1.21f + 1; /* times 2 -
 
 static size_t int_encode_object_id(unsigned char*, size_t, unsigned char **);
 static VALUE int_decode_object_id(unsigned char*, size_t);
-static VALUE int_parse_utc_time(unsigned char *bytes, size_t len);
-static VALUE int_parse_generalized_time(unsigned char *bytes, size_t len);
+static VALUE int_parse_utc_time(unsigned char *, size_t);
+static VALUE int_parse_generalized_time(unsigned char *, size_t);
 static size_t int_encode_utc_time(VALUE, unsigned char **);
 static size_t int_encode_generalized_time(VALUE, unsigned char **);
+static size_t int_encode_integer(long, unsigned char **);
+static VALUE int_decode_integer(unsigned char *, size_t);
 
 #define sanity_check(b)					\
 do {							\
     if (!b)						\
         rb_raise(eKryptASN1Error, "Invalid value"); 	\
-} while (0)
-
-#define int_long_byte_len(ret, l)		\
-do {						\
-    unsigned long tmp = (unsigned long) (l);	\
-    (ret) = 1;					\
-    while (tmp >>= ((ret) * CHAR_BIT))		\
-        (ret)++;				\
 } while (0)
 
 static size_t
@@ -106,48 +100,35 @@ static size_t
 int_asn1_encode_integer(VALUE self, VALUE value, unsigned char **out)
 {
     long num;
-    size_t len, j = 0;
-    int i;
-    unsigned char *bytes;
-    unsigned char *numbytes;
-
+    
     num = NUM2LONG(value);
 
     if (num == 0) {
+	unsigned char *bytes;
+
 	bytes = ALLOC(unsigned char);
 	bytes[0] = 0x0;
 	*out = bytes;
 	return 1;
     }
 
-    int_long_byte_len(len, num);
-
-    bytes = ALLOC_N(unsigned char, len);
-    numbytes = (unsigned char *) &num;
-    for (i = len - 1; i >= 0; i--) {
-	bytes[j++] = numbytes[i];
-    }
-    *out = bytes;
-
-    return len;
+    return int_encode_integer(num, out);
 }
+
+
 
 static VALUE
 int_asn1_decode_integer(VALUE self, unsigned char *bytes, size_t len)
 {
-    long num = 0;
-    size_t i;
-
     sanity_check(bytes);
-    if (len > sizeof(long))
-	rb_raise(eKryptASN1Error, "Size of integer too long: %ld", len);
     if (len == 0)
 	rb_raise(eKryptASN1Error, "Size 0 for integer value");
-    
-    for (i = 0; i < len; i++)
-       num |= bytes[i] << (len - i - 1) * CHAR_BIT;	
+    if ((bytes[0] == 0x0 && len > sizeof(long) + 1) ||
+	(bytes[0] != 0x0 && len > sizeof(long))) {
+	rb_raise(eKryptASN1Error, "Size of integer too long: %ld", len);
+    }
 
-    return rb_int2inum(num);
+    return int_decode_integer(bytes, len);
 }
 
 static size_t
@@ -628,3 +609,90 @@ int_parse_generalized_time(unsigned char *bytes, size_t len)
     return rb_funcall2(rb_cTime, rb_intern("utc"), 6, argv);
 }
 
+#define int_long_byte_len(ret, l)		\
+do {						\
+    unsigned long tmp = (unsigned long) (l);	\
+    (ret) = 1;					\
+    while (tmp >>= CHAR_BIT)			\
+        (ret)++;				\
+} while (0)
+
+static size_t
+int_encode_integer(long num, unsigned char **out)
+{
+    size_t len, j = 0;
+    int i, leading_zero;
+    unsigned char *bytes;
+    unsigned char *numbytes;
+
+    if (num > 0)
+    	int_long_byte_len(len, num);
+    else
+	int_long_byte_len(len, -num);
+
+    numbytes = (unsigned char *) &num;
+    leading_zero = num > 0 && (numbytes[len - 1] & 0x80);
+
+    /* leading zero needs to be added for positive values with MSB set */
+    if (leading_zero) {
+	bytes = ALLOC_N(unsigned char, len + 1);
+	bytes[j++] = 0x0;
+    }
+    else {
+	bytes = ALLOC_N(unsigned char, len);
+    }
+
+    for (i = len - 1; i >= 0; i--) {
+	bytes[j++] = numbytes[i];
+    }
+    *out = bytes;
+
+    return leading_zero ? len + 1 : len;
+}
+
+static VALUE
+int_decode_positive_integer(unsigned char *bytes, size_t len)
+{
+    unsigned long num = 0;
+    size_t i;
+
+    for (i = 0; i < len; i++)
+       num |= bytes[i] << ((len - i - 1) * CHAR_BIT);	
+
+    if (num > LONG_MAX)
+	rb_raise(eKryptASN1Error, "Integer too large: %lu", num);
+
+    return LONG2NUM((long)num);
+}
+
+static VALUE
+int_decode_negative_integer(unsigned char *bytes, size_t len)
+{
+    long num = 0;
+    size_t i;
+    unsigned char b;
+    size_t size = sizeof(long);
+
+    /* Fill with 0xff from MSB down to len-th byte, then
+     * fill with bytes in successive order */
+    for (i = 0; i < size; i++) {
+	b = i < size - len ? 0xff : bytes[i - (size - len)];
+        num |= b << ((size - i - 1) * CHAR_BIT);	
+    }
+
+    return LONG2NUM(num);
+}
+
+static VALUE
+int_decode_integer(unsigned char *bytes, size_t len)
+{
+    if (bytes[0] & 0x80) {
+	return int_decode_negative_integer(bytes, len);
+    }
+    else {
+	if (bytes[0] == 0x0)
+	    return int_decode_positive_integer(bytes + 1, len - 1);
+	else
+	    return int_decode_positive_integer(bytes, len);
+    }
+}
