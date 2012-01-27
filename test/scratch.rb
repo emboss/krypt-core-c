@@ -4,4 +4,3 @@ require 'stringio'
 require 'pp'
 require 'openssl'
 
-

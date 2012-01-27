@@ -876,6 +876,12 @@ int_cons_encode_sub_elems(krypt_outstream *out, VALUE ary)
     long size, i;
     VALUE cur;
 
+    if (NIL_P(ary))
+	return;
+
+    if (!rb_obj_is_kind_of(ary, rb_cArray))
+	rb_raise(eKryptSerializeError, "Value of constructed object is not an Array");
+
     size = RARRAY_LEN(ary);
 
     for (i=0; i < size; i++) {
