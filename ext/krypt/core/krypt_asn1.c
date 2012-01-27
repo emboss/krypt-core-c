@@ -277,11 +277,11 @@ krypt_asn1_data_initialize(VALUE self, VALUE value, VALUE vtag, VALUE vtag_class
     int tag, tag_class, is_constructed;
 
     if (!SYMBOL_P(vtag_class))
-	rb_raise(eKryptASN1Error, "tag_class must be a Symbol");
+	rb_raise(rb_eArgError, "tag_class must be a Symbol");
     tag = NUM2INT(vtag);
     stag_class = SYM2ID(vtag_class);
     if (stag_class == sTC_UNIVERSAL && tag > 30)
-	rb_raise(eKryptASN1Error, "Tag too large for UNIVERSAL tag class");
+	rb_raise(rb_eArgError, "Tag too large for UNIVERSAL tag class");
     tag_class = krypt_asn1_tag_class_for_id(stag_class);
     is_constructed = rb_respond_to(value, sID_EACH) == Qtrue;
     
@@ -309,11 +309,11 @@ int_asn1_default_initialize(VALUE self,
     int tag, tag_class;
 
     if (!SYMBOL_P(vtag_class))
-	rb_raise(eKryptASN1Error, "tag_class must be a Symbol");
+	rb_raise(rb_eArgError, "tag_class must be a Symbol");
     tag = NUM2INT(vtag);
     stag_class = SYM2ID(vtag_class);
     if (stag_class == sTC_UNIVERSAL && tag > 30)
-	rb_raise(eKryptASN1Error, "Tag too large for UNIVERSAL tag class");
+	rb_raise(rb_eArgError, "Tag too large for UNIVERSAL tag class");
     tag_class = krypt_asn1_tag_class_for_id(stag_class);
     
     int_asn1_data_initialize(self,
@@ -367,10 +367,16 @@ krypt_asn1_null_initialize(int argc, VALUE *argv, VALUE self)
 	rb_scan_args(argc, argv, "12", &value, &tag, &tag_class);
 	if (!NIL_P(tag_class) && NIL_P(tag))
 	    rb_raise(rb_eArgError, "Tag must be specified if tag class is");
+	if (NIL_P(tag_class)) {
+	    if (argc == 3)
+		rb_raise(rb_eArgError, "Tag class must be a Symbol");
+	    if (NIL_P(tag))
+	    	tag_class = ID2SYM(sTC_UNIVERSAL);
+	    else
+		tag_class = ID2SYM(sTC_CONTEXT_SPECIFIC);
+	}
 	if (NIL_P(tag))
 	    tag = INT2NUM(TAGS_NULL);
-	if (NIL_P(tag_class))
-	    tag_class = ID2SYM(sTC_UNIVERSAL);
 	if (!NIL_P(value))
 	    rb_raise(rb_eArgError, "Value for ASN.1 NULL must be nil");
     }
@@ -394,10 +400,17 @@ krypt_asn1_bit_string_initialize(int argc, VALUE *argv, VALUE self)
     rb_scan_args(argc, argv, "12", &value, &tag, &tag_class);
     if (!NIL_P(tag_class) && NIL_P(tag))
 	rb_raise(rb_eArgError, "Tag must be specified if tag class is");
+    if (NIL_P(tag_class)) {
+	if (argc == 3)
+	    rb_raise(rb_eArgError, "Tag class must be a Symbol");
+	if (NIL_P(tag))
+	    tag_class = ID2SYM(sTC_UNIVERSAL);
+	else
+	    tag_class = ID2SYM(sTC_CONTEXT_SPECIFIC);
+    }
     if (NIL_P(tag))
 	tag = INT2NUM(TAGS_BIT_STRING);
-    if (NIL_P(tag_class))
-	tag_class = ID2SYM(sTC_UNIVERSAL);
+    
 
     self = int_asn1_default_initialize(self,
 	    			       value,
@@ -421,8 +434,16 @@ krypt_asn1_##klass##_initialize(int argc, VALUE *argv, VALUE self)			\
     if (argc > 1) {									\
 	if (!NIL_P(tag_class) && NIL_P(tag))						\
 	    rb_raise(rb_eArgError, "Tag must be specified if tag class is");		\
-	if(NIL_P(tag_class))								\
-	    tag_class = ID2SYM(sTC_UNIVERSAL);						\
+	if(NIL_P(tag_class)) {								\
+	    if (argc == 3)								\
+	        rb_raise(rb_eArgError, "Tag class must be a Symbol");			\
+	    if (NIL_P(tag))								\
+	    	tag_class = ID2SYM(sTC_UNIVERSAL);					\
+	    else									\
+	        tag_class = ID2SYM(sTC_CONTEXT_SPECIFIC);				\
+	}										\
+	if (NIL_P(tag))									\
+	    tag = INT2NUM((t));								\
     }											\
     else {										\
 	tag = INT2NUM((t));								\

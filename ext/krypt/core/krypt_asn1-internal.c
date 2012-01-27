@@ -229,7 +229,7 @@ krypt_asn1_tag_class_for_int(int tag_class)
 	case TAG_CLASS_PRIVATE:
 	    return sTC_PRIVATE;
 	default:
-	    rb_raise(eKryptError, "Unknown tag class");
+	    rb_raise(rb_eArgError, "Unknown tag class");
 	    return Qnil;
     }
 }
@@ -254,7 +254,7 @@ krypt_asn1_tag_class_for_id(ID tag_class)
     else if (tag_class == sTC_PRIVATE)
 	return TAG_CLASS_PRIVATE;
     
-    rb_raise(eKryptError, "Unknown tag class");
+    rb_raise(rb_eArgError, "Unknown tag class");
     return Qnil;
 }
 
