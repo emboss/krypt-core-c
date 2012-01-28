@@ -58,7 +58,7 @@ krypt_asn1_next_header(krypt_instream *in, krypt_asn1_header **out)
     unsigned char b;
     krypt_asn1_header *header;
 
-    if (!in) rb_raise(rb_eArgError, "Stream is not initialized");
+    if (!in) rb_raise(eKryptParseError, "Stream is not initialized");
 
     read = krypt_instream_read(in, &b, 1);
     if (read == -1)
@@ -214,7 +214,7 @@ krypt_asn1_object_encode(krypt_outstream *out, krypt_asn1_object *object)
  * @param tag_class	The raw tag class value
  * @return		A Ruby Symbol representing the tag class, e.g. 
  * 			:UNIVERSAL
- * @raises		Krypt::KryptError if tag_class is unknown
+ * @raises		Krypt::ASN1::ASN1Error if tag_class is unknown
  */
 ID
 krypt_asn1_tag_class_for_int(int tag_class)
@@ -229,7 +229,7 @@ krypt_asn1_tag_class_for_int(int tag_class)
 	case TAG_CLASS_PRIVATE:
 	    return sTC_PRIVATE;
 	default:
-	    rb_raise(rb_eArgError, "Unknown tag class");
+	    rb_raise(eKryptASN1Error, "Unknown tag class");
 	    return Qnil;
     }
 }
@@ -240,7 +240,7 @@ krypt_asn1_tag_class_for_int(int tag_class)
  *
  * @param tag_class	The tag class ID
  * @return		An integer representing the tag class
- * @raises		Krypt::KryptError if tag_class is unknown
+ * @raises		Krypt::ASN1::ASN1Error if tag_class is unknown
  */
 int
 krypt_asn1_tag_class_for_id(ID tag_class)
@@ -254,7 +254,7 @@ krypt_asn1_tag_class_for_id(ID tag_class)
     else if (tag_class == sTC_PRIVATE)
 	return TAG_CLASS_PRIVATE;
     
-    rb_raise(rb_eArgError, "Unknown tag class");
+    rb_raise(eKryptASN1Error, "Unknown tag class");
     return Qnil;
 }
 

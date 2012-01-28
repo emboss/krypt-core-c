@@ -41,7 +41,7 @@ static void
 int_asn1_validate_default(VALUE self, VALUE value)
 {
     if (TYPE(value) != T_STRING)
-	rb_raise(rb_eArgError, "ASN.1 type must be a String");
+	rb_raise(eKryptASN1Error, "ASN.1 type must be a String");
 }
 
 static const long SUB_ID_LIMIT_ENCODE = LONG_MAX / 10;
@@ -80,7 +80,7 @@ static void
 int_asn1_validate_eoc(VALUE self, VALUE value)
 {
     if (!NIL_P(value))
-	rb_raise(rb_eArgError, "Value for END_OF_CONTENTS must be nil");
+	rb_raise(eKryptASN1Error, "Value for END_OF_CONTENTS must be nil");
 }
 
 static size_t
@@ -113,7 +113,7 @@ static void
 int_asn1_validate_boolean(VALUE self, VALUE value)
 {
     if (!(value == Qfalse || value == Qtrue))
-	rb_raise(rb_eArgError, "Value for BOOLEAN must be either true or false");
+	rb_raise(eKryptASN1Error, "Value for BOOLEAN must be either true or false");
 }
 
 static size_t
@@ -153,7 +153,7 @@ static void
 int_asn1_validate_integer(VALUE self, VALUE value)
 {
     if (!(FIXNUM_P(value) || rb_obj_is_kind_of(value, rb_cBignum)))
-	rb_raise(rb_eArgError, "Value for INTEGER must be a integer Number");
+	rb_raise(eKryptASN1Error, "Value for INTEGER must be a integer Number");
 }
 
 static size_t
@@ -208,7 +208,7 @@ static void
 int_asn1_validate_null(VALUE self, VALUE value)
 {
     if (!NIL_P(value))
-	rb_raise(rb_eArgError, "Value for NULL must be nil");
+	rb_raise(eKryptASN1Error, "Value for NULL must be nil");
 }
 
 static size_t
@@ -233,7 +233,7 @@ int_asn1_validate_object_id(VALUE self, VALUE value)
 {
     /* TODO: validate more strictly */
     if (TYPE(value) != T_STRING)
-	rb_raise(rb_eArgError, "Value for OBJECT_IDENTIFIER must be a String representing an Oid");
+	rb_raise(eKryptASN1Error, "Value for OBJECT_IDENTIFIER must be a String representing an Oid");
 }
 
 static size_t
@@ -272,7 +272,7 @@ int_asn1_validate_time(VALUE self, VALUE value)
 {
     int type = TYPE(value);
     if (!(rb_obj_is_kind_of(value, rb_cTime) || type == T_FIXNUM || type == T_STRING))
-	rb_raise(rb_eArgError, "Value for TIME type must be a Time or a Fixnum");
+	rb_raise(eKryptASN1Error, "Value for TIME type must be a Time or a Fixnum");
 }
 
 static size_t
@@ -292,7 +292,7 @@ static void
 int_asn1_validate_sequence(VALUE self, VALUE value)
 {
     if (!rb_obj_respond_to(value, sID_EACH, 0))
-	rb_raise(rb_eArgError, "Value for constructed value must respond to 'each'");
+	rb_raise(eKryptASN1Error, "Value for constructed value must respond to 'each'");
 }
 
 krypt_asn1_codec KRYPT_DEFAULT_PRIM_CODEC = { int_asn1_encode_default, int_asn1_decode_default, int_asn1_validate_default  };
@@ -514,7 +514,7 @@ int_decode_object_id(unsigned char *bytes, size_t len)
 do {								\
     long tmp = NUM2LONG(rb_Integer((time)));			\
     if (tmp < 0)						\
-	rb_raise(rb_eArgError, "Negative time value given");	\
+	rb_raise(eKryptASN1Error, "Negative time value given");	\
     (t) = (time_t) tmp;						\
 } while (0)
 

@@ -182,7 +182,7 @@ krypt_asn1_data_new(krypt_instream *in, krypt_asn1_header *header)
     size_t value_len;
 
     if (!header)
-	rb_raise(rb_eArgError, "Uninitialized header");
+	rb_raise(eKryptASN1Error, "Uninitialized header");
 
     value_len = krypt_asn1_get_value(in, header, &value);
     encoding = krypt_asn1_object_new_value(header, value, value_len);
@@ -190,7 +190,7 @@ krypt_asn1_data_new(krypt_instream *in, krypt_asn1_header *header)
 
     if (header->tag_class == TAG_CLASS_UNIVERSAL) {
 	if (header->tag > 30)
-	   rb_raise(eKryptParseError, "Universal tag too large: %d", header->tag);
+	   rb_raise(eKryptASN1Error, "Universal tag too large: %d", header->tag);
 	if (header->is_constructed) {
 	    data->decode_cb = int_asn1_cons_value_decode;
 	    data->encode_cb = int_asn1_cons_encode_to;
@@ -278,11 +278,11 @@ krypt_asn1_data_initialize(VALUE self, VALUE value, VALUE vtag, VALUE vtag_class
     int tag, tag_class, is_constructed;
 
     if (!SYMBOL_P(vtag_class))
-	rb_raise(rb_eArgError, "tag_class must be a Symbol");
+	rb_raise(eKryptASN1Error, "tag_class must be a Symbol");
     tag = NUM2INT(vtag);
     stag_class = SYM2ID(vtag_class);
     if (stag_class == sTC_UNIVERSAL && tag > 30)
-	rb_raise(rb_eArgError, "Tag too large for UNIVERSAL tag class");
+	rb_raise(eKryptASN1Error, "Tag too large for UNIVERSAL tag class");
     tag_class = krypt_asn1_tag_class_for_id(stag_class);
     is_constructed = rb_respond_to(value, sID_EACH) == Qtrue;
     
@@ -311,11 +311,11 @@ int_asn1_default_initialize(VALUE self,
     krypt_asn1_data *data;
 
     if (!SYMBOL_P(vtag_class))
-	rb_raise(rb_eArgError, "tag_class must be a Symbol");
+	rb_raise(eKryptASN1Error, "tag_class must be a Symbol");
     tag = NUM2INT(vtag);
     stag_class = SYM2ID(vtag_class);
     if (stag_class == sTC_UNIVERSAL && tag > 30)
-	rb_raise(rb_eArgError, "Tag too large for UNIVERSAL tag class");
+	rb_raise(eKryptASN1Error, "Tag too large for UNIVERSAL tag class");
     tag_class = krypt_asn1_tag_class_for_id(stag_class);
     
     int_asn1_data_initialize(self,
@@ -331,8 +331,6 @@ int_asn1_default_initialize(VALUE self,
     if (default_tag <= 30)
 	data->codec = &krypt_asn1_codecs[default_tag];
 
-    data->codec->validator(self, value);
-
     int_asn1_data_set_tag(self, vtag);
     int_asn1_data_set_tag_class(self, vtag_class);
     int_asn1_data_set_infinite_length(self, Qfalse);
@@ -344,10 +342,10 @@ int_asn1_default_initialize(VALUE self,
 #define int_validate_args(tag, tc, argc, defaulttag)				\
 do {										\
     if (!NIL_P((tc)) && NIL_P((tag)))						\
-	rb_raise(rb_eArgError, "Tag must be specified if tag class is");	\
+	rb_raise(eKryptASN1Error, "Tag must be specified if tag class is");	\
     if (NIL_P((tc))) {								\
 	if ((argc) == 3)							\
-	    rb_raise(rb_eArgError, "Tag class must be a Symbol");		\
+	    rb_raise(eKryptASN1Error, "Tag class must be a Symbol");		\
 	if (NIL_P((tag)))							\
 	    (tc) = ID2SYM(sTC_UNIVERSAL);					\
 	else									\
@@ -688,7 +686,6 @@ krypt_asn1_data_set_value(VALUE self, VALUE value)
     int is_constructed;
 
     int_asn1_data_get(self, data);
-    data->codec->validator(self, value);
     int_asn1_data_set_value(self, value);
 
     /* Free data that is now stale */
@@ -726,6 +723,7 @@ int_asn1_encode_to(krypt_outstream *out, VALUE self)
 	VALUE value;
 
 	value = int_asn1_data_get_value(self);
+	data->codec->validator(self, value);
 	data->encode_cb(self, out, value, data);
     }
     else {
@@ -835,23 +833,39 @@ int_asn1_cons_value_decode(VALUE self, krypt_asn1_data *data)
     return ary;
 }
 
-static void
-int_cons_encode_sub_elems(krypt_outstream *out, VALUE ary) 
+static VALUE
+int_cons_encode_sub_elems_i(VALUE cur, VALUE wrapped_out)
 {
-    long size, i;
-    VALUE cur;
+    krypt_outstream *out = NULL;
 
-    if (NIL_P(ary))
+    Data_Get_Struct(wrapped_out, krypt_outstream, out);
+    if (!out)
+	rb_raise(rb_eRuntimeError, "Could not retrieve outstream");
+    int_asn1_encode_to(out, cur);
+    return Qnil;
+}
+
+static void
+int_cons_encode_sub_elems(krypt_outstream *out, VALUE enumerable) 
+{
+    if (NIL_P(enumerable))
 	return;
 
-    if (!rb_obj_is_kind_of(ary, rb_cArray))
-	rb_raise(eKryptSerializeError, "Value of constructed object is not an Array");
+    if (rb_obj_is_kind_of(enumerable, rb_cArray)) {
+	/* Optimize for Array */
+	long size, i;
+	VALUE cur;
+	size = RARRAY_LEN(enumerable);
 
-    size = RARRAY_LEN(ary);
-
-    for (i=0; i < size; i++) {
-	cur = rb_ary_entry(ary, i);
-	int_asn1_encode_to(out, cur);
+	for (i=0; i < size; i++) {
+	    cur = rb_ary_entry(enumerable, i);
+	    int_asn1_encode_to(out, cur);
+	}
+    }
+    else {
+	VALUE wrapped_out;
+	wrapped_out = Data_Wrap_Struct(rb_cObject, 0, 0, out); 
+	rb_block_call(enumerable, sID_EACH, 0, 0, int_cons_encode_sub_elems_i, wrapped_out);
     }
 }
 
