@@ -338,6 +338,18 @@ do {								\
     	rb_raise(eKryptASN1Error, "Object id value too large");	\
 } while (0)
 
+#define int_check_first_sub_id(first)				\
+do {								\
+    if ((first) > 2)						\
+        rb_raise(eKryptASN1Error, "First sub id must be 0..2"); \
+} while (0)
+
+#define int_check_second_sub_id(sec)					\
+do {									\
+    if ((sec) > 39)							\
+        rb_raise(eKryptASN1Error, "Second sub id must be 0..39"); 	\
+} while (0)
+
 static long
 int_get_sub_id(unsigned char *str, size_t len, size_t *offset)
 {
@@ -415,8 +427,10 @@ int_encode_object_id(unsigned char *str, size_t len, unsigned char **out)
     buffer = krypt_buffer_new();
     if ((first = int_get_sub_id(str, len, &offset)) == -1)
 	rb_raise(eKryptASN1Error, "Error while encoding object identifier");
+    int_check_first_sub_id(first);
     if ((second = int_get_sub_id(str, len, &offset)) == -1)
 	rb_raise(eKryptASN1Error, "Error while encoding object identifier");
+    int_check_second_sub_id(second);
 
     cur = 40 * first + second;
     int_write_long(buffer, cur);
@@ -494,7 +508,12 @@ int_decode_object_id(unsigned char *bytes, size_t len)
     if ((cur = int_parse_sub_id(bytes, len, &offset)) == -1)
 	rb_raise(eKryptASN1Error, "Error while parsing object identifier");
     
+    if (cur > 40 * 2 + 39)
+	rb_raise(eKryptASN1Error, "Illegal first octet, value too large");
     int_set_first_sub_ids(cur, &first, &second);
+    int_check_first_sub_id(first);
+    int_check_second_sub_id(second);
+
     numlen = sprintf((char *)numbuf, "%ld", first);
     krypt_buffer_write(buffer, numbuf, numlen);
     int_append_num(buffer, second, numbuf);
