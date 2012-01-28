@@ -368,6 +368,8 @@ krypt_asn1_end_of_contents_initialize(int argc, VALUE *argv, VALUE self)
     }
     else {
 	rb_scan_args(argc, argv, "10", &value);
+	if(!NIL_P(value))
+	    rb_raise(rb_eArgError, "Value must be nil for END_OF_CONTENTS");
     }
 
     tag = INT2NUM(TAGS_END_OF_CONTENTS);
@@ -396,6 +398,8 @@ krypt_asn1_null_initialize(int argc, VALUE *argv, VALUE self)
     else {
 	rb_scan_args(argc, argv, "12", &value, &tag, &tag_class);
 	int_validate_args(tag, tag_class, argc, TAGS_NULL);
+	if (!NIL_P(value))
+	    rb_raise(rb_eArgError, "Value must be nil for NULL");
     }
 
     return int_asn1_default_initialize(self,

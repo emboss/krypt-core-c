@@ -514,7 +514,7 @@ int_decode_object_id(unsigned char *bytes, size_t len)
 do {								\
     long tmp = NUM2LONG(rb_Integer((time)));			\
     if (tmp < 0)						\
-	rb_raise(eKryptASN1Error, "Negative time value given");	\
+	rb_raise(rb_eArgError, "Negative time value given");	\
     (t) = (time_t) tmp;						\
 } while (0)
 
