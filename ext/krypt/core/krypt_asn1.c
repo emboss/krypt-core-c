@@ -192,18 +192,17 @@ krypt_asn1_data_new(krypt_instream *in, krypt_asn1_header *header)
 	if (header->tag > 30)
 	   rb_raise(eKryptParseError, "Universal tag too large: %d", header->tag);
 	if (header->is_constructed) {
-	    klass = cKryptASN1Constructive;
 	    data->decode_cb = int_asn1_cons_value_decode;
 	    data->encode_cb = int_asn1_cons_encode_to;
 	}
 	else {
-	    klass = *(krypt_asn1_infos[header->tag].klass);
 	    data->decode_cb = int_asn1_prim_value_decode;
 	    data->encode_cb = int_asn1_prim_encode_to;
 	}
+	klass = *(krypt_asn1_infos[header->tag].klass);
     }
     else {
-	klass = cKryptASN1Data;
+	klass = header->is_constructed ? cKryptASN1Constructive : cKryptASN1Data;
 	data->decode_cb = int_asn1_data_value_decode;
     }
 
@@ -626,13 +625,13 @@ krypt_asn1_data_set_inf_length(VALUE self, VALUE inf_length)
     int_asn1_data_get(self, data);
 
     header = data->object->header;
-    new_inf = !(inf_length == Qfalse);
+    new_inf = RTEST(inf_length) ? 1 : 0;
     if (header->is_infinite == new_inf)
 	return inf_length;
 
     header->is_infinite = new_inf;
     int_invalidate_length(header);
-    int_asn1_data_set_infinite_length(self, inf_length);
+    int_asn1_data_set_infinite_length(self, new_inf ? Qtrue : Qfalse);
 
     return inf_length;
 }

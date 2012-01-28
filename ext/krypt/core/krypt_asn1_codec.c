@@ -291,7 +291,7 @@ int_asn1_decode_generalized_time(VALUE self, unsigned char *bytes, size_t len)
 static void
 int_asn1_validate_sequence(VALUE self, VALUE value)
 {
-    if (!rb_respond_to(value, sID_EACH))
+    if (!rb_obj_respond_to(value, sID_EACH, 0))
 	rb_raise(rb_eArgError, "Value for constructed value must respond to 'each'");
 }
 
