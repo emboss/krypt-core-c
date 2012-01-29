@@ -657,34 +657,34 @@ do {						\
 static size_t
 int_encode_integer(long num, unsigned char **out)
 {
-    size_t len, j = 0;
-    int i, leading_zero;
+    int len, idx, need_extra_byte = 0;
+    int sign = num > 0;
     unsigned char *bytes;
-    unsigned char *numbytes;
+    unsigned char numbytes[SIZEOF_LONG];
 
-    if (num > 0)
-    	int_long_byte_len(len, num);
-    else
-	int_long_byte_len(len, -num);
-
-    numbytes = (unsigned char *) &num;
-    leading_zero = num > 0 && (numbytes[len - 1] & 0x80);
-
-    /* leading zero needs to be added for positive values with MSB set */
-    if (leading_zero) {
+    for (idx = 0; idx < SIZEOF_LONG; ++idx) {
+	numbytes[idx] = num & 0xff;
+	num >>= CHAR_BIT;
+	/* ASN.1 expects the shortest length of representation */
+	if ((sign && num <= 0) || (!sign && num >= -1)) {
+	    need_extra_byte = (sign == ((numbytes[idx] & 0x80) == 0x80));
+	    break;
+	}
+    }
+    len = idx + 1;
+    idx = 0;
+    if (need_extra_byte) {
 	bytes = ALLOC_N(unsigned char, len + 1);
-	bytes[j++] = 0x0;
+	bytes[idx++] = sign ? 0x00 : 0xff;
     }
     else {
 	bytes = ALLOC_N(unsigned char, len);
     }
-
-    for (i = len - 1; i >= 0; i--) {
-	bytes[j++] = numbytes[i];
+    while (len > 0) {
+	bytes[idx++] = numbytes[--len];
     }
     *out = bytes;
-
-    return leading_zero ? len + 1 : len;
+    return idx;
 }
 
 static VALUE
