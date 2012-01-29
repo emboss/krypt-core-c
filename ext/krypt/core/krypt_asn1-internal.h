@@ -32,7 +32,7 @@
 #define TAGS_NULL		0x05
 #define TAGS_OBJECT_ID  	0x06
 #define TAGS_ENUMERATED		0x0a
-#define TAGS_UTF8_STRING	0xc0
+#define TAGS_UTF8_STRING	0x0c
 #define TAGS_SEQUENCE		0x10
 #define TAGS_SET		0x11
 #define TAGS_NUMERIC_STRING	0x12

@@ -239,8 +239,17 @@ int_asn1_validate_object_id(VALUE self, VALUE value)
 static size_t
 int_asn1_encode_utf8_string(VALUE self, VALUE value, unsigned char **out)
 {
-    rb_enc_associate(value, rb_utf8_encoding());
-    return int_asn1_encode_default(self, value, out);
+    rb_encoding *src_encoding;
+
+    src_encoding = rb_enc_get(value);
+    if (rb_enc_asciicompat(src_encoding)) {
+	rb_enc_associate(value, rb_utf8_encoding());
+	return int_asn1_encode_default(self, value, out);
+    }
+    else {
+	VALUE encoded = rb_str_encode(value, rb_enc_from_encoding(rb_utf8_encoding()), 0, Qnil);
+	return int_asn1_encode_default(self, encoded, out);
+    }
 }
 
 static VALUE

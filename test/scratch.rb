@@ -1,3 +1,5 @@
+# encoding: UTF-8
+
 require 'krypt-core'
 require_relative 'resources'
 require 'stringio'
@@ -16,7 +18,7 @@ def eoc
   Krypt::ASN1::EndOfContents.new
 end
 
-asn1 = i(-1)
+asn1 = Krypt::ASN1::UTF8String.new 'こんにちは、世界！'
 pp asn1
 pp asn1.to_der
 
