@@ -128,15 +128,6 @@ int_asn1_encode_integer(VALUE self, VALUE value, unsigned char **out)
 
     num = NUM2LONG(value);
 
-    if (num == 0) {
-	unsigned char *bytes;
-
-	bytes = ALLOC(unsigned char);
-	bytes[0] = 0x0;
-	*out = bytes;
-	return 1;
-    }
-
     return int_encode_integer(num, out);
 }
 
@@ -715,7 +706,7 @@ static size_t
 int_encode_integer(long num, unsigned char **out)
 {
     int len, i, need_extra_byte = 0;
-    int sign = num > 0;
+    int sign = num >= 0;
     unsigned char *bytes;
     unsigned char *ptr;
     unsigned char numbytes[SIZEOF_LONG];
