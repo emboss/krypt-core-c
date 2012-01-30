@@ -25,10 +25,11 @@ end
 message "=== krypt-core API - C version ===\n"
 
 if debug && CONFIG['GCC'] == 'yes'
-  flags = "-fprofile-arcs -ftest-coverage"
+  flags = "--coverage -g -fprofile-arcs -ftest-coverage"
   message "!! set #{flags} for coverage !!"
   $CFLAGS += " #{flags}"
   $DLDFLAGS += " #{flags}"
+  $LIBS += " -lgcov"
 end
 
 message "=== Checking Ruby features ===\n"

@@ -18,7 +18,3 @@ def eoc
   Krypt::ASN1::EndOfContents.new
 end
 
-asn1 = Krypt::ASN1::UTF8String.new 'こんにちは、世界！'
-pp asn1
-pp asn1.to_der
-

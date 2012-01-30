@@ -12,9 +12,6 @@ task :default => :compile
 
 task :clean do
   rm_f FileList['*.gcov']
-  rm_f 'kryptcore.info'
-  rm_rf 'coverage'
-  rm_rf 'doc'
 end
 
 Rake::ExtensionTask.new('kryptcore') do |ext|
@@ -36,12 +33,20 @@ end
 desc 'requires gcov and lcov in $PATH'
 task 'report-coverage' do
   outdir = File.dirname(Dir['tmp/**/Makefile'].first)
-  sh "gcov -o #{outdir} ext/krypt/core/krypt*.h ext/krypt/core/krypt*.c"
-  sh "lcov -c -d . --output-file kryptcore.info"
-  sh "lcov -r kryptcore.info ruby.h --output-file kryptcore.info"
-  sh "lcov -r kryptcore.info '*include*' --output-file kryptcore.info"
-  rm_f FileList['*.gcov']
-  sh "genhtml -o coverage kryptcore.info"
+  curdir = Dir.pwd
+  Dir.chdir(outdir) do
+    sh "lcov -c -i -d . -o kryptcore_base.info"
+    Dir.entries("#{curdir}/ext/krypt/core").each do |f|
+      next if File.directory? f || f !~ /\.[hc]$/
+      # See http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=535755
+      sh "gcov -o . #{f}"
+    end
+    sh "lcov -c -d . -o kryptcore.info"
+    sh "lcov -a kryptcore.info -a kryptcore_base.info -o kryptcore_total.info"
+    sh "lcov -r kryptcore_total.info ruby.h --output-file kryptcore_total.info"
+    sh "lcov -r kryptcore_total.info '*include*' --output-file kryptcore_total.info"
+    sh "genhtml -o coverage kryptcore_total.info"
+  end
 end
 
 desc 'Build ext for coverage and generate a coverage report of spec.'

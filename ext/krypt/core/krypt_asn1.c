@@ -216,11 +216,6 @@ krypt_asn1_data_new(krypt_instream *in, krypt_asn1_header *header)
 }
 
 /* Initializer section for ASN1Data created from scratch */
-
-/* Note: We do not need to set krypt_asn1_data.decode_cb for
- * these objects.
- */
-
 static VALUE
 krypt_asn1_data_alloc(VALUE klass)
 {
@@ -258,6 +253,14 @@ int_asn1_data_initialize(VALUE self,
     DATA_PTR(self) = data;
 }
 
+#define int_validate_tag_and_class(t, tc)				\
+do {									\
+    if (!SYMBOL_P((tc)))						\
+        rb_raise(eKryptASN1Error, "Tag class must be a Symbol");	\
+    if (!FIXNUM_P((t)))							\
+	rb_raise(eKryptASN1Error, "Tag must be a Number");		\
+} while (0)
+
 /* Used by non-UNIVERSAL values */
 /*
  * call-seq:
@@ -277,14 +280,13 @@ krypt_asn1_data_initialize(VALUE self, VALUE value, VALUE vtag, VALUE vtag_class
     ID stag_class;
     int tag, tag_class, is_constructed;
 
-    if (!SYMBOL_P(vtag_class))
-	rb_raise(eKryptASN1Error, "tag_class must be a Symbol");
+    int_validate_tag_and_class(vtag, vtag_class);
     tag = NUM2INT(vtag);
     stag_class = SYM2ID(vtag_class);
     if (stag_class == sTC_UNIVERSAL && tag > 30)
 	rb_raise(eKryptASN1Error, "Tag too large for UNIVERSAL tag class");
     tag_class = krypt_asn1_tag_class_for_id(stag_class);
-    is_constructed = rb_respond_to(value, sID_EACH) == Qtrue;
+    is_constructed = rb_respond_to(value, sID_EACH);
     
     int_asn1_data_initialize(self, tag, tag_class, is_constructed, 0, int_asn1_data_encode_to);
 
@@ -310,8 +312,7 @@ int_asn1_default_initialize(VALUE self,
     int tag, tag_class;
     krypt_asn1_data *data;
 
-    if (!SYMBOL_P(vtag_class))
-	rb_raise(eKryptASN1Error, "tag_class must be a Symbol");
+    int_validate_tag_and_class(vtag, vtag_class);
     tag = NUM2INT(vtag);
     stag_class = SYM2ID(vtag_class);
     if (stag_class == sTC_UNIVERSAL && tag > 30)
@@ -341,8 +342,12 @@ int_asn1_default_initialize(VALUE self,
 
 #define int_validate_args(tag, tc, argc, defaulttag)				\
 do {										\
-    if (!NIL_P((tc)) && NIL_P((tag)))						\
-	rb_raise(eKryptASN1Error, "Tag must be specified if tag class is");	\
+    if (!NIL_P((tc))) {								\
+        if (NIL_P((tag)))							\
+	    rb_raise(eKryptASN1Error, "Tag must be specified if tag class is");	\
+        if (!SYMBOL_P((tc)))							\
+            rb_raise(eKryptASN1Error, "Tag class must be a Symbol");		\
+    }										\
     if (NIL_P((tc))) {								\
 	if ((argc) == 3)							\
 	    rb_raise(eKryptASN1Error, "Tag class must be a Symbol");		\
@@ -351,8 +356,13 @@ do {										\
 	else									\
 	    (tc) = ID2SYM(sTC_CONTEXT_SPECIFIC);				\
     }										\
-    if (NIL_P((tag)))								\
+    if (NIL_P((tag))) {								\
 	(tag) = INT2NUM((defaulttag));						\
+    }										\
+    else {									\
+        if (!FIXNUM_P((tag)))							\
+	    rb_raise(eKryptASN1Error, "Tag must be a Number");			\
+    }										\
 } while (0)
 
 /* Special treatment for EOC: no-arg constructor */
@@ -576,6 +586,7 @@ krypt_asn1_data_set_tag_class(VALUE self, VALUE tag_class)
 
     header->tag_class = new_tag_class;
     int_invalidate_tag(header);
+    data->codec = int_codec_for(data->object);
     int_asn1_data_set_tag_class(self, tag_class);
 
     return tag_class;
@@ -699,6 +710,7 @@ krypt_asn1_data_set_value(VALUE self, VALUE value)
     if (object->header->is_constructed != is_constructed) {
 	object->header->is_constructed = is_constructed;
 	int_invalidate_tag(object->header);
+	data->codec = int_codec_for(data->object);
     }
 
     return value;
@@ -833,6 +845,7 @@ int_asn1_cons_value_decode(VALUE self, krypt_asn1_data *data)
     xfree(object->bytes);
     object->bytes = NULL;
     object->bytes_len = 0;
+    krypt_instream_free(in);
 
     return ary;
 }
@@ -964,12 +977,15 @@ krypt_asn1_decode(VALUE self, VALUE obj)
 {
     krypt_instream *in;
     krypt_asn1_header *header;
+    VALUE ret;
     
     in = krypt_instream_new_value(obj);
     if (krypt_asn1_next_header(in, &header) == 0)
 	rb_raise(eKryptParseError, "Premature EOF detected");
 
-    return krypt_asn1_data_new(in, header);
+    ret = krypt_asn1_data_new(in, header);
+    krypt_instream_free(in);
+    return ret;
 }
 
 void
@@ -1233,7 +1249,7 @@ Init_krypt_asn1(void)
      */
     cKryptASN1Data = rb_define_class_under(mKryptASN1, "ASN1Data", rb_cObject);
     rb_define_alloc_func(cKryptASN1Data, krypt_asn1_data_alloc);
-    rb_define_method(cKryptASN1Data, "initialize", krypt_asn1_data_initialize, -1);
+    rb_define_method(cKryptASN1Data, "initialize", krypt_asn1_data_initialize, 3);
     rb_define_method(cKryptASN1Data, "tag", krypt_asn1_data_get_tag, 0);
     rb_define_method(cKryptASN1Data, "tag=", krypt_asn1_data_set_tag, 1);
     rb_define_method(cKryptASN1Data, "tag_class", krypt_asn1_data_get_tag_class, 0);
