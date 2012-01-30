@@ -54,6 +54,7 @@ static VALUE int_parse_utc_time(unsigned char *, size_t);
 static VALUE int_parse_generalized_time(unsigned char *, size_t);
 static size_t int_encode_utc_time(VALUE, unsigned char **);
 static size_t int_encode_generalized_time(VALUE, unsigned char **);
+static size_t int_encode_integer_bignum(VALUE, unsigned char **);
 static size_t int_encode_integer(long, unsigned char **);
 static VALUE int_decode_integer(unsigned char *, size_t);
 
@@ -121,16 +122,11 @@ int_asn1_encode_integer(VALUE self, VALUE value, unsigned char **out)
 {
     long num;
     
-    num = NUM2LONG(value);
-
-    if (num == 0) {
-	unsigned char *bytes;
-
-	bytes = ALLOC(unsigned char);
-	bytes[0] = 0x0;
-	*out = bytes;
-	return 1;
+    if (TYPE(value) == T_BIGNUM) {
+	return int_encode_integer_bignum(value, out);
     }
+
+    num = NUM2LONG(value);
 
     return int_encode_integer(num, out);
 }
@@ -141,10 +137,6 @@ int_asn1_decode_integer(VALUE self, unsigned char *bytes, size_t len)
     sanity_check(bytes);
     if (len == 0)
 	rb_raise(eKryptASN1Error, "Size 0 for integer value");
-    if ((bytes[0] == 0x0 && len > sizeof(long) + 1) ||
-	(bytes[0] != 0x0 && len > sizeof(long))) {
-	rb_raise(eKryptASN1Error, "Size of integer too long: %ld", len);
-    }
 
     return int_decode_integer(bytes, len);
 }
@@ -683,82 +675,126 @@ do {						\
         (ret)++;				\
 } while (0)
 
+/* TODO: This function uses rb_big_pack which is in intern.h.  We need to
+ * implement String <-> binary converter by ourselves for Rubinius support.
+ */
+static size_t
+int_encode_integer_bignum(VALUE big, unsigned char **out) {
+    int len, i, j;
+    long num_longs;
+    unsigned long *longs;
+    unsigned char* bytes;
+    unsigned char* ptr;
+    unsigned char msb;
+    unsigned long l;
+
+    num_longs = (RBIGNUM_LEN(big) + 1) / (SIZEOF_LONG/SIZEOF_BDIGITS);
+    longs = ALLOC_N(unsigned long, num_longs);
+    rb_big_pack(big, longs, num_longs);
+
+    msb = longs[num_longs - 1] >> (SIZEOF_LONG * CHAR_BIT - 1);
+    if (RBIGNUM_SIGN(big) == ((msb & 1) == 1)) {
+	/* We can't use int_encode_integer here because longs are unsigned */
+	len = num_longs * SIZEOF_LONG + 1;
+	bytes = ALLOC_N(unsigned char, len);
+	ptr = bytes;
+	*ptr++ = RBIGNUM_SIGN(big) ? 0x00 : 0xff;
+    }
+    else {
+	unsigned char* buf;
+	size_t encoded;
+
+	encoded = int_encode_integer(longs[num_longs - 1], &buf);
+	len = encoded + (num_longs - 1) * SIZEOF_LONG;
+	bytes = ALLOC_N(unsigned char, len);
+	ptr = bytes;
+	memcpy(ptr, buf, encoded);
+	ptr += encoded;
+	--num_longs;
+	xfree(buf);
+    }
+    for (i = num_longs - 1; i >= 0; --i) {
+	l = longs[i];
+	for (j = 0; j < SIZEOF_LONG; ++j) {
+	    ptr[SIZEOF_LONG - j - 1] = l & 0xff;
+	    l >>= CHAR_BIT;
+	}
+	ptr += SIZEOF_LONG;
+    }
+    xfree(longs);
+    *out = bytes;
+
+    return ptr - bytes;
+}
+
 static size_t
 int_encode_integer(long num, unsigned char **out)
 {
-    size_t len, j = 0;
-    int i, leading_zero;
+    int len, i, need_extra_byte = 0;
+    int sign = num >= 0;
     unsigned char *bytes;
-    unsigned char *numbytes;
+    unsigned char *ptr;
+    unsigned char numbytes[SIZEOF_LONG];
 
-    if (num > 0)
-    	int_long_byte_len(len, num);
-    else
-	int_long_byte_len(len, -num);
-
-    numbytes = (unsigned char *) &num;
-    leading_zero = num > 0 && (numbytes[len - 1] & 0x80);
-
-    /* leading zero needs to be added for positive values with MSB set */
-    if (leading_zero) {
+    for (i = 0; i < SIZEOF_LONG; ++i) {
+	numbytes[i] = num & 0xff;
+	num >>= CHAR_BIT;
+	/* ASN.1 expects the shortest length of representation */
+	if ((sign && num <= 0) || (!sign && num >= -1)) {
+	    need_extra_byte = (sign == ((numbytes[i] & 0x80) == 0x80));
+	    break;
+	}
+    }
+    len = i + 1;
+    if (need_extra_byte) {
 	bytes = ALLOC_N(unsigned char, len + 1);
-	bytes[j++] = 0x0;
+	ptr = bytes;
+	*ptr++ = sign ? 0x00 : 0xff;
     }
     else {
 	bytes = ALLOC_N(unsigned char, len);
+	ptr = bytes;
     }
-
-    for (i = len - 1; i >= 0; i--) {
-	bytes[j++] = numbytes[i];
+    while (len > 0) {
+	*ptr++ = numbytes[--len];
     }
     *out = bytes;
-
-    return leading_zero ? len + 1 : len;
+    return ptr - bytes;
 }
 
-static VALUE
-int_decode_positive_integer(unsigned char *bytes, size_t len)
-{
-    unsigned long num = 0;
-    size_t i;
-
-    for (i = 0; i < len; i++)
-       num |= bytes[i] << ((len - i - 1) * CHAR_BIT);	
-
-    if (num > LONG_MAX)
-	rb_raise(eKryptASN1Error, "Integer too large: %lu", num);
-
-    return LONG2NUM((long)num);
-}
-
-static VALUE
-int_decode_negative_integer(unsigned char *bytes, size_t len)
-{
-    long num = 0;
-    size_t i;
-    unsigned char b;
-    size_t size = sizeof(long);
-
-    /* Fill with 0xff from MSB down to len-th byte, then
-     * fill with bytes in successive order */
-    for (i = 0; i < size; i++) {
-	b = i < size - len ? 0xff : bytes[i - (size - len)];
-        num |= b << ((size - i - 1) * CHAR_BIT);	
-    }
-
-    return LONG2NUM(num);
-}
-
+/* TODO: This function uses rb_big_unpack which is in intern.h.  We need to
+ * implement String <-> binary converter by ourselves for Rubinius support.
+ *
+ * See int_encode_integer, too.
+ */
 static VALUE
 int_decode_integer(unsigned char *bytes, size_t len)
 {
-    if (bytes[0] & 0x80) {
-	return int_decode_negative_integer(bytes, len);
+    long num_longs;
+    int i, j, pos, sign;
+    unsigned long *longs;
+    long l;
+    VALUE value;
+
+    sign = bytes[0] & 0x80;
+    num_longs = (len - 1) / SIZEOF_LONG + 1;
+    longs = ALLOC_N(unsigned long, num_longs);
+    for (i = 0; i < num_longs; ++i) {
+	l = 0;
+	for (j = 0; j < SIZEOF_LONG; ++j) {
+	    pos = len - i * SIZEOF_LONG - j - 1;
+	    if (pos >= 0) {
+		l += ((long)(bytes[pos] & 0xff) << (j * CHAR_BIT));
+	    }
+	    else if (sign) {
+		l |= ((long)0xff << (j * CHAR_BIT));
+	    }
+	}
+	longs[i] = l;
     }
-    else {
-	if (bytes[0] == 0x0)
-	    return int_decode_positive_integer(bytes + 1, len - 1);
-	else
-	    return int_decode_positive_integer(bytes, len);
+    value = rb_big_unpack(longs, num_longs);
+    if (TYPE(value) == T_BIGNUM) {
+	RBIGNUM_SET_SIGN(value, !sign);
     }
+    return value;
 }
