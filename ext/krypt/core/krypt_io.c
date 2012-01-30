@@ -31,20 +31,7 @@ krypt_raise_io_error(VALUE klass)
 
 /* instream */
 
-void
-int_size_buffer(VALUE *str, size_t len)
-{
-    if (NIL_P(*str)) {
-	*str = rb_str_new(0, len);
-    }
-    else {
-	StringValue(*str);
-	rb_str_modify(*str);
-	rb_str_resize(*str, len);
-    }
-}
-
-VALUE
+static VALUE
 int_read_all(krypt_instream *in, VALUE vbuf)
 {
     unsigned char *buf;
