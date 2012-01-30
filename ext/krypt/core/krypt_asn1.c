@@ -793,6 +793,13 @@ krypt_asn1_data_to_der(VALUE self)
 
 /* ASN1Constructive methods */
 
+static VALUE
+int_cons_each_i(VALUE cur, VALUE arg)
+{
+    rb_yield(cur);
+    return Qnil;
+}
+
 /*
  * call-seq:
  *    asn1_ary.each { |asn1| block } -> asn1_ary
@@ -809,8 +816,15 @@ krypt_asn1_data_to_der(VALUE self)
 static VALUE
 krypt_asn1_cons_each(VALUE self)
 {
-    rb_ary_each(krypt_asn1_data_get_value(self));
-    return self;
+    VALUE enumerable = krypt_asn1_data_get_value(self);
+
+    RETURN_ENUMERATOR(enumerable, 0, 0);
+    if (rb_obj_is_kind_of(enumerable, rb_cArray))
+	rb_ary_each(krypt_asn1_data_get_value(self));
+    else
+	rb_block_call(enumerable, sID_EACH, 0, 0, int_cons_each_i, 0);
+
+    return enumerable;
 }
 
 static VALUE
