@@ -163,6 +163,33 @@ static void int_asn1_data_encode_to(VALUE self, krypt_outstream *out, VALUE valu
 static void int_asn1_cons_encode_to(VALUE self, krypt_outstream *out, VALUE value, krypt_asn1_data *data);
 static void int_asn1_prim_encode_to(VALUE self, krypt_outstream *out, VALUE value, krypt_asn1_data *data);
 
+static void
+int_handle_class_specifics(VALUE self, krypt_asn1_header *header)
+{
+    if (header->tag_class == TAG_CLASS_UNIVERSAL) {
+	switch (header->tag) {
+	    case TAGS_BIT_STRING:
+		rb_ivar_set(self, sIV_UNUSED_BITS, INT2NUM(0));
+		break;
+	    default:
+		break;
+	}
+    }
+}
+
+static VALUE
+int_determine_class(krypt_asn1_header *header)
+{
+    if (header->tag_class == TAG_CLASS_UNIVERSAL) {
+	if (header->tag > 30)
+	   rb_raise(eKryptASN1Error, "Universal tag too large: %d", header->tag);
+	return *(krypt_asn1_infos[header->tag].klass);
+    }
+    else {
+	return header->is_constructed ? cKryptASN1Constructive : cKryptASN1Data;
+    }
+}
+
 /* This initializer is used with freshly parsed values */
 static VALUE
 krypt_asn1_data_new(krypt_instream *in, krypt_asn1_header *header)
@@ -180,23 +207,14 @@ krypt_asn1_data_new(krypt_instream *in, krypt_asn1_header *header)
     value_len = krypt_asn1_get_value(in, header, &value);
     encoding = krypt_asn1_object_new_value(header, value, value_len);
     data = int_asn1_data_new(encoding);
-
-    if (header->tag_class == TAG_CLASS_UNIVERSAL) {
-	if (header->tag > 30)
-	   rb_raise(eKryptASN1Error, "Universal tag too large: %d", header->tag);
-	if (!krypt_asn1_infos[header->tag].klass)
-	   rb_raise(eKryptASN1Error, "Unsupported tag number: %d", header->tag);
-	klass = *(krypt_asn1_infos[header->tag].klass);
-    }
-    else {
-	klass = header->is_constructed ? cKryptASN1Constructive : cKryptASN1Data;
-    }
-
+    klass = int_determine_class(header);
     int_asn1_data_set(klass, obj, data);
 
     int_asn1_data_set_tag(obj, INT2NUM(header->tag));
     int_asn1_data_set_tag_class(obj, ID2SYM(krypt_asn1_tag_class_for_int(header->tag_class)));
     int_asn1_data_set_infinite_length(obj, header->is_infinite ? Qtrue : Qfalse);
+
+    int_handle_class_specifics(obj, header);
 
     return obj;
 }
@@ -651,16 +669,8 @@ int_asn1_data_value_decode(VALUE self, krypt_asn1_data *data)
 	return int_asn1_prim_value_decode(self, data);
 }
 
-/*
- * call-seq:
- *    asn1.value -> value
- *
- * Obtain the value of an ASN1Data.
- * Please see Constructive and Primitive docs for the mappings between
- * ASN.1 data types and Ruby classes.
- */
-static VALUE
-krypt_asn1_data_get_value(VALUE self)
+static void
+int_asn1_decode_value(VALUE self)
 {
     VALUE value;
 
@@ -675,7 +685,21 @@ krypt_asn1_data_get_value(VALUE self)
 	    int_asn1_data_set_value(self, value);
 	}
     }
-    return value;
+}
+
+/*
+ * call-seq:
+ *    asn1.value -> value
+ *
+ * Obtain the value of an ASN1Data.
+ * Please see Constructive and Primitive docs for the mappings between
+ * ASN.1 data types and Ruby classes.
+ */
+static VALUE
+krypt_asn1_data_get_value(VALUE self)
+{
+    int_asn1_decode_value(self);
+    return int_asn1_data_get_value(self);
 }
 
 /*
@@ -961,6 +985,25 @@ int_asn1_prim_encode_to(VALUE self, krypt_outstream *out, VALUE value, krypt_asn
     object->bytes_len = data->codec->encoder(self, value, &object->bytes);
     object->header->length = object->bytes_len;
     krypt_asn1_object_encode(out, object);
+}
+
+static VALUE
+krypt_asn1_bit_string_set_unused_bits(VALUE self, VALUE unused_bits)
+{
+    rb_ivar_set(self, sIV_UNUSED_BITS, unused_bits);
+    return unused_bits;
+}
+
+/**
+ * If a bit string was parsed, we first need to parse
+ * the internal value before we can give the precise
+ * value of unused_bits.
+ */
+static VALUE
+krypt_asn1_bit_string_get_unused_bits(VALUE self)
+{
+    int_asn1_decode_value(self);
+    return rb_ivar_get(self, sIV_UNUSED_BITS);
 }
 
 /* End ASN1Primitive methods */
@@ -1427,7 +1470,8 @@ Init_krypt_asn1(void)
     KRYPT_ASN1_DEFINE_CLASS(Sequence, 	     Constructive, sequence)
     KRYPT_ASN1_DEFINE_CLASS(Set, 	     Constructive, set)
 
-    rb_attr(cKryptASN1BitString, rb_intern("unused_bits"), 1, 1, 0);
+    rb_define_method(cKryptASN1BitString, "unused_bits", krypt_asn1_bit_string_get_unused_bits, 0);
+    rb_define_method(cKryptASN1BitString, "unused_bits=", krypt_asn1_bit_string_set_unused_bits, 1);
    
     Init_krypt_asn1_parser();
     Init_krypt_instream_adapter();

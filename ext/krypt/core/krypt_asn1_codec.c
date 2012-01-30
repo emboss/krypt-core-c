@@ -156,6 +156,12 @@ int_asn1_validate_integer(VALUE self, VALUE value)
 	rb_raise(eKryptASN1Error, "Value for integer type must be a integer Number");
 }
 
+#define int_check_unused_bits(b)				\
+do {								\
+    if ((b) < 0 || (b) > 7)					\
+        rb_raise(eKryptASN1Error, "Unused bits must be 0..7");  \
+} while (0)
+
 static size_t
 int_asn1_encode_bit_string(VALUE self, VALUE value, unsigned char **out)
 {
@@ -164,6 +170,8 @@ int_asn1_encode_bit_string(VALUE self, VALUE value, unsigned char **out)
     unsigned char *bytes;
 
     unused_bits = NUM2INT(rb_ivar_get(self, sIV_UNUSED_BITS));
+    int_check_unused_bits(unused_bits);
+
     StringValue(value);
     len = RSTRING_LEN(value);
     if (len == SIZE_MAX)
@@ -184,6 +192,7 @@ int_asn1_decode_bit_string(VALUE self, unsigned char *bytes, size_t len)
 
     sanity_check(bytes);
     unused_bits = bytes[0];
+    int_check_unused_bits(unused_bits);
     ret = int_asn1_decode_default(self, bytes + 1, len - 1);
     rb_ivar_set(self, sIV_UNUSED_BITS, INT2NUM(unused_bits));
     return ret;
