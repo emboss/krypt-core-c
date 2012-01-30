@@ -54,6 +54,7 @@ static VALUE int_parse_utc_time(unsigned char *, size_t);
 static VALUE int_parse_generalized_time(unsigned char *, size_t);
 static size_t int_encode_utc_time(VALUE, unsigned char **);
 static size_t int_encode_generalized_time(VALUE, unsigned char **);
+static size_t int_encode_integer_bignum(VALUE, unsigned char **);
 static size_t int_encode_integer(long, unsigned char **);
 static VALUE int_decode_integer(unsigned char *, size_t);
 
@@ -121,6 +122,10 @@ int_asn1_encode_integer(VALUE self, VALUE value, unsigned char **out)
 {
     long num;
     
+    if (TYPE(value) == T_BIGNUM) {
+	return int_encode_integer_bignum(value, out);
+    }
+
     num = NUM2LONG(value);
 
     if (num == 0) {
@@ -654,37 +659,91 @@ do {						\
         (ret)++;				\
 } while (0)
 
+/* TODO: This function uses rb_big_pack which is in intern.h.  We need to
+ * implement String <-> binary converter by ourselves for Rubinius support.
+ */
+static size_t
+int_encode_integer_bignum(VALUE big, unsigned char **out) {
+    int len, i, j;
+    long num_longs;
+    unsigned long *longs;
+    unsigned char* bytes;
+    unsigned char* ptr;
+    unsigned char msb;
+    unsigned long l;
+
+    num_longs = (RBIGNUM_LEN(big) + 1) / (SIZEOF_LONG/SIZEOF_BDIGITS);
+    longs = ALLOC_N(unsigned long, num_longs);
+    rb_big_pack(big, longs, num_longs);
+
+    msb = longs[num_longs - 1] >> (SIZEOF_LONG * CHAR_BIT - 1);
+    if (RBIGNUM_SIGN(big) == ((msb & 1) == 1)) {
+	/* We can't use int_encode_integer here because longs are unsigned */
+	len = num_longs * SIZEOF_LONG + 1;
+	bytes = ALLOC_N(unsigned char, len);
+	ptr = bytes;
+	*ptr++ = RBIGNUM_SIGN(big) ? 0x00 : 0xff;
+    }
+    else {
+	unsigned char* buf;
+	size_t encoded;
+
+	encoded = int_encode_integer(longs[num_longs - 1], &buf);
+	len = encoded + (num_longs - 1) * SIZEOF_LONG;
+	bytes = ALLOC_N(unsigned char, len);
+	ptr = bytes;
+	memcpy(ptr, buf, encoded);
+	ptr += encoded;
+	--num_longs;
+	xfree(buf);
+    }
+    for (i = num_longs - 1; i >= 0; --i) {
+	l = longs[i];
+	for (j = 0; j < SIZEOF_LONG; ++j) {
+	    ptr[SIZEOF_LONG - j - 1] = l & 0xff;
+	    l >>= CHAR_BIT;
+	}
+	ptr += SIZEOF_LONG;
+    }
+    xfree(longs);
+    *out = bytes;
+
+    return ptr - bytes;
+}
+
 static size_t
 int_encode_integer(long num, unsigned char **out)
 {
-    int len, idx, need_extra_byte = 0;
+    int len, i, need_extra_byte = 0;
     int sign = num > 0;
     unsigned char *bytes;
+    unsigned char *ptr;
     unsigned char numbytes[SIZEOF_LONG];
 
-    for (idx = 0; idx < SIZEOF_LONG; ++idx) {
-	numbytes[idx] = num & 0xff;
+    for (i = 0; i < SIZEOF_LONG; ++i) {
+	numbytes[i] = num & 0xff;
 	num >>= CHAR_BIT;
 	/* ASN.1 expects the shortest length of representation */
 	if ((sign && num <= 0) || (!sign && num >= -1)) {
-	    need_extra_byte = (sign == ((numbytes[idx] & 0x80) == 0x80));
+	    need_extra_byte = (sign == ((numbytes[i] & 0x80) == 0x80));
 	    break;
 	}
     }
-    len = idx + 1;
-    idx = 0;
+    len = i + 1;
     if (need_extra_byte) {
 	bytes = ALLOC_N(unsigned char, len + 1);
-	bytes[idx++] = sign ? 0x00 : 0xff;
+	ptr = bytes;
+	*ptr++ = sign ? 0x00 : 0xff;
     }
     else {
 	bytes = ALLOC_N(unsigned char, len);
+	ptr = bytes;
     }
     while (len > 0) {
-	bytes[idx++] = numbytes[--len];
+	*ptr++ = numbytes[--len];
     }
     *out = bytes;
-    return idx;
+    return ptr - bytes;
 }
 
 static VALUE
