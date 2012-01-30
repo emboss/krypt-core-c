@@ -137,10 +137,6 @@ int_asn1_decode_integer(VALUE self, unsigned char *bytes, size_t len)
     sanity_check(bytes);
     if (len == 0)
 	rb_raise(eKryptASN1Error, "Size 0 for integer value");
-    if ((bytes[0] == 0x0 && len > sizeof(long) + 1) ||
-	(bytes[0] != 0x0 && len > sizeof(long))) {
-	rb_raise(eKryptASN1Error, "Size of integer too long: %ld", len);
-    }
 
     return int_decode_integer(bytes, len);
 }
@@ -737,49 +733,39 @@ int_encode_integer(long num, unsigned char **out)
     return ptr - bytes;
 }
 
-static VALUE
-int_decode_positive_integer(unsigned char *bytes, size_t len)
-{
-    unsigned long num = 0;
-    size_t i;
-
-    for (i = 0; i < len; i++)
-       num |= bytes[i] << ((len - i - 1) * CHAR_BIT);	
-
-    if (num > LONG_MAX)
-	rb_raise(eKryptASN1Error, "Integer too large: %lu", num);
-
-    return LONG2NUM((long)num);
-}
-
-static VALUE
-int_decode_negative_integer(unsigned char *bytes, size_t len)
-{
-    long num = 0;
-    size_t i;
-    unsigned char b;
-    size_t size = sizeof(long);
-
-    /* Fill with 0xff from MSB down to len-th byte, then
-     * fill with bytes in successive order */
-    for (i = 0; i < size; i++) {
-	b = i < size - len ? 0xff : bytes[i - (size - len)];
-        num |= b << ((size - i - 1) * CHAR_BIT);	
-    }
-
-    return LONG2NUM(num);
-}
-
+/* TODO: This function uses rb_big_unpack which is in intern.h.  We need to
+ * implement String <-> binary converter by ourselves for Rubinius support.
+ *
+ * See int_encode_integer, too.
+ */
 static VALUE
 int_decode_integer(unsigned char *bytes, size_t len)
 {
-    if (bytes[0] & 0x80) {
-	return int_decode_negative_integer(bytes, len);
+    long num_longs;
+    int i, j, pos, sign;
+    unsigned long *longs;
+    long l;
+    VALUE value;
+
+    sign = bytes[0] & 0x80;
+    num_longs = (len - 1) / SIZEOF_LONG + 1;
+    longs = ALLOC_N(unsigned long, num_longs);
+    for (i = 0; i < num_longs; ++i) {
+	l = 0;
+	for (j = 0; j < SIZEOF_LONG; ++j) {
+	    pos = len - i * SIZEOF_LONG - j - 1;
+	    if (pos >= 0) {
+		l += ((long)(bytes[pos] & 0xff) << (j * CHAR_BIT));
+	    }
+	    else if (sign) {
+		l |= ((long)0xff << (j * CHAR_BIT));
+	    }
+	}
+	longs[i] = l;
     }
-    else {
-	if (bytes[0] == 0x0)
-	    return int_decode_positive_integer(bytes + 1, len - 1);
-	else
-	    return int_decode_positive_integer(bytes, len);
+    value = rb_big_unpack(longs, num_longs);
+    if (TYPE(value) == T_BIGNUM) {
+	RBIGNUM_SET_SIGN(value, !sign);
     }
+    return value;
 }
