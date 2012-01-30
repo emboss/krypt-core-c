@@ -51,8 +51,7 @@ typedef struct krypt_asn1_codec_st {
     krypt_asn1_validator validator;
 } krypt_asn1_codec;
 
-extern krypt_asn1_codec KRYPT_DEFAULT_PRIM_CODEC;
-extern krypt_asn1_codec KRYPT_DEFAULT_CONS_CODEC;
+extern krypt_asn1_codec KRYPT_DEFAULT_CODEC;
 extern krypt_asn1_codec krypt_asn1_codecs[];
 
 extern VALUE eKryptASN1Error;

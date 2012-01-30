@@ -85,34 +85,26 @@ static int krypt_asn1_infos_size = (sizeof(krypt_asn1_infos)/sizeof(krypt_asn1_i
 
 struct krypt_asn1_data_st;
 typedef struct krypt_asn1_data_st krypt_asn1_data;
-typedef VALUE (*int_asn1_decode_cb)(VALUE, krypt_asn1_data *);
-typedef void (*int_asn1_encode_cb)(VALUE, krypt_outstream *, VALUE, krypt_asn1_data *);
+typedef void (*int_asn1_codec_cb)(krypt_asn1_data *);
 
 struct krypt_asn1_data_st {
     krypt_asn1_object *object;
-    int_asn1_decode_cb decode_cb;
-    int_asn1_encode_cb encode_cb;
+    int_asn1_codec_cb codec_cb;
     krypt_asn1_codec *codec;
 }; 
 
 static krypt_asn1_codec *
 int_codec_for(krypt_asn1_object *object)
 {
-    krypt_asn1_codec *codec;
+    krypt_asn1_codec *codec = NULL;
     int tag = object->header->tag;
 
-    if (tag < 31 && object->header->tag_class == TAG_CLASS_UNIVERSAL) {
+    if (tag < 31 && object->header->tag_class == TAG_CLASS_UNIVERSAL)
 	codec = &krypt_asn1_codecs[tag];
-	if (!codec->validator) {
-	    return object->header->is_constructed ? &KRYPT_DEFAULT_CONS_CODEC : &KRYPT_DEFAULT_PRIM_CODEC;
-	}
-	else {
-	    return codec;
-	}
-    }
-    else {
-	return object->header->is_constructed ? &KRYPT_DEFAULT_CONS_CODEC : &KRYPT_DEFAULT_PRIM_CODEC;
-    }
+    if (!codec)
+	codec = &KRYPT_DEFAULT_CODEC;
+
+    return codec;
 }
 
 static krypt_asn1_data *
@@ -122,6 +114,7 @@ int_asn1_data_new(krypt_asn1_object *object)
 
     ret = ALLOC(krypt_asn1_data);
     ret->object = object;
+    ret->codec_cb = NULL;
     ret->codec = int_codec_for(object);
 
     return ret;
@@ -191,19 +184,10 @@ krypt_asn1_data_new(krypt_instream *in, krypt_asn1_header *header)
     if (header->tag_class == TAG_CLASS_UNIVERSAL) {
 	if (header->tag > 30)
 	   rb_raise(eKryptASN1Error, "Universal tag too large: %d", header->tag);
-	if (header->is_constructed) {
-	    data->decode_cb = int_asn1_cons_value_decode;
-	    data->encode_cb = int_asn1_cons_encode_to;
-	}
-	else {
-	    data->decode_cb = int_asn1_prim_value_decode;
-	    data->encode_cb = int_asn1_prim_encode_to;
-	}
 	klass = *(krypt_asn1_infos[header->tag].klass);
     }
     else {
 	klass = header->is_constructed ? cKryptASN1Constructive : cKryptASN1Data;
-	data->decode_cb = int_asn1_data_value_decode;
     }
 
     int_asn1_data_set(klass, obj, data);
@@ -231,8 +215,7 @@ int_asn1_data_initialize(VALUE self,
 			 int tag, 
 			 int tag_class, 
 			 int is_constructed, 
-			 int is_infinite,
-			 int_asn1_encode_cb cb)
+			 int is_infinite)
 {
     krypt_asn1_data *data;
     krypt_asn1_object *object;
@@ -249,7 +232,6 @@ int_asn1_data_initialize(VALUE self,
     data = int_asn1_data_new(object);
     if (tag_class == TAG_CLASS_UNIVERSAL)
 	data->codec = int_codec_for(object);
-    data->encode_cb = cb;
     DATA_PTR(self) = data;
 }
 
@@ -260,6 +242,16 @@ do {									\
     if (!FIXNUM_P((t)))							\
 	rb_raise(eKryptASN1Error, "Tag must be a Number");		\
 } while (0)
+
+/** ASN1Data can dynamically change its codec while
+ * ASN1Primitive and ASN1Constructive and its
+ * sub classes can not */
+static void
+int_asn1_data_codec_cb(krypt_asn1_data *data)
+{
+    if (!data->object->header->is_constructed)
+	data->codec = int_codec_for(data->object);
+}
 
 /* Used by non-UNIVERSAL values */
 /*
@@ -279,6 +271,7 @@ krypt_asn1_data_initialize(VALUE self, VALUE value, VALUE vtag, VALUE vtag_class
 {
     ID stag_class;
     int tag, tag_class, is_constructed;
+    krypt_asn1_data *data;
 
     int_validate_tag_and_class(vtag, vtag_class);
     tag = NUM2INT(vtag);
@@ -288,7 +281,10 @@ krypt_asn1_data_initialize(VALUE self, VALUE value, VALUE vtag, VALUE vtag_class
     tag_class = krypt_asn1_tag_class_for_id(stag_class);
     is_constructed = rb_respond_to(value, sID_EACH);
     
-    int_asn1_data_initialize(self, tag, tag_class, is_constructed, 0, int_asn1_data_encode_to);
+    int_asn1_data_initialize(self, tag, tag_class, is_constructed, 0);
+
+    int_asn1_data_get(self, data);
+    data->codec_cb = int_asn1_data_codec_cb;
 
     int_asn1_data_set_tag(self, vtag);
     int_asn1_data_set_tag_class(self, vtag_class);
@@ -304,12 +300,10 @@ int_asn1_default_initialize(VALUE self,
 			    VALUE value,
 			    VALUE vtag,
 			    int default_tag,
-			    VALUE vtag_class,
-			    int is_constructed,
-			    int_asn1_encode_cb cb)
+			    VALUE vtag_class)
 {
     ID stag_class;
-    int tag, tag_class;
+    int tag, tag_class, is_constructed;
     krypt_asn1_data *data;
 
     int_validate_tag_and_class(vtag, vtag_class);
@@ -319,12 +313,13 @@ int_asn1_default_initialize(VALUE self,
 	rb_raise(eKryptASN1Error, "Tag too large for UNIVERSAL tag class");
     tag_class = krypt_asn1_tag_class_for_id(stag_class);
     
+    is_constructed = rb_respond_to(value, sID_EACH);
+
     int_asn1_data_initialize(self,
 	                     tag,
 			     tag_class,
 			     is_constructed,
-			     0,
-			     cb);
+			     0);
 
     int_asn1_data_get(self, data);
 
@@ -388,9 +383,7 @@ krypt_asn1_end_of_contents_initialize(int argc, VALUE *argv, VALUE self)
 	    			       value,
 				       tag,
 				       TAGS_END_OF_CONTENTS,
-				       tag_class,
-				       0,
-				       int_asn1_prim_encode_to);
+				       tag_class);
 }
 
 /* Special treatment for NULL: no-arg constructor */
@@ -416,9 +409,7 @@ krypt_asn1_null_initialize(int argc, VALUE *argv, VALUE self)
 	    			       value,
 				       tag,
 				       TAGS_NULL,
-				       tag_class,
-				       0,
-				       int_asn1_prim_encode_to);
+				       tag_class);
 }
 
 /* Special treatment for BIT_STRING: set @unused_bits */
@@ -435,46 +426,44 @@ krypt_asn1_bit_string_initialize(int argc, VALUE *argv, VALUE self)
 	    			       value,
 				       tag,
 				       TAGS_BIT_STRING,
-				       tag_class,
-				       0,
-				       int_asn1_prim_encode_to);
+				       tag_class);
 
     rb_ivar_set(self, sIV_UNUSED_BITS, INT2NUM(0));
 
     return self;
 }
 
-#define KRYPT_ASN1_DEFINE_CTOR(klass, t, cons, cb)					\
+#define KRYPT_ASN1_DEFINE_CTOR(klass, t)						\
 static VALUE										\
 krypt_asn1_##klass##_initialize(int argc, VALUE *argv, VALUE self)			\
 {											\
     VALUE value, tag, tag_class;							\
     rb_scan_args(argc, argv, "12", &value, &tag, &tag_class);				\
     int_validate_args(tag, tag_class, argc, t);						\
-    return int_asn1_default_initialize(self, value, tag, (t), tag_class, (cons), (cb));	\
+    return int_asn1_default_initialize(self, value, tag, (t), tag_class);		\
 }
 
-KRYPT_ASN1_DEFINE_CTOR(boolean,    	 TAGS_BOOLEAN,    	 0, int_asn1_prim_encode_to)
-KRYPT_ASN1_DEFINE_CTOR(integer,    	 TAGS_INTEGER,    	 0, int_asn1_prim_encode_to)
-KRYPT_ASN1_DEFINE_CTOR(enumerated,    	 TAGS_ENUMERATED,    	 0, int_asn1_prim_encode_to)
-KRYPT_ASN1_DEFINE_CTOR(octet_string,     TAGS_OCTET_STRING, 	 0, int_asn1_prim_encode_to)
-KRYPT_ASN1_DEFINE_CTOR(utf8_string,      TAGS_UTF8_STRING, 	 0, int_asn1_prim_encode_to)
-KRYPT_ASN1_DEFINE_CTOR(numeric_string,   TAGS_NUMERIC_STRING, 	 0, int_asn1_prim_encode_to)
-KRYPT_ASN1_DEFINE_CTOR(printable_string, TAGS_PRINTABLE_STRING,  0, int_asn1_prim_encode_to)
-KRYPT_ASN1_DEFINE_CTOR(t61_string, 	 TAGS_T61_STRING, 	 0, int_asn1_prim_encode_to)
-KRYPT_ASN1_DEFINE_CTOR(videotex_string,  TAGS_VIDEOTEX_STRING,   0, int_asn1_prim_encode_to)
-KRYPT_ASN1_DEFINE_CTOR(ia5_string, 	 TAGS_IA5_STRING, 	 0, int_asn1_prim_encode_to)
-KRYPT_ASN1_DEFINE_CTOR(graphic_string, 	 TAGS_GRAPHIC_STRING, 	 0, int_asn1_prim_encode_to)
-KRYPT_ASN1_DEFINE_CTOR(iso64_string, 	 TAGS_ISO64_STRING, 	 0, int_asn1_prim_encode_to)
-KRYPT_ASN1_DEFINE_CTOR(general_string,   TAGS_GENERAL_STRING,    0, int_asn1_prim_encode_to)
-KRYPT_ASN1_DEFINE_CTOR(universal_string, TAGS_UNIVERSAL_STRING,  0, int_asn1_prim_encode_to)
-KRYPT_ASN1_DEFINE_CTOR(bmp_string, 	 TAGS_BMP_STRING, 	 0, int_asn1_prim_encode_to)
-KRYPT_ASN1_DEFINE_CTOR(object_id, 	 TAGS_OBJECT_ID,	 0, int_asn1_prim_encode_to)
-KRYPT_ASN1_DEFINE_CTOR(utc_time, 	 TAGS_UTC_TIME, 	 0, int_asn1_prim_encode_to)
-KRYPT_ASN1_DEFINE_CTOR(generalized_time, TAGS_GENERALIZED_TIME,  0, int_asn1_prim_encode_to)
+KRYPT_ASN1_DEFINE_CTOR(boolean,    	 TAGS_BOOLEAN    	)
+KRYPT_ASN1_DEFINE_CTOR(integer,    	 TAGS_INTEGER    	)
+KRYPT_ASN1_DEFINE_CTOR(enumerated,    	 TAGS_ENUMERATED    	)
+KRYPT_ASN1_DEFINE_CTOR(octet_string,     TAGS_OCTET_STRING 	)
+KRYPT_ASN1_DEFINE_CTOR(utf8_string,      TAGS_UTF8_STRING 	)
+KRYPT_ASN1_DEFINE_CTOR(numeric_string,   TAGS_NUMERIC_STRING 	)
+KRYPT_ASN1_DEFINE_CTOR(printable_string, TAGS_PRINTABLE_STRING  )
+KRYPT_ASN1_DEFINE_CTOR(t61_string, 	 TAGS_T61_STRING 	)
+KRYPT_ASN1_DEFINE_CTOR(videotex_string,  TAGS_VIDEOTEX_STRING   )
+KRYPT_ASN1_DEFINE_CTOR(ia5_string, 	 TAGS_IA5_STRING 	)
+KRYPT_ASN1_DEFINE_CTOR(graphic_string, 	 TAGS_GRAPHIC_STRING 	)
+KRYPT_ASN1_DEFINE_CTOR(iso64_string, 	 TAGS_ISO64_STRING 	)
+KRYPT_ASN1_DEFINE_CTOR(general_string,   TAGS_GENERAL_STRING 	)
+KRYPT_ASN1_DEFINE_CTOR(universal_string, TAGS_UNIVERSAL_STRING  )
+KRYPT_ASN1_DEFINE_CTOR(bmp_string, 	 TAGS_BMP_STRING 	)
+KRYPT_ASN1_DEFINE_CTOR(object_id, 	 TAGS_OBJECT_ID	 	)
+KRYPT_ASN1_DEFINE_CTOR(utc_time, 	 TAGS_UTC_TIME 	 	)
+KRYPT_ASN1_DEFINE_CTOR(generalized_time, TAGS_GENERALIZED_TIME  )
 
-KRYPT_ASN1_DEFINE_CTOR(sequence, 	 TAGS_SEQUENCE, 	 1, int_asn1_cons_encode_to)
-KRYPT_ASN1_DEFINE_CTOR(set, 		 TAGS_SET, 		 1, int_asn1_cons_encode_to)
+KRYPT_ASN1_DEFINE_CTOR(sequence, 	 TAGS_SEQUENCE 	 	)
+KRYPT_ASN1_DEFINE_CTOR(set, 		 TAGS_SET 	 	)
 
 /* End initializer section for ASN1Data created from scratch */
 
@@ -544,7 +533,8 @@ krypt_asn1_data_set_tag(VALUE self, VALUE tag)
 
     header->tag = new_tag;
     int_invalidate_tag(header);
-    data->codec = int_codec_for(data->object);
+    if (data->codec_cb)
+	data->codec_cb(data);
     int_asn1_data_set_tag(self, tag);
 
     return tag;
@@ -586,7 +576,8 @@ krypt_asn1_data_set_tag_class(VALUE self, VALUE tag_class)
 
     header->tag_class = new_tag_class;
     int_invalidate_tag(header);
-    data->codec = int_codec_for(data->object);
+    if (data->codec_cb)
+	data->codec_cb(data);
     int_asn1_data_set_tag_class(self, tag_class);
 
     return tag_class;
@@ -678,7 +669,7 @@ krypt_asn1_data_get_value(VALUE self)
 	int_asn1_data_get(self, data);
 	/* Only try to decode when there is something to */
 	if (data->object->bytes) {
-	    value = data->decode_cb(self, data);
+	    value = int_asn1_data_value_decode(self, data);
 	    int_asn1_data_set_value(self, value);
 	}
     }
@@ -739,8 +730,7 @@ int_asn1_encode_to(krypt_outstream *out, VALUE self)
 	VALUE value;
 
 	value = int_asn1_data_get_value(self);
-	data->codec->validator(self, value);
-	data->encode_cb(self, out, value, data);
+	int_asn1_data_encode_to(self, out, value, data);
     }
     else {
 	krypt_asn1_object_encode(out, object);
@@ -892,6 +882,13 @@ int_asn1_cons_encode_to(VALUE self, krypt_outstream *out, VALUE ary, krypt_asn1_
     krypt_asn1_header *header;
 
     header = data->object->header;
+
+    if (header->tag_class == TAG_CLASS_UNIVERSAL) {
+	int tag = header->tag;
+	if (tag != TAGS_SEQUENCE && tag != TAGS_SET && !header->is_infinite)
+	    rb_raise(eKryptASN1Error, "Primitive constructed values must be infinite length");
+    }
+
     /* If the length encoding is still cached or we have an infinite length
      * value, we don't need to compute the length first, we can simply start
      * encoding */ 
@@ -937,6 +934,14 @@ int_asn1_prim_encode_to(VALUE self, krypt_outstream *out, VALUE value, krypt_asn
     krypt_asn1_object *object;
 
     object = data->object;
+
+    if (object->header->tag_class == TAG_CLASS_UNIVERSAL) {
+	int tag = object->header->tag;
+	if (tag == TAGS_SEQUENCE || tag == TAGS_SET)
+	    rb_raise(eKryptASN1Error, "Set/Sequence value must be constructed");
+    }
+
+    data->codec->validator(self, value);
     object->bytes_len = data->codec->encoder(self, value, &object->bytes);
     object->header->length = object->bytes_len;
     krypt_asn1_object_encode(out, object);
@@ -1317,7 +1322,6 @@ Init_krypt_asn1(void)
      */
     cKryptASN1Primitive = rb_define_class_under(mKryptASN1, "Primitive", cKryptASN1Data);
     rb_define_method(cKryptASN1Primitive, "initialize", krypt_asn1_data_initialize, -1);
-    rb_undef_method(cKryptASN1Primitive, "infinite_length=");
 
     /* Document-class: Krypt::ASN1::Constructive
      *
