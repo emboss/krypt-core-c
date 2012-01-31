@@ -797,5 +797,6 @@ int_decode_integer(unsigned char *bytes, size_t len)
     if (TYPE(value) == T_BIGNUM) {
 	RBIGNUM_SET_SIGN(value, !sign);
     }
+    xfree(longs);
     return value;
 }
