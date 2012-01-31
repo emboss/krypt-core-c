@@ -1,5 +1,6 @@
 require 'rspec'
 require 'krypt-core'
+require 'stringio'
 
 describe Krypt::ASN1 do 
   describe '#decode' do
@@ -25,6 +26,17 @@ rEzBQ0F9dUyqQ9gyRg8KHhDfv9HzT1d/rnUZMkoombwYBRIUChGCYV0GnJcan2Zm
 __EOC__
     it "should fail gracefully for unknown tag number (13)" do
       -> { Krypt::ASN1.decode(cert) }.should raise_error Krypt::ASN1::ASN1Error
+    end
+
+    it "should handle IO as an IO" do
+      io = StringIO.new(
+        [
+          Krypt::ASN1::Null.new,
+          Krypt::ASN1::Integer.new(0)
+        ].map { |e| e.to_der }.join
+      )
+      Krypt::ASN1.decode(io).should be_instance_of Krypt::ASN1::Null
+      Krypt::ASN1.decode(io).should be_instance_of Krypt::ASN1::Integer
     end
   end
 end
