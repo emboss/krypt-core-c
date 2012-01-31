@@ -1381,7 +1381,7 @@ Init_krypt_asn1(void)
      *   prim_zero_private = <class>.new(value, 0, :PRIVATE)
      */
     cKryptASN1Primitive = rb_define_class_under(mKryptASN1, "Primitive", cKryptASN1Data);
-    rb_define_method(cKryptASN1Primitive, "initialize", krypt_asn1_data_initialize, -1);
+    rb_define_method(cKryptASN1Primitive, "initialize", krypt_asn1_data_initialize, 3);
 
     /* Document-class: Krypt::ASN1::Constructive
      *
@@ -1440,7 +1440,7 @@ Init_krypt_asn1(void)
      */
     cKryptASN1Constructive = rb_define_class_under(mKryptASN1, "Constructive", cKryptASN1Data);
     rb_include_module(cKryptASN1Constructive, rb_mEnumerable);
-    rb_define_method(cKryptASN1Constructive, "initialize", krypt_asn1_data_initialize, -1);
+    rb_define_method(cKryptASN1Constructive, "initialize", krypt_asn1_data_initialize, 3);
     rb_define_method(cKryptASN1Constructive, "each", krypt_asn1_cons_each, 0);
 
 #define KRYPT_ASN1_DEFINE_CLASS(name, super, init)						\
