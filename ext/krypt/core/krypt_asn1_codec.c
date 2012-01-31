@@ -54,9 +54,12 @@ static VALUE int_parse_utc_time(unsigned char *, size_t);
 static VALUE int_parse_generalized_time(unsigned char *, size_t);
 static size_t int_encode_utc_time(VALUE, unsigned char **);
 static size_t int_encode_generalized_time(VALUE, unsigned char **);
-static size_t int_encode_integer_bignum(VALUE, unsigned char **);
 static size_t int_encode_integer(long, unsigned char **);
 static VALUE int_decode_integer(unsigned char *, size_t);
+#if defined(HAVE_RB_BIG_PACK)
+static size_t int_encode_integer_bignum(VALUE, unsigned char **);
+static VALUE int_decode_integer_bignum(unsigned char *, size_t);
+#endif
 
 #define sanity_check(b)					\
 do {							\
@@ -124,12 +127,12 @@ int_asn1_encode_integer(VALUE self, VALUE value, unsigned char **out)
 {
     long num;
     
+#if defined(HAVE_RB_BIG_PACK)
     if (TYPE(value) == T_BIGNUM) {
 	return int_encode_integer_bignum(value, out);
     }
-
+#endif
     num = NUM2LONG(value);
-
     return int_encode_integer(num, out);
 }
 
@@ -139,6 +142,13 @@ int_asn1_decode_integer(VALUE self, unsigned char *bytes, size_t len)
     sanity_check(bytes);
     if (len == 0)
 	rb_raise(eKryptASN1Error, "Size 0 for integer value");
+
+#if !defined(HAVE_RB_BIG_PACK)
+    if ((bytes[0] == 0x0 && len > sizeof(long) + 1) ||
+	(bytes[0] != 0x0 && len > sizeof(long))) {
+	rb_raise(eKryptASN1Error, "Size of integer too long: %ld", len);
+    }
+#endif
 
     return int_decode_integer(bytes, len);
 }
@@ -676,6 +686,7 @@ do {						\
         (ret)++;				\
 } while (0)
 
+#if defined(HAVE_RB_BIG_PACK)
 /* TODO: This function uses rb_big_pack which is in intern.h.  We need to
  * implement String <-> binary converter by ourselves for Rubinius support.
  */
@@ -727,6 +738,7 @@ int_encode_integer_bignum(VALUE big, unsigned char **out) {
 
     return ptr - bytes;
 }
+#endif
 
 static size_t
 int_encode_integer(long num, unsigned char **out)
@@ -763,6 +775,7 @@ int_encode_integer(long num, unsigned char **out)
     return ptr - bytes;
 }
 
+#if defined(HAVE_RB_BIG_PACK)
 /* TODO: This function uses rb_big_unpack which is in intern.h.  We need to
  * implement String <-> binary converter by ourselves for Rubinius support.
  *
@@ -800,3 +813,53 @@ int_decode_integer(unsigned char *bytes, size_t len)
     xfree(longs);
     return value;
 }
+
+#else
+
+static VALUE
+int_decode_positive_integer(unsigned char *bytes, size_t len)
+{
+    unsigned long num = 0;
+    size_t i;
+
+    for (i = 0; i < len; i++)
+	num |= bytes[i] << ((len - i - 1) * CHAR_BIT);
+
+    if (num > LONG_MAX)
+	rb_raise(eKryptASN1Error, "Integer too large: %lu", num);
+
+    return LONG2NUM((long)num);
+}
+
+static VALUE
+int_decode_negative_integer(unsigned char *bytes, size_t len)
+{
+    long num = 0;
+    size_t i;
+    unsigned char b;
+    size_t size = sizeof(long);
+
+    /* Fill with 0xff from MSB down to len-th byte, then
+     * fill with bytes in successive order */
+    for (i = 0; i < size; i++) {
+	b = i < size - len ? 0xff : bytes[i - (size - len)];
+	num |= b << ((size - i - 1) * CHAR_BIT);
+    }
+
+    return LONG2NUM(num);
+}
+
+static VALUE
+int_decode_integer(unsigned char *bytes, size_t len)
+{
+    if (bytes[0] & 0x80) {
+	return int_decode_negative_integer(bytes, len);
+    }
+    else {
+	if (bytes[0] == 0x0)
+	    return int_decode_positive_integer(bytes + 1, len - 1);
+	else
+	    return int_decode_positive_integer(bytes, len);
+    }
+}
+#endif
