@@ -38,5 +38,10 @@ __EOC__
       Krypt::ASN1.decode(io).should be_instance_of Krypt::ASN1::Null
       Krypt::ASN1.decode(io).should be_instance_of Krypt::ASN1::Integer
     end
+
+    it "should parse indefinite length constructive" do
+      raw = "\x30\x80\x02\x01\x01\x80\x01\x02\x00\x00"
+      Krypt::ASN1.decode(raw).value.size.should == 3
+    end
   end
 end
