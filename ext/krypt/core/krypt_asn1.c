@@ -185,6 +185,8 @@ int_determine_class(krypt_asn1_header *header)
     if (header->tag_class == TAG_CLASS_UNIVERSAL) {
 	if (header->tag > 30)
 	   rb_raise(eKryptASN1Error, "Universal tag too large: %d", header->tag);
+	if (!krypt_asn1_infos[header->tag].klass)
+	    rb_raise(eKryptASN1Error, "Unsupported tag number: %d", header->tag);
 	return *(krypt_asn1_infos[header->tag].klass);
     }
     else {
