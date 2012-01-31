@@ -58,7 +58,6 @@ static size_t int_encode_integer(long, unsigned char **);
 static VALUE int_decode_integer(unsigned char *, size_t);
 #if defined(HAVE_RB_BIG_PACK)
 static size_t int_encode_integer_bignum(VALUE, unsigned char **);
-static VALUE int_decode_integer_bignum(unsigned char *, size_t);
 #endif
 
 #define sanity_check(b)					\
@@ -677,14 +676,6 @@ int_parse_generalized_time(unsigned char *bytes, size_t len)
 
     return rb_funcall2(rb_cTime, rb_intern("utc"), 6, argv);
 }
-
-#define int_long_byte_len(ret, l)		\
-do {						\
-    unsigned long tmp = (unsigned long) (l);	\
-    (ret) = 1;					\
-    while (tmp >>= CHAR_BIT)			\
-        (ret)++;				\
-} while (0)
 
 #if defined(HAVE_RB_BIG_PACK)
 /* TODO: This function uses rb_big_pack which is in intern.h.  We need to
