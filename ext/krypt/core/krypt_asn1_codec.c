@@ -136,9 +136,9 @@ int_asn1_encode_integer(VALUE self, VALUE value, unsigned char **out)
 static VALUE
 int_asn1_decode_integer(VALUE self, unsigned char *bytes, size_t len)
 {
-    sanity_check(bytes);
     if (len == 0)
 	rb_raise(eKryptASN1Error, "Size 0 for integer value");
+    sanity_check(bytes);
 
     return int_decode_integer(bytes, len);
 }
