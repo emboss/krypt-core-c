@@ -118,8 +118,11 @@ krypt_asn1_get_value(krypt_instream *in, krypt_asn1_header *last, unsigned char 
 	return last->length;
     }
     else {
+	size_t ret;
 	krypt_instream *inf_stream = krypt_instream_new_chunked(in, 0);
-	return int_consume_stream((krypt_instream *)inf_stream, out);
+	ret = int_consume_stream((krypt_instream *)inf_stream, out);
+	krypt_instream_free(inf_stream);
+	return ret;
     }
 }
 
@@ -305,9 +308,6 @@ krypt_asn1_object_new_value(krypt_asn1_header *header, unsigned char *value, siz
 {
     krypt_asn1_object *obj;
 
-    if (!value)
-	rb_raise(rb_eArgError, "header or value not initialized");
-
     obj = krypt_asn1_object_new(header);
     obj->bytes = value;
     obj->bytes_len = len;
@@ -481,6 +481,9 @@ int_parse_read_exactly(krypt_instream *in, size_t n)
     unsigned char *ret, *p;
     size_t offset = 0;
     ssize_t read;
+
+    if (n == 0)
+	return NULL;
 
     ret = ALLOC_N(unsigned char, n);
     p = ret;

@@ -74,6 +74,8 @@ int_asn1_encode_eoc(VALUE self, VALUE value, unsigned char **out)
 static VALUE
 int_asn1_decode_eoc(VALUE self, unsigned char *bytes, size_t len)
 {
+    if (len != 0)
+	rb_raise(eKryptASN1Error, "Invalid encoding for EndOfContents found");
     return Qnil;
 }
 
@@ -81,7 +83,7 @@ static void
 int_asn1_validate_eoc(VALUE self, VALUE value)
 {
     if (!NIL_P(value))
-	rb_raise(eKryptASN1Error, "Value for END_OF_CONTENTS must be nil");
+	rb_raise(eKryptASN1Error, "Value for EndOfContents must be nil");
 }
 
 static size_t
@@ -258,7 +260,6 @@ int_asn1_decode_utf8_string(VALUE self, unsigned char *bytes, size_t len)
 {
     VALUE ret;
 
-    sanity_check(bytes);
     ret = int_asn1_decode_default(self, bytes, len);
     rb_enc_associate(ret, rb_utf8_encoding());
     return ret;

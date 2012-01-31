@@ -91,6 +91,7 @@ struct krypt_asn1_data_st {
     krypt_asn1_object *object;
     int_asn1_codec_cb codec_cb;
     krypt_asn1_codec *codec;
+    unsigned short is_decoded;
 }; 
 
 static krypt_asn1_codec *
@@ -116,6 +117,7 @@ int_asn1_data_new(krypt_asn1_object *object)
     ret->object = object;
     ret->codec_cb = NULL;
     ret->codec = int_codec_for(object);
+    ret->is_decoded = 1; /* only overwritten by parsed values */
 
     return ret;
 }
@@ -207,6 +209,7 @@ krypt_asn1_data_new(krypt_instream *in, krypt_asn1_header *header)
     value_len = krypt_asn1_get_value(in, header, &value);
     encoding = krypt_asn1_object_new_value(header, value, value_len);
     data = int_asn1_data_new(encoding);
+    data->is_decoded = 0; /* Lazy decoding of value */
     klass = int_determine_class(header);
     int_asn1_data_set(klass, obj, data);
 
@@ -672,18 +675,15 @@ int_asn1_data_value_decode(VALUE self, krypt_asn1_data *data)
 static void
 int_asn1_decode_value(VALUE self)
 {
-    VALUE value;
+    krypt_asn1_data *data;
 
-    value = int_asn1_data_get_value(self);
+    int_asn1_data_get(self, data);
     /* TODO: sync */
-    if (NIL_P(value)) {
-	krypt_asn1_data *data;
-	int_asn1_data_get(self, data);
-	/* Only try to decode when there is something to */
-	if (data->object->bytes) {
-	    value = int_asn1_data_value_decode(self, data);
-	    int_asn1_data_set_value(self, value);
-	}
+    if (!data->is_decoded) {
+	VALUE value;
+	value = int_asn1_data_value_decode(self, data);
+	int_asn1_data_set_value(self, value);
+	data->is_decoded = 1;
     }
 }
 
@@ -864,6 +864,9 @@ int_asn1_cons_value_decode(VALUE self, krypt_asn1_data *data)
 
     ary = rb_ary_new();
     object = data->object;
+    if (!object->bytes)
+	return ary;
+
     in = krypt_instream_new_bytes(object->bytes, object->bytes_len);
     
     while (krypt_asn1_next_header(in, &header)) {
@@ -960,12 +963,10 @@ int_asn1_cons_encode_to(VALUE self, krypt_outstream *out, VALUE ary, krypt_asn1_
 static VALUE
 int_asn1_prim_value_decode(VALUE self, krypt_asn1_data *data)
 {
-    VALUE value;
     krypt_asn1_object *object;
 
     object = data->object;
-    value = data->codec->decoder(self, object->bytes, object->bytes_len);
-    return value;
+    return data->codec->decoder(self, object->bytes, object->bytes_len);
 }
 
 static void
