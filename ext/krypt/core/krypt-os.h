@@ -13,7 +13,7 @@
 #if !defined(_KRYPT_OS_H_)
 #define _KRYPT_OS_H_
 
-#ifdef WIN32
+#ifdef _WIN32
 #define krypt_last_sys_error()	GetLastError()
 #define krypt_clear_sys_error()	SetLastError(0)
 #else
