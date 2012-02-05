@@ -38,6 +38,9 @@ have_header("ruby/io.h")
 have_func("rb_io_check_byte_readable")
 have_func("rb_big_pack")
 
+message "=== Checking platform features ===\n"
+
+have_func("gmtime_r")
 
 create_header
 create_makefile("kryptcore")

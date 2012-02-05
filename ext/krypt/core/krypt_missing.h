@@ -16,3 +16,7 @@
 #define rb_io_check_byte_readable(fptr)		rb_io_check_readable(fptr)
 #endif
 
+#if !defined(HAVE_GMTIME_R)
+#include <time.h>
+#define gmtime_r(t, tm)				krypt_gmtime_r((t), (tm))
+#endif
