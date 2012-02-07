@@ -1,4 +1,0 @@
-- Instream adapter for String to improve performance of Parser in comparison to StringIO?
-- Stream allocation method could be refactored as a public function in krypt_io.c
-- Use long instead of int for lengths, even if not compatible with JRuby. It's just a runtime 
-  difference, not one by specification?
