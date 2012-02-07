@@ -890,11 +890,7 @@ int_asn1_cons_value_decode(VALUE self, krypt_asn1_data *data)
 static VALUE
 int_cons_encode_sub_elems_i(VALUE cur, VALUE wrapped_out)
 {
-    krypt_outstream *out = NULL;
-
-    Data_Get_Struct(wrapped_out, krypt_outstream, out);
-    if (!out)
-	rb_raise(rb_eRuntimeError, "Could not retrieve outstream");
+    krypt_outstream *out = (krypt_outstream *) wrapped_out;
     int_asn1_encode_to(out, cur);
     return Qnil;
 }
@@ -917,9 +913,7 @@ int_cons_encode_sub_elems(krypt_outstream *out, VALUE enumerable)
 	}
     }
     else {
-	VALUE wrapped_out;
-	wrapped_out = Data_Wrap_Struct(rb_cObject, 0, 0, out); 
-	rb_block_call(enumerable, sKrypt_ID_EACH, 0, 0, int_cons_encode_sub_elems_i, wrapped_out);
+	rb_block_call(enumerable, sKrypt_ID_EACH, 0, 0, int_cons_encode_sub_elems_i, (VALUE)out);
     }
 }
 
