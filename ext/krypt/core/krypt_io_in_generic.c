@@ -12,25 +12,26 @@
 
 #include "krypt-core.h"
 
-typedef struct int_instream_io_st {
+typedef struct krypt_instream_io_st {
     krypt_instream_interface *methods;
     VALUE io;
     VALUE vbuf;
-} int_instream_io;
+} krypt_instream_io;
 
-#define int_safe_cast(out, in)		krypt_safe_cast_instream((out), (in), INSTREAM_TYPE_IO_GENERIC, int_instream_io)
+#define int_safe_cast(out, in)		krypt_safe_cast_instream((out), (in), KRYPT_INSTREAM_TYPE_IO_GENERIC, krypt_instream_io)
 
-static int_instream_io* int_io_alloc(void);
+static krypt_instream_io* int_io_alloc(void);
 static ssize_t int_io_read(krypt_instream *in, unsigned char *buf, size_t len);
 static VALUE int_io_rb_read(krypt_instream *in, VALUE vlen, VALUE vbuf);
 static void int_io_seek(krypt_instream *in, off_t offset, int whence);
 static void int_io_mark(krypt_instream *in);
 static void int_io_free(krypt_instream *in);
 
-static krypt_instream_interface interface_io_generic = {
-    INSTREAM_TYPE_IO_GENERIC,
+static krypt_instream_interface krypt_interface_io_generic = {
+    KRYPT_INSTREAM_TYPE_IO_GENERIC,
     int_io_read,
     int_io_rb_read,
+    NULL,
     int_io_seek,
     int_io_mark,
     int_io_free
@@ -39,7 +40,7 @@ static krypt_instream_interface interface_io_generic = {
 krypt_instream *
 krypt_instream_new_io_generic(VALUE io)
 {
-    int_instream_io *in;
+    krypt_instream_io *in;
     VALUE buf;
 
     in = int_io_alloc();
@@ -49,13 +50,13 @@ krypt_instream_new_io_generic(VALUE io)
     return (krypt_instream *) in;
 }
 
-static int_instream_io*
+static krypt_instream_io*
 int_io_alloc(void)
 {
-    int_instream_io *ret;
-    ret = ALLOC(int_instream_io);
-    memset(ret, 0, sizeof(int_instream_io));
-    ret->methods = &interface_io_generic;
+    krypt_instream_io *ret;
+    ret = ALLOC(krypt_instream_io);
+    memset(ret, 0, sizeof(krypt_instream_io));
+    ret->methods = &krypt_interface_io_generic;
     return ret;
 }
 
@@ -63,14 +64,14 @@ static ssize_t
 int_io_read(krypt_instream *instream, unsigned char *buf, size_t len)
 {
     VALUE read;
-    int_instream_io *in;
+    krypt_instream_io *in;
 
     int_safe_cast(in, instream);
 
     if (!buf)
-	rb_raise(rb_eArgError, "Buffer not initialized or length negative");
+	rb_raise(rb_eArgError, "Buffer not initialized");
 
-    read = rb_funcall(in->io, ID_READ, 2, LONG2NUM(len), in->vbuf);
+    read = rb_funcall(in->io, sKrypt_ID_READ, 2, LONG2NUM(len), in->vbuf);
 
     if (read == Qnil) {
 	return -1;
@@ -85,11 +86,11 @@ int_io_read(krypt_instream *instream, unsigned char *buf, size_t len)
 static VALUE
 int_io_rb_read(krypt_instream *instream, VALUE vlen, VALUE vbuf)
 {
-    int_instream_io *in;
+    krypt_instream_io *in;
     VALUE read;
 
     int_safe_cast(in, instream);
-    read = rb_funcall(in->io, ID_READ, 2, vlen, vbuf);
+    read = rb_funcall(in->io, sKrypt_ID_READ, 2, vlen, vbuf);
     return read;
 }
 
@@ -98,13 +99,13 @@ int_whence_sym_for(int whence)
 {
     switch (whence) {
 	case SEEK_CUR:
-	    return ID_SEEK_CUR;
+	    return sKrypt_ID_SEEK_CUR;
 	case SEEK_SET:
-	    return ID_SEEK_SET;
+	    return sKrypt_ID_SEEK_SET;
 	case SEEK_END:
-	    return ID_SEEK_END;
+	    return sKrypt_ID_SEEK_END;
 	default:
-	    rb_raise(eKryptParseError, "Unknown 'whence': %d", whence);
+	    rb_raise(eKryptASN1ParseError, "Unknown 'whence': %d", whence);
 	    return Qnil; /* dummy */
     }
 }
@@ -113,18 +114,18 @@ static void
 int_io_seek(krypt_instream *instream, off_t offset, int whence)
 {
     VALUE io;
-    int_instream_io *in;
+    krypt_instream_io *in;
 
     int_safe_cast(in, instream);
 
     io = in->io;
-    rb_funcall(io, ID_SEEK, 2, LONG2NUM(offset), int_whence_sym_for(whence));
+    rb_funcall(io, sKrypt_ID_SEEK, 2, LONG2NUM(offset), int_whence_sym_for(whence));
 }
 
 static void
 int_io_mark(krypt_instream *instream)
 {
-    int_instream_io *in;
+    krypt_instream_io *in;
 
     if (!instream) return;
     int_safe_cast(in, instream);

@@ -14,22 +14,24 @@
 #include <errno.h>
 #include "krypt-core.h"
 
-typedef struct int_instream_fd_st {
+typedef struct krypt_instream_fd_st {
     krypt_instream_interface *methods;
     int fd;
-} int_instream_fd;
+} krypt_instream_fd;
 
-#define int_safe_cast(out, in)	krypt_safe_cast_instream((out), (in), INSTREAM_TYPE_FD, int_instream_fd)
+#define int_safe_cast(out, in)	krypt_safe_cast_instream((out), (in), KRYPT_INSTREAM_TYPE_FD, krypt_instream_fd)
     
-static int_instream_fd *int_fd_alloc(void);
-static ssize_t int_fd_read(krypt_instream *in, unsigned char *, size_t len);
+static krypt_instream_fd *int_fd_alloc(void);
+static ssize_t int_fd_read(krypt_instream *in, unsigned char *buf, size_t len);
+static ssize_t int_fd_gets(krypt_instream *in, char *line, size_t len);
 static void int_fd_seek(krypt_instream *in, off_t offset, int whence);
 static void int_fd_free(krypt_instream *in);
 
-static krypt_instream_interface interface_fd = {
-    INSTREAM_TYPE_FD,
+static krypt_instream_interface krypt_interface_fd = {
+    KRYPT_INSTREAM_TYPE_FD,
     int_fd_read,
     NULL,
+    int_fd_gets,
     int_fd_seek,
     NULL,
     int_fd_free
@@ -47,20 +49,20 @@ krypt_instream_new_fd_io(VALUE value)
 krypt_instream *
 krypt_instream_new_fd(int fd)
 {
-    int_instream_fd *in;
+    krypt_instream_fd *in;
 
     in = int_fd_alloc();
     in->fd = fd;
     return (krypt_instream *) in;
 }
 
-static int_instream_fd*
+static krypt_instream_fd*
 int_fd_alloc(void)
 {
-    int_instream_fd *ret;
-    ret = ALLOC(int_instream_fd);
-    memset(ret, 0, sizeof(int_instream_fd));
-    ret->methods = &interface_fd;
+    krypt_instream_fd *ret;
+    ret = ALLOC(krypt_instream_fd);
+    memset(ret, 0, sizeof(krypt_instream_fd));
+    ret->methods = &krypt_interface_fd;
     return ret;
 }
 
@@ -69,18 +71,18 @@ int_fd_read(krypt_instream *instream, unsigned char *buf, size_t len)
 {
     int fd;
     ssize_t r;
-    int_instream_fd *in;
+    krypt_instream_fd *in;
 
     int_safe_cast(in, instream);
     if (!buf)
-	rb_raise(rb_eArgError, "Buffer not initialized or length negative");
+	rb_raise(rb_eArgError, "Buffer not initialized");
 
     fd = in->fd;
     krypt_clear_sys_error();
     r = read(fd, buf, len);
     
     if (r == -1) {
-	krypt_raise_io_error(eKryptParseError);
+	krypt_raise_io_error(eKryptASN1ParseError);
 	return 0; /* dummy */
     }
     else if (r == 0) {
@@ -91,19 +93,55 @@ int_fd_read(krypt_instream *instream, unsigned char *buf, size_t len)
     }
 }
 
+static ssize_t
+int_fd_gets(krypt_instream *instream, char *line, size_t len)
+{
+    int fd;
+    krypt_instream_fd *in;
+    ssize_t ret = 0, r = 0;
+    char *p = line;
+    char *end = line + len - 1;
+
+    int_safe_cast(in, instream);
+    if (!line)
+	rb_raise(rb_eArgError, "Buffer not initialized");
+
+    fd = in->fd;
+    krypt_clear_sys_error();
+
+    while ( (p < end) &&
+	    ((r = read(fd, p, 1)) == 1) &&
+	    (*p != '\n') ) {
+	    p++;
+	    ret++;
+    }
+
+    if (r == -1) {
+	krypt_raise_io_error(eKryptASN1ParseError);
+    }
+    
+    *p = '\0';
+    ret++;
+
+    if (line[0] == '\0' && r == 0)
+	return -1;
+
+    return ret;
+}
+
 static void
 int_fd_seek(krypt_instream *instream, off_t offset, int whence)
 {
     int fd;
     long off;
-    int_instream_fd *in;
+    krypt_instream_fd *in;
 
     int_safe_cast(in, instream);
     fd = in->fd;
     off = lseek(fd, offset, whence);
 
     if (off == -1) 
-	krypt_raise_io_error(eKryptParseError);
+	krypt_raise_io_error(eKryptASN1ParseError);
 }
 
 static void

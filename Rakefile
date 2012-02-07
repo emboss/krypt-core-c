@@ -54,6 +54,10 @@ task 'coverage' => ['enable-coverage', 'compile', 'spec', 'report-coverage']
 
 task :build => :compile
 
+namespace :build do
+  task :debug => ['enable-coverage', 'build']
+end
+  
 Rake::RDocTask.new("doc") do |rdoc|
   rdoc.rdoc_dir = 'doc'
   rdoc.title = "Krypt-Core API: Version #{Krypt::CORE_VERSION}"

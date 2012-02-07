@@ -14,19 +14,19 @@
 #include <errno.h>
 #include "krypt-core.h"
 
-typedef struct int_outstream_fd_st {
+typedef struct krypt_outstream_fd_st {
     krypt_outstream_interface *methods;
     int fd;
-} int_outstream_fd;
+} krypt_outstream_fd;
 
-#define int_safe_cast(out, in)		krypt_safe_cast_outstream((out), (in), OUTSTREAM_TYPE_FD, int_outstream_fd)
+#define int_safe_cast(out, in)		krypt_safe_cast_outstream((out), (in), KRYPT_OUTSTREAM_TYPE_FD, krypt_outstream_fd)
 
-static int_outstream_fd* int_fd_alloc(void);
+static krypt_outstream_fd* int_fd_alloc(void);
 static size_t int_fd_write(krypt_outstream *out, unsigned char *buf, size_t len);
 static void int_fd_free(krypt_outstream *out);
 
-static krypt_outstream_interface interface_fd = {
-    OUTSTREAM_TYPE_FD,
+static krypt_outstream_interface krypt_interface_fd = {
+    KRYPT_OUTSTREAM_TYPE_FD,
     int_fd_write,
     NULL,
     NULL,
@@ -45,20 +45,20 @@ krypt_outstream_new_fd_io(VALUE value)
 krypt_outstream *
 krypt_outstream_new_fd(int fd)
 {
-    int_outstream_fd *out;
+    krypt_outstream_fd *out;
 
     out = int_fd_alloc();
     out->fd = fd;
     return (krypt_outstream *) out;
 }
 
-static int_outstream_fd*
+static krypt_outstream_fd*
 int_fd_alloc(void)
 {
-    int_outstream_fd *ret;
-    ret = ALLOC(int_outstream_fd);
-    memset(ret, 0, sizeof(int_outstream_fd));
-    ret->methods = &interface_fd;
+    krypt_outstream_fd *ret;
+    ret = ALLOC(krypt_outstream_fd);
+    memset(ret, 0, sizeof(krypt_outstream_fd));
+    ret->methods = &krypt_interface_fd;
     return ret;
 }
 
@@ -67,12 +67,12 @@ int_fd_write(krypt_outstream *outstream, unsigned char *buf, size_t len)
 {
     int fd;
     ssize_t w;
-    int_outstream_fd *out;
+    krypt_outstream_fd *out;
    
     int_safe_cast(out, outstream); 
 
     if (!buf)
-	rb_raise(rb_eArgError, "Buffer not initialized or length negative");
+	rb_raise(rb_eArgError, "Buffer not initialized");
 
     fd = out->fd;
     krypt_clear_sys_error();
@@ -80,7 +80,7 @@ int_fd_write(krypt_outstream *outstream, unsigned char *buf, size_t len)
     w = write(fd, buf, len);
     
     if (w < 0) {
-	krypt_raise_io_error(eKryptSerializeError);
+	krypt_raise_io_error(eKryptASN1SerializeError);
 	return 0; /* dummy */
     }
     else {

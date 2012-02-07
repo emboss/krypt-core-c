@@ -92,14 +92,14 @@ int_whence_for(VALUE vwhence)
 	rb_raise(rb_eArgError, "whence must be a Symbol");
 
     whence = SYM2ID(vwhence);
-    if (whence == ID_SEEK_CUR)
+    if (whence == sKrypt_ID_SEEK_CUR)
 	return SEEK_CUR;
-    else if (whence == ID_SEEK_SET)
+    else if (whence == sKrypt_ID_SEEK_SET)
 	return SEEK_SET;
-    else if (whence == ID_SEEK_END)
+    else if (whence == sKrypt_ID_SEEK_END)
 	return SEEK_END;
     else
-	rb_raise(eKryptParseError, "Unknown whence");
+	rb_raise(eKryptASN1ParseError, "Unknown whence");
     
     return Qnil; /* dummy */
 }
@@ -113,7 +113,7 @@ int_whence_for(VALUE vwhence)
 static VALUE
 krypt_instream_adapter_seek(int argc, VALUE *argv, VALUE self)
 {
-    VALUE n, vwhence = ID_SEEK_SET;
+    VALUE n, vwhence = sKrypt_ID_SEEK_SET;
     int whence;
     krypt_instream_adapter *adapter;
 

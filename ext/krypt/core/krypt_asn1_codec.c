@@ -172,7 +172,7 @@ int_asn1_encode_bit_string(VALUE self, VALUE value, unsigned char **out)
     size_t len;
     unsigned char *bytes;
 
-    unused_bits = NUM2INT(rb_ivar_get(self, sIV_UNUSED_BITS));
+    unused_bits = NUM2INT(rb_ivar_get(self, sKrypt_IV_UNUSED_BITS));
     int_check_unused_bits(unused_bits);
 
     StringValue(value);
@@ -197,7 +197,7 @@ int_asn1_decode_bit_string(VALUE self, unsigned char *bytes, size_t len)
     unused_bits = bytes[0];
     int_check_unused_bits(unused_bits);
     ret = int_asn1_decode_default(self, bytes + 1, len - 1);
-    rb_ivar_set(self, sIV_UNUSED_BITS, INT2NUM(unused_bits));
+    rb_ivar_set(self, sKrypt_IV_UNUSED_BITS, INT2NUM(unused_bits));
     return ret;
 }
 
@@ -259,7 +259,12 @@ int_asn1_encode_utf8_string(VALUE self, VALUE value, unsigned char **out)
 	return int_asn1_encode_default(self, value, out);
     }
     else {
+#ifdef HAVE_RB_STR_ENCODE
 	VALUE encoded = rb_str_encode(value, rb_enc_from_encoding(rb_utf8_encoding()), 0, Qnil);
+#else
+	VALUE encoded = value;
+	rb_enc_associate(encoded, rb_utf8_encoding());
+#endif
 	return int_asn1_encode_default(self, encoded, out);
     }
 }

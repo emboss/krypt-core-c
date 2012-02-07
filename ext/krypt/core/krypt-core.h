@@ -39,8 +39,8 @@ extern VALUE mKrypt;
 
 extern VALUE eKryptError;
 
-extern ID sID_TO_DER;
-extern ID sID_EACH;
+extern ID sKrypt_ID_TO_DER;
+extern ID sKrypt_ID_EACH;
 
 /** krypt-core headers **/
 #include "krypt_missing.h"
@@ -49,6 +49,12 @@ extern ID sID_EACH;
 
 VALUE krypt_to_der_if_possible(VALUE);
 VALUE krypt_to_der(VALUE);
+
+/* internal Base64 en-/decoder */
+size_t krypt_base64_encode(unsigned char *bytes, size_t len, int cols, unsigned char **out);
+void krypt_base64_buffer_encode_to(krypt_outstream *out, unsigned char *bytes, size_t off, size_t len, int cols);
+size_t krypt_base64_decode(unsigned char *bytes, size_t len, unsigned char **out);
+void krypt_base64_buffer_decode_to(krypt_outstream *out, unsigned char *bytes, size_t off, size_t len);
 
 void Init_kryptcore(void);
 void Init_krypt_io(void);

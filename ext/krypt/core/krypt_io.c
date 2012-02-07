@@ -13,13 +13,13 @@
 #include "krypt-core.h"
 
 #define int_check_stream(io) 		if (!(io) || !(io)->methods) \
-						    rb_raise(eKryptParseError, "Stream not initialized properly")
+						    rb_raise(eKryptASN1ParseError, "Stream not initialized properly")
 
 #define int_check_stream_has(io, m) 		if (!(io) || !(io)->methods || !(io)->methods->m) \
-						    rb_raise(eKryptParseError, "Stream not initialized properly")
+						    rb_raise(eKryptASN1ParseError, "Stream not initialized properly")
 
-VALUE ID_SEEK_CUR, ID_SEEK_SET, ID_SEEK_END;
-ID ID_READ, ID_SEEK, ID_WRITE;
+VALUE sKrypt_ID_SEEK_CUR, sKrypt_ID_SEEK_SET, sKrypt_ID_SEEK_END;
+ID sKrypt_ID_READ, sKrypt_ID_SEEK, sKrypt_ID_WRITE;
 
 void
 krypt_raise_io_error(VALUE klass)
@@ -115,6 +115,50 @@ krypt_instream_read(krypt_instream *in, unsigned char *buf, size_t len)
     return in->methods->read(in, buf, len);
 }
 
+static ssize_t
+int_gets_generic(krypt_instream *in, char *line, size_t len)
+{
+    ssize_t ret = 0, r = 0;
+    char *p = line;
+    char *end = line + len - 1;
+
+    if (!line)
+	rb_raise(rb_eArgError, "Buffer not initialized");
+
+    while (p < end) {
+	if ((r = in->methods->read(in, (unsigned char *) p, 1)) == -1)
+	    break;
+	if (r == 1) {
+	    if (*p == '\n')
+		break;
+	    p++;
+	    ret++;
+	}
+    }
+
+    *p = '\0';
+    ret++;
+
+    if (line[0] == '\0' && r == -1)
+	return -1;
+
+    return ret;
+}
+
+ssize_t
+krypt_instream_gets(krypt_instream *in, char *line, size_t len)
+{
+    int_check_stream(in);
+    if (len > SSIZE_MAX)
+	rb_raise(rb_eRuntimeError, "Length too large");
+    if (in->methods->gets) {
+	return in->methods->gets(in, line, len);
+    }
+    else {
+	return int_gets_generic(in, line, len);
+    }
+}
+
 void
 krypt_instream_seek(krypt_instream *in, off_t offset, int whence)
 {
@@ -152,7 +196,7 @@ krypt_instream_new_value(VALUE value)
 	if (type == T_FILE) {
 	    return krypt_instream_new_fd_io(value);
 	}
-	else if (rb_respond_to(value, ID_READ)) {
+	else if (rb_respond_to(value, sKrypt_ID_READ)) {
 	    ID id_string;
 	    id_string = rb_intern("string");
 	    if (rb_respond_to(value, id_string)) { /* StringIO */
@@ -221,7 +265,7 @@ krypt_outstream_new_value(VALUE value)
 
     if (type == T_FILE)
 	return krypt_outstream_new_fd_io(value);
-    else if (rb_respond_to(value, ID_WRITE))
+    else if (rb_respond_to(value, sKrypt_ID_WRITE))
 	return krypt_outstream_new_io_generic(value);
     else
 	rb_raise(rb_eArgError, "Argument must be an IO");
@@ -233,16 +277,16 @@ krypt_outstream_new_value(VALUE value)
 void
 Init_krypt_io(void)
 {
-    ID_SEEK = rb_intern("seek");
-    ID_READ = rb_intern("read");
-    ID_WRITE = rb_intern("write");
+    sKrypt_ID_SEEK = rb_intern("seek");
+    sKrypt_ID_READ = rb_intern("read");
+    sKrypt_ID_WRITE = rb_intern("write");
 }
 
 void
 InitVM_krypt_io(void)
 {
-    ID_SEEK_CUR = rb_const_get(rb_cIO, rb_intern("SEEK_CUR"));
-    ID_SEEK_SET = rb_const_get(rb_cIO, rb_intern("SEEK_SET"));
-    ID_SEEK_END = rb_const_get(rb_cIO, rb_intern("SEEK_END"));
+    sKrypt_ID_SEEK_CUR = rb_const_get(rb_cIO, rb_intern("SEEK_CUR"));
+    sKrypt_ID_SEEK_SET = rb_const_get(rb_cIO, rb_intern("SEEK_SET"));
+    sKrypt_ID_SEEK_END = rb_const_get(rb_cIO, rb_intern("SEEK_END"));
 }
 

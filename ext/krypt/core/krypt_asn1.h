@@ -55,19 +55,23 @@ extern krypt_asn1_codec KRYPT_DEFAULT_CODEC;
 extern krypt_asn1_codec krypt_asn1_codecs[];
 
 extern VALUE eKryptASN1Error;
-extern VALUE eKryptParseError;
-extern VALUE eKryptSerializeError;
+extern VALUE eKryptASN1ParseError;
+extern VALUE eKryptASN1SerializeError;
 
-extern ID sTC_UNIVERSAL;
-extern ID sTC_APPLICATION;
-extern ID sTC_CONTEXT_SPECIFIC;
-extern ID sTC_PRIVATE;
+extern VALUE mKryptPEM;
+extern VALUE eKryptPEMError;
 
-extern ID sIV_TAG, sIV_TAG_CLASS, sIV_INF_LEN, sIV_VALUE, sIV_UNUSED_BITS;
+extern ID sKrypt_TC_UNIVERSAL;
+extern ID sKrypt_TC_APPLICATION;
+extern ID sKrypt_TC_CONTEXT_SPECIFIC;
+extern ID sKrypt_TC_PRIVATE;
+
+extern ID sKrypt_IV_TAG, sKrypt_IV_TAG_CLASS, sKrypt_IV_INF_LEN, sKrypt_IV_VALUE, sKrypt_IV_UNUSED_BITS;
 
 void Init_krypt_asn1(void);
 void Init_krypt_asn1_parser(void);
 void Init_krypt_instream_adapter(void);
+void Init_krypt_pem(void);
 
 VALUE krypt_instream_adapter_new(krypt_instream *in);
 

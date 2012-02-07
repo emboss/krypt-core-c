@@ -12,7 +12,8 @@
 
 #include "krypt_io_buffer.h"
 
-krypt_byte_buffer *krypt_buffer_new(void)
+krypt_byte_buffer *
+krypt_buffer_new(void)
 {
     krypt_byte_buffer *ret;
     ret = ALLOC(krypt_byte_buffer);
@@ -20,16 +21,41 @@ krypt_byte_buffer *krypt_buffer_new(void)
     return ret;
 }
 
-static const size_t BUF_MAX = SIZE_MAX / KRYPT_BYTE_BUFFER_GROWTH_FACTOR;
+krypt_byte_buffer *
+krypt_buffer_new_size(size_t size)
+{
+    krypt_byte_buffer *ret;
+    ret = ALLOC(krypt_byte_buffer);
+    memset(ret, 0, sizeof(krypt_byte_buffer));
+    ret->init_size = size;
+    return ret;
+}
+
+krypt_byte_buffer *
+krypt_buffer_new_prealloc(unsigned char *b, size_t len)
+{
+    krypt_byte_buffer *ret;
+    ret = krypt_buffer_new();
+    ret->data = b;
+    ret->limit = len;
+    ret->prealloc = 1;
+    return ret;
+}
+
+static const size_t KRYPT_BUF_MAX = SIZE_MAX / KRYPT_BYTE_BUFFER_GROWTH_FACTOR;
 
 static void
 int_buffer_grow(krypt_byte_buffer *buffer, size_t cur_len)
 {
     size_t new_size;
 
+    if (buffer->prealloc)
+	rb_raise(rb_eRuntimeError, "Cannot grow preallocated buffer");
+
     if (buffer->data == NULL) {
-	buffer->data = ALLOC_N(unsigned char, cur_len);
-	buffer->limit = cur_len;
+	size_t alloc_size = buffer->init_size > cur_len ? buffer->init_size : cur_len;
+	buffer->data = ALLOC_N(unsigned char, alloc_size);
+	buffer->limit = alloc_size;
 	return;
     }
 
@@ -37,7 +63,7 @@ int_buffer_grow(krypt_byte_buffer *buffer, size_t cur_len)
     new_size = buffer->limit == 1 ? 2 : buffer->limit;
 
     while (new_size - buffer->size < cur_len) {
-	if (new_size >= BUF_MAX)
+	if (new_size >= KRYPT_BUF_MAX)
 	    rb_raise(rb_eRuntimeError, "Cannot grow buffer");
     	new_size *= KRYPT_BYTE_BUFFER_GROWTH_FACTOR;
     }
@@ -50,7 +76,10 @@ size_t
 krypt_buffer_write(krypt_byte_buffer *buffer, unsigned char *b, size_t len)
 {
     if (!b)
-	rb_raise(rb_eArgError, "Buffer not initialized or length negative");
+	rb_raise(rb_eArgError, "Buffer not initialized");
+
+    if (len == 0)
+	return 0;
 
     if (buffer->limit - buffer->size < len)
 	int_buffer_grow(buffer, len); 
@@ -73,7 +102,7 @@ void
 krypt_buffer_free(krypt_byte_buffer *buffer)
 {
     if (!buffer) return;
-    if (buffer->data)
+    if (buffer->data && (!buffer->prealloc))
 	xfree(buffer->data);
     xfree(buffer);
 }

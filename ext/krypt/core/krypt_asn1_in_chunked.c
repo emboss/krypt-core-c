@@ -13,7 +13,7 @@
 #include "krypt-core.h"
 #include "krypt_asn1-internal.h"
 
-enum int_state {
+enum krypt_chunked_state {
     NEW_HEADER = 0,
     PROCESS_TAG,
     PROCESS_LENGTH,
@@ -21,27 +21,28 @@ enum int_state {
     DONE
 };
 
-typedef struct int_instream_chunked {
+typedef struct krypt_instream_chunked {
     krypt_instream_interface *methods;
     krypt_instream *inner;
     int values_only;
-    enum int_state state;
+    enum krypt_chunked_state state;
     krypt_asn1_header *cur_header;
     krypt_instream *cur_value_stream;
     size_t header_offset;
-} int_instream_chunked;
+} krypt_instream_chunked;
 
-#define int_safe_cast(out, in)		krypt_safe_cast_instream((out), (in), INSTREAM_TYPE_CHUNKED, int_instream_chunked)
+#define int_safe_cast(out, in)		krypt_safe_cast_instream((out), (in), KRYPT_INSTREAM_TYPE_CHUNKED, krypt_instream_chunked)
 
-static int_instream_chunked* int_chunked_alloc(void);
+static krypt_instream_chunked* int_chunked_alloc(void);
 static ssize_t int_chunked_read(krypt_instream *in, unsigned char *buf, size_t len);
 static void int_chunked_seek(krypt_instream *in, off_t offset, int whence);
 static void int_chunked_mark(krypt_instream *in);
 static void int_chunked_free(krypt_instream *in);
 
-static krypt_instream_interface interface_chunked = {
-    INSTREAM_TYPE_CHUNKED,
+static krypt_instream_interface krypt_interface_chunked = {
+    KRYPT_INSTREAM_TYPE_CHUNKED,
     int_chunked_read,
+    NULL,
     NULL,
     int_chunked_seek,
     int_chunked_mark,
@@ -51,7 +52,7 @@ static krypt_instream_interface interface_chunked = {
 krypt_instream *
 krypt_instream_new_chunked(krypt_instream *original, int values_only)
 {
-    int_instream_chunked *in;
+    krypt_instream_chunked *in;
 
     in = int_chunked_alloc();
     in->inner = original;
@@ -60,18 +61,18 @@ krypt_instream_new_chunked(krypt_instream *original, int values_only)
     return (krypt_instream *) in;
 }
 
-static int_instream_chunked*
+static krypt_instream_chunked*
 int_chunked_alloc(void)
 {
-    int_instream_chunked *ret;
-    ret = ALLOC(int_instream_chunked);
-    memset(ret, 0, sizeof(int_instream_chunked));
-    ret->methods = &interface_chunked;
+    krypt_instream_chunked *ret;
+    ret = ALLOC(krypt_instream_chunked);
+    memset(ret, 0, sizeof(krypt_instream_chunked));
+    ret->methods = &krypt_interface_chunked;
     return ret;
 }
 
 static void
-int_read_new_header(int_instream_chunked *in)
+int_read_new_header(krypt_instream_chunked *in)
 {
     int ret;
     krypt_asn1_header *next;
@@ -79,7 +80,7 @@ int_read_new_header(int_instream_chunked *in)
     ret = krypt_asn1_next_header(in->inner, &next);
     if (ret == 0) {
 	xfree(next);
-	rb_raise(eKryptParseError, "Premature end of value detected");
+	rb_raise(eKryptASN1ParseError, "Premature end of value detected");
     }
     else {
 	if (in->cur_header)
@@ -91,10 +92,10 @@ int_read_new_header(int_instream_chunked *in)
 }
 
 static size_t
-int_read_header_bytes(int_instream_chunked *in,
+int_read_header_bytes(krypt_instream_chunked *in,
 		      unsigned char* bytes, 
 		      size_t bytes_len, 
-		      enum int_state next_state,
+		      enum krypt_chunked_state next_state,
 		      unsigned char *buf,
 		      size_t len)
 {
@@ -116,7 +117,7 @@ int_read_header_bytes(int_instream_chunked *in,
 }
 
 static size_t
-int_read_value(int_instream_chunked *in, unsigned char *buf, size_t len)
+int_read_value(krypt_instream_chunked *in, unsigned char *buf, size_t len)
 {
     ssize_t read;
 
@@ -150,7 +151,7 @@ do {								\
 
 /* TODO: check overflow */
 static size_t
-int_read_single_element(int_instream_chunked *in, unsigned char *buf, size_t len)
+int_read_single_element(krypt_instream_chunked *in, unsigned char *buf, size_t len)
 {
     size_t read = 0, total = 0;
     
@@ -192,13 +193,13 @@ int_read_single_element(int_instream_chunked *in, unsigned char *buf, size_t len
 	    buf += read;
 	    return total;
 	default:
-	    rb_raise(eKryptParseError, "Internal error");
+	    rb_raise(eKryptASN1ParseError, "Internal error");
 	    return 0; /* dummy */
     }
 }
 
 static size_t
-int_read(int_instream_chunked *in, unsigned char *buf, size_t len)
+int_read(krypt_instream_chunked *in, unsigned char *buf, size_t len)
 {
     size_t read = 0, total = 0;
 
@@ -215,13 +216,13 @@ int_read(int_instream_chunked *in, unsigned char *buf, size_t len)
 static ssize_t
 int_chunked_read(krypt_instream *instream, unsigned char *buf, size_t len)
 {
-    int_instream_chunked *in;
+    krypt_instream_chunked *in;
     size_t read;
     
     int_safe_cast(in, instream);
     
     if (!buf)
-	rb_raise(rb_eArgError, "Buffer not initialized or length negative");
+	rb_raise(rb_eArgError, "Buffer not initialized");
 
     if (in->state == DONE)
 	return -1;
@@ -246,7 +247,7 @@ int_chunked_seek(krypt_instream *instream, off_t offset, int whence)
 static void
 int_chunked_mark(krypt_instream *instream)
 {
-    int_instream_chunked *in;
+    krypt_instream_chunked *in;
 
     if (!instream) return;
     int_safe_cast(in, instream);
@@ -256,7 +257,7 @@ int_chunked_mark(krypt_instream *instream)
 static void
 int_chunked_free(krypt_instream *instream)
 {
-    int_instream_chunked *in;
+    krypt_instream_chunked *in;
 
     if (!instream) return;
     int_safe_cast(in, instream);

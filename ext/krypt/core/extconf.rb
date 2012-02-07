@@ -25,7 +25,7 @@ end
 message "=== krypt-core API - C version ===\n"
 
 if debug && CONFIG['GCC'] == 'yes'
-  flags = "--coverage -g -fprofile-arcs -ftest-coverage"
+  flags = "--coverage -g3 -fprofile-arcs -ftest-coverage"
   message "!! set #{flags} for coverage !!"
   $CFLAGS += " #{flags}"
   $DLDFLAGS += " #{flags}"
@@ -37,7 +37,9 @@ message "=== Checking Ruby features ===\n"
 have_header("ruby/io.h")
 have_func("rb_io_check_byte_readable")
 have_func("rb_big_pack")
-
+have_func("rb_block_call")
+have_func("rb_enumeratorize")
+have_func("rb_str_encode")
 
 create_header
 create_makefile("kryptcore")

@@ -14,13 +14,13 @@
 #include "krypt-core.h"
 #include "krypt_asn1-internal.h"
 
-static const int TAG_LIMIT = INT_MAX >> CHAR_BIT_MINUS_ONE;
-static const size_t LENGTH_LIMIT = SIZE_MAX >> CHAR_BIT;
+static const int KRYPT_ASN1_TAG_LIMIT = INT_MAX >> CHAR_BIT_MINUS_ONE;
+static const size_t KRYPT_ASN1_LENGTH_LIMIT = SIZE_MAX >> CHAR_BIT;
 
 #define int_next_byte(in, b)				 	\
 do {							  	\
     if (krypt_instream_read((in), &(b), 1) != 1)	  	\
-    	rb_raise(eKryptParseError, "Error while parsing.");     \
+    	rb_raise(eKryptASN1ParseError, "Error while parsing.");     \
 } while (0)						  	\
 
 static void int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
@@ -58,13 +58,13 @@ krypt_asn1_next_header(krypt_instream *in, krypt_asn1_header **out)
     unsigned char b;
     krypt_asn1_header *header;
 
-    if (!in) rb_raise(eKryptParseError, "Stream is not initialized");
+    if (!in) rb_raise(eKryptASN1ParseError, "Stream is not initialized");
 
     read = krypt_instream_read(in, &b, 1);
     if (read == -1)
 	return 0;
     if (read != 1)
-	rb_raise(eKryptParseError, "Error when parsing stream");
+	rb_raise(eKryptASN1ParseError, "Error when parsing stream");
 
     header = krypt_asn1_header_new();
     
@@ -72,7 +72,7 @@ krypt_asn1_next_header(krypt_instream *in, krypt_asn1_header **out)
     int_parse_length(in, header);
 
     if (header->is_infinite && !header->is_constructed)
-	rb_raise(eKryptParseError, "Infinite length values must be constructed");
+	rb_raise(eKryptASN1ParseError, "Infinite length values must be constructed");
 
     *out = header;
     return 1;
@@ -211,57 +211,6 @@ krypt_asn1_object_encode(krypt_outstream *out, krypt_asn1_object *object)
 }
 
 /**
- * Returns an ID representing the Symbol that stands for the corresponding
- * tag class.
- *
- * @param tag_class	The raw tag class value
- * @return		A Ruby Symbol representing the tag class, e.g. 
- * 			:UNIVERSAL
- * @raises		Krypt::ASN1::ASN1Error if tag_class is unknown
- */
-ID
-krypt_asn1_tag_class_for_int(int tag_class)
-{
-    switch (tag_class) {
-	case TAG_CLASS_UNIVERSAL:
-	    return sTC_UNIVERSAL;
-	case TAG_CLASS_APPLICATION:
-	    return sTC_APPLICATION;
-	case TAG_CLASS_CONTEXT_SPECIFIC:
-	    return sTC_CONTEXT_SPECIFIC;
-	case TAG_CLASS_PRIVATE:
-	    return sTC_PRIVATE;
-	default:
-	    rb_raise(eKryptASN1Error, "Unknown tag class");
-	    return Qnil;
-    }
-}
-
-/**
- * Returns an integer representing the tag class of the corresponding
- * symbol.
- *
- * @param tag_class	The tag class ID
- * @return		An integer representing the tag class
- * @raises		Krypt::ASN1::ASN1Error if tag_class is unknown
- */
-int
-krypt_asn1_tag_class_for_id(ID tag_class)
-{
-    if (tag_class == sTC_UNIVERSAL)
-	return TAG_CLASS_UNIVERSAL;
-    else if (tag_class == sTC_APPLICATION)
-	return TAG_CLASS_APPLICATION;
-    else if (tag_class == sTC_CONTEXT_SPECIFIC)
-	return TAG_CLASS_CONTEXT_SPECIFIC;
-    else if (tag_class == sTC_PRIVATE)
-	return TAG_CLASS_PRIVATE;
-    
-    rb_raise(eKryptASN1Error, "Unknown tag class");
-    return Qnil;
-}
-
-/**
  * Creates a new krypt_asn1_header struct.
  * @return 	a newly allocated krypt_asn1_header
  * @raises	NoMemoryError when allocation fails
@@ -374,14 +323,14 @@ int_parse_primitive_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *
 do {								\
     krypt_buffer_write((buf), &(b), 1);				\
     if ((out)->header_length == SIZE_MAX)			\
-    	rb_raise(eKryptParseError, "Complex tag too long");	\
+    	rb_raise(eKryptASN1ParseError, "Complex tag too long");	\
     (out)->header_length++;					\
 } while (0)
 
 #define int_check_tag(t)					\
 do {								\
-    if ((t) > TAG_LIMIT)					\
-	rb_raise(eKryptParseError, "Complex tag too long");	\
+    if ((t) > KRYPT_ASN1_TAG_LIMIT)				\
+	rb_raise(eKryptASN1ParseError, "Complex tag too long");	\
 } while (0)
 
 static void
@@ -455,7 +404,7 @@ int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn
 
     num_bytes = b & 0x7f;
     if (num_bytes + 1 > sizeof(size_t))
-	rb_raise(eKryptParseError, "Definite value length too long");
+	rb_raise(eKryptASN1ParseError, "Definite value length too long");
 
     out->length_bytes = ALLOC_N(unsigned char, num_bytes + 1);
     out->length_bytes[offset++] = b;
@@ -465,8 +414,8 @@ int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn
 	out->header_length++;
 	len <<= CHAR_BIT;
 	len |= b;
-	if (len > LENGTH_LIMIT || offset == SIZE_MAX || out->header_length == SIZE_MAX)
-	    rb_raise(eKryptParseError, "Complex length too long");
+	if (len > KRYPT_ASN1_LENGTH_LIMIT || offset == SIZE_MAX || out->header_length == SIZE_MAX)
+	    rb_raise(eKryptASN1ParseError, "Complex length too long");
 	out->length_bytes[offset++] = b;
     }
 
@@ -490,7 +439,7 @@ int_parse_read_exactly(krypt_instream *in, size_t n)
     while (offset != n) {
 	read = krypt_instream_read(in, p, n - offset);
 	if (read == -1) {
-	    rb_raise(eKryptParseError, "Premature EOF detected.");
+	    rb_raise(eKryptASN1ParseError, "Premature EOF detected.");
 	    return NULL; /* dummy */
 	}
 	p += read;

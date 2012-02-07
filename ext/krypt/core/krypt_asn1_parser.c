@@ -183,7 +183,7 @@ int_krypt_outstream_new(VALUE io)
     if (type == T_FILE) {
 	return krypt_outstream_new_fd_io(io);
     }
-    else if (rb_respond_to(io, ID_WRITE)) {
+    else if (rb_respond_to(io, sKrypt_ID_WRITE)) {
 	return krypt_outstream_new_io_generic(io);
     }
     else {
@@ -281,7 +281,7 @@ krypt_asn1_header_value(VALUE self)
     int_krypt_asn1_parsed_header_get(self, header);
 
     if (header->consumed && header->cached_stream != Qnil)
-	rb_raise(eKryptParseError, "The stream has already been consumed");
+	rb_raise(eKryptASN1ParseError, "The stream has already been consumed");
 
     /* TODO: sync */
     if (!header->consumed && header->value == Qnil) {
@@ -334,7 +334,7 @@ krypt_asn1_header_value_io(int argc, VALUE *argv, VALUE self)
     
     int_krypt_asn1_parsed_header_get(self, header);
     if (header->consumed && header->cached_stream == Qnil)
-	rb_raise(eKryptParseError, "The stream has already been consumed");
+	rb_raise(eKryptASN1ParseError, "The stream has already been consumed");
 
     /*TODO: synchronization */
     if (header->cached_stream == Qnil) {
@@ -397,7 +397,7 @@ int_krypt_instream_new(VALUE io)
     if (type == T_FILE) {
 	return krypt_instream_new_fd_io(io);
     }
-    else if (rb_respond_to(io, ID_READ)) {
+    else if (rb_respond_to(io, sKrypt_ID_READ)) {
 	return krypt_instream_new_io_generic(io);
     }
     else {
