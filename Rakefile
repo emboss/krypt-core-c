@@ -20,7 +20,7 @@ Rake::ExtensionTask.new('kryptcore') do |ext|
   ext.config_options = $config_options
 end
 
-RSpec::Core::RakeTask.new(:spec) do |spec|
+RSpec::Core::RakeTask.new('spec-run') do |spec|
   spec.pattern = File.join(KRYPT_HOME, 'spec/**/*_spec.rb')
   spec.fail_on_error = false
 end
@@ -50,7 +50,10 @@ task 'report-coverage' do
 end
 
 desc 'Build ext for coverage and generate a coverage report of spec.'
-task 'coverage' => ['enable-coverage', 'compile', 'spec', 'report-coverage']
+task 'coverage' => ['clean', 'enable-coverage', 'compile', 'spec-run', 'report-coverage']
+
+desc 'Build and run RSpec code examples'
+task 'spec' => ['compile', 'spec-run']
 
 task :build => :compile
 
