@@ -5,6 +5,7 @@ Makefile
 coverage
 kryptcore.info
 tmp
+profile
 ext/krypt/core/doc
 *.swp
 *.swo

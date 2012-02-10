@@ -30,6 +30,12 @@ task 'enable-coverage' do
   $config_options << '-g'
 end
 
+task 'enable-profiler' do
+  #to enable profiling run
+  #rake build:profiler -- --with-profiler-dir=<path_to>/gperftools/'
+  $config_options << '-p'
+end
+
 desc 'requires gcov and lcov in $PATH'
 task 'report-coverage' do
   outdir = File.dirname(Dir['tmp/**/Makefile'].first)
@@ -59,6 +65,7 @@ task :build => :compile
 
 namespace :build do
   task :debug => ['enable-coverage', 'build']
+  task :profiler => ['enable-profiler', 'build']
 end
   
 Rake::RDocTask.new("doc") do |rdoc|
