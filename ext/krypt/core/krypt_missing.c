@@ -10,5 +10,14 @@
 * See the file 'LICENSE' for further details.
 */
 
-#include RUBY_EXTCONF_H
+#include "krypt-core.h"
 
+#ifndef HAVE_RB_STR_ENCODE
+VALUE
+rb_str_encode(VALUE str, VALUE to, int ecflags, VALUE ecopts)
+{
+    rb_encoding *enc = rb_enc_get(to);
+    rb_enc_associate(str, enc);
+    return str;
+}
+#endif

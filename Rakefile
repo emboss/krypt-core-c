@@ -18,6 +18,8 @@ Rake::ExtensionTask.new('kryptcore') do |ext|
   ext.ext_dir = "ext/krypt/core"
   ext.lib_dir = "lib"
   ext.config_options = $config_options
+  ext.cross_compile = true
+  ext.cross_platform = 'i386-mswin32'
 end
 
 RSpec::Core::RakeTask.new('spec-run') do |spec|

@@ -846,13 +846,12 @@ krypt_asn1_cons_each(VALUE self)
 {
     VALUE enumerable = krypt_asn1_data_get_value(self);
 
-#ifdef HAVE_RB_ENUMERATORIZE
-    RETURN_ENUMERATOR(enumerable, 0, 0);
-#endif
+    KRYPT_RETURN_ENUMERATOR(enumerable, sKrypt_ID_EACH);
+
     if (rb_obj_is_kind_of(enumerable, rb_cArray))
 	rb_ary_each(krypt_asn1_data_get_value(self));
     else
-	rb_block_call(enumerable, sKrypt_ID_EACH, 0, 0, int_cons_each_i, 0);
+	rb_iterate(rb_each, enumerable, int_cons_each_i, Qnil);
 
     return enumerable;
 }
@@ -890,7 +889,8 @@ int_asn1_cons_value_decode(VALUE self, krypt_asn1_data *data)
 static VALUE
 int_cons_encode_sub_elems_i(VALUE cur, VALUE wrapped_out)
 {
-    krypt_outstream *out = (krypt_outstream *) wrapped_out;
+    krypt_outstream *out = NULL;
+    Data_Get_Struct(wrapped_out, krypt_outstream, out);
     int_asn1_encode_to(out, cur);
     return Qnil;
 }
@@ -913,7 +913,9 @@ int_cons_encode_sub_elems(krypt_outstream *out, VALUE enumerable)
 	}
     }
     else {
-	rb_block_call(enumerable, sKrypt_ID_EACH, 0, 0, int_cons_encode_sub_elems_i, (VALUE)out);
+	VALUE wrapped_out;
+	wrapped_out = Data_Wrap_Struct(rb_cObject, 0, 0, out); 
+	rb_iterate(rb_each, enumerable, int_cons_encode_sub_elems_i, wrapped_out);
     }
 }
 

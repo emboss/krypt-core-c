@@ -259,12 +259,7 @@ int_asn1_encode_utf8_string(VALUE self, VALUE value, unsigned char **out)
 	return int_asn1_encode_default(self, value, out);
     }
     else {
-#ifdef HAVE_RB_STR_ENCODE
 	VALUE encoded = rb_str_encode(value, rb_enc_from_encoding(rb_utf8_encoding()), 0, Qnil);
-#else
-	VALUE encoded = value;
-	rb_enc_associate(encoded, rb_utf8_encoding());
-#endif
 	return int_asn1_encode_default(self, encoded, out);
     }
 }
