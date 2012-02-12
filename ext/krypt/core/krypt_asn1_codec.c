@@ -291,8 +291,12 @@ static void
 int_asn1_validate_time(VALUE self, VALUE value)
 {
     int type = TYPE(value);
-    if (!(rb_obj_is_kind_of(value, rb_cTime) || type == T_FIXNUM || type == T_STRING))
-	rb_raise(eKryptASN1Error, "TIME type must be a Time, a Fixnum or a String");
+    if (!(rb_obj_is_kind_of(value, rb_cTime) || 
+	type == T_FIXNUM ||
+        rb_obj_is_kind_of(value, rb_cBignum) ||	
+	type == T_STRING)) {
+	rb_raise(eKryptASN1Error, "TIME type must be a Time, a Number or a String");
+    }
 }
 
 static size_t
@@ -541,11 +545,25 @@ int_decode_object_id(unsigned char *bytes, size_t len)
     return ret;
 }
 
+static VALUE
+int_convert_integer(VALUE number)
+{
+    return rb_Integer(number);
+}
+
 #define int_as_time_t(t, time)					\
 do {								\
-    long tmp = NUM2LONG(rb_Integer((time)));			\
+    int state = 0;						\
+    VALUE coerced;						\
+    long tmp;							\
+    coerced = rb_protect(int_convert_integer, time, &state);    \
+    if (state)							\
+        rb_raise(eKryptASN1Error, "Invalid time argument");	\
+    tmp = (long) rb_protect((VALUE(*)_((VALUE)))rb_num2long, coerced, &state); \
+    if (state)							\
+        rb_raise(eKryptASN1Error, "Invalid time argument");	\
     if (tmp < 0)						\
-	rb_raise(rb_eArgError, "Negative time value given");	\
+	rb_raise(eKryptASN1Error, "Negative time value given");	\
     (t) = (time_t) tmp;						\
 } while (0)
 
