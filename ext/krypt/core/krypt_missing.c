@@ -21,3 +21,13 @@ rb_str_encode(VALUE str, VALUE to, int ecflags, VALUE ecopts)
     return str;
 }
 #endif
+
+#ifndef HAVE_GMTIME_R
+struct tm *
+krypt_gmtime_r(const time_t *tp, struct tm *result)
+{
+    struct tm *t = gmtime(tp);
+    if (t) *result = *t;
+    return t;
+}
+#endif

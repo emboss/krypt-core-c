@@ -33,3 +33,9 @@ do {											\
 #ifndef HAVE_RB_STR_ENCODE
 VALUE rb_str_encode(VALUE str, VALUE to, int ecflags, VALUE ecopts);
 #endif
+
+#ifndef HAVE_GMTIME_R
+#include <time.h>
+struct tm *krypt_gmtime_r(const time_t *tp, struct tm *result);
+#define gmtime_r(t, tm)				krypt_gmtime_r((t), (tm))
+#endif
