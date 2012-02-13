@@ -293,7 +293,7 @@ int_asn1_validate_time(VALUE self, VALUE value)
     int type = TYPE(value);
     if (!(rb_obj_is_kind_of(value, rb_cTime) || 
 	type == T_FIXNUM ||
-        rb_obj_is_kind_of(value, rb_cBignum) ||	
+        type == T_BIGNUM ||	
 	type == T_STRING)) {
 	rb_raise(eKryptASN1Error, "TIME type must be a Time, a Number or a String");
     }
@@ -702,18 +702,20 @@ int_parse_generalized_time(unsigned char *bytes, size_t len)
 static size_t
 int_encode_integer_bignum(VALUE big, unsigned char **out) {
     int len, i, j;
-    long num_longs;
+    long num_longs, biglen, divisor;
     unsigned long *longs;
     unsigned char* bytes;
     unsigned char* ptr;
     unsigned char msb;
     unsigned long l;
 
-    num_longs = (RBIGNUM_LEN(big) + 1) / (SIZEOF_LONG/SIZEOF_BDIGITS);
+    biglen = RBIGNUM_LEN(big);
+    divisor = SIZEOF_LONG / SIZEOF_BDIGITS;
+    num_longs = (biglen % divisor) == 0 ? biglen /divisor : biglen / divisor + 1;
     longs = ALLOC_N(unsigned long, num_longs);
     rb_big_pack(big, longs, num_longs);
-
     msb = longs[num_longs - 1] >> (SIZEOF_LONG * CHAR_BIT - 1);
+
     if (RBIGNUM_SIGN(big) == ((msb & 1) == 1)) {
 	/* We can't use int_encode_integer here because longs are unsigned */
 	len = num_longs * SIZEOF_LONG + 1;
