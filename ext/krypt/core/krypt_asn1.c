@@ -1101,7 +1101,7 @@ krypt_asn1_decode(VALUE self, VALUE obj)
     VALUE ret, wrapped_cache;
     int state = 0;
 
-    in = krypt_instream_new_value(obj);
+    in = krypt_instream_new_value_der(obj);
     cache = krypt_instream_new_cache(in);
     wrapped_cache = Data_Wrap_Struct(rb_cObject, 0, 0, cache);
     ret = rb_protect((VALUE(*)_((VALUE)))int_asn1_decode, wrapped_cache, &state);
@@ -1117,7 +1117,7 @@ krypt_asn1_decode_der(VALUE self, VALUE obj)
 {
     VALUE ret, wrapped_in;
     int state = 0;
-    krypt_instream *in = krypt_instream_new_value(obj);
+    krypt_instream *in = krypt_instream_new_value_der(obj);
     wrapped_in = Data_Wrap_Struct(rb_cObject, 0, 0, in);
     ret = rb_protect((VALUE(*)_((VALUE)))int_asn1_decode, wrapped_in, &state);
     krypt_instream_free(in);
@@ -1132,7 +1132,7 @@ krypt_asn1_decode_pem(VALUE self, VALUE obj)
     VALUE ret, wrapped_pem;
     int state = 0;
     krypt_instream *pem;
-    pem = krypt_instream_new_pem(krypt_instream_new_value(obj));
+    pem = krypt_instream_new_pem(krypt_instream_new_value_pem(obj));
     wrapped_pem = Data_Wrap_Struct(rb_cObject, 0, 0, pem);
     ret = rb_protect((VALUE(*)_((VALUE)))int_asn1_decode, wrapped_pem, &state);
     krypt_instream_free(pem);

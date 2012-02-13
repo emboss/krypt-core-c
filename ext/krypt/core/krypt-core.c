@@ -16,6 +16,7 @@ VALUE mKrypt;
 VALUE eKryptError;
 
 ID sKrypt_ID_TO_DER;
+ID sKrypt_ID_TO_PEM;
 ID sKrypt_ID_EACH;
 
 VALUE
@@ -37,6 +38,25 @@ krypt_to_der_if_possible(VALUE obj)
     return obj;
 }
 
+VALUE
+krypt_to_pem(VALUE obj)
+{
+    VALUE tmp;
+
+    tmp = rb_funcall(obj, sKrypt_ID_TO_PEM, 0);
+    StringValue(tmp);
+
+    return tmp;
+}
+
+VALUE
+krypt_to_pem_if_possible(VALUE obj)
+{
+    if(rb_respond_to(obj, sKrypt_ID_TO_PEM))
+	return krypt_to_pem(obj);
+    return obj;
+}
+
 void 
 Init_kryptcore(void)
 {
@@ -45,6 +65,7 @@ Init_kryptcore(void)
     eKryptError = rb_define_class_under(mKrypt, "KryptError", rb_eStandardError);
 
     sKrypt_ID_TO_DER = rb_intern("to_der");
+    sKrypt_ID_TO_PEM = rb_intern("to_pem");
     sKrypt_ID_EACH = rb_intern("each");
 
     /* Init components */

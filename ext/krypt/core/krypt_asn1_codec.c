@@ -293,7 +293,7 @@ int_asn1_validate_time(VALUE self, VALUE value)
     int type = TYPE(value);
     if (!(rb_obj_is_kind_of(value, rb_cTime) || 
 	type == T_FIXNUM ||
-        rb_obj_is_kind_of(value, rb_cBignum) ||	
+        type == T_BIGNUM ||	
 	type == T_STRING)) {
 	rb_raise(eKryptASN1Error, "TIME type must be a Time, a Number or a String");
     }

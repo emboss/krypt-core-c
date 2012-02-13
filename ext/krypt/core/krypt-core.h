@@ -40,6 +40,7 @@ extern VALUE mKrypt;
 extern VALUE eKryptError;
 
 extern ID sKrypt_ID_TO_DER;
+extern ID sKrypt_ID_TO_PEM;
 extern ID sKrypt_ID_EACH;
 
 /** krypt-core headers **/
@@ -47,8 +48,10 @@ extern ID sKrypt_ID_EACH;
 #include "krypt_io.h"
 #include "krypt_asn1.h"
 
-VALUE krypt_to_der_if_possible(VALUE);
-VALUE krypt_to_der(VALUE);
+VALUE krypt_to_der_if_possible(VALUE obj);
+VALUE krypt_to_der(VALUE obj);
+VALUE krypt_to_pem_if_possible(VALUE obj);
+VALUE krypt_to_pem(VALUE obj);
 
 /* internal Base64 en-/decoder */
 size_t krypt_base64_encode(unsigned char *bytes, size_t len, int cols, unsigned char **out);

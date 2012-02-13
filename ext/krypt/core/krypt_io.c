@@ -182,8 +182,8 @@ krypt_instream_free(krypt_instream *in)
     xfree(in);
 }
 
-krypt_instream *
-krypt_instream_new_value(VALUE value)
+static krypt_instream *
+int_instream_common_new(VALUE value)
 {
     int type;
 
@@ -208,14 +208,37 @@ krypt_instream_new_value(VALUE value)
     		return krypt_instream_new_io_generic(value);
 	    }
 	}
-	else {
-	    value = krypt_to_der_if_possible(value);
-	    StringValue(value);
-	    return krypt_instream_new_bytes((unsigned char *)RSTRING_PTR(value), RSTRING_LEN(value));
-	}
     }
+    return NULL;
 }
 
+krypt_instream *
+krypt_instream_new_value_der(VALUE value)
+{
+    krypt_instream *in;
+
+    if (!(in = int_instream_common_new(value))) {
+	value = krypt_to_der_if_possible(value);
+	StringValue(value);
+	in = krypt_instream_new_bytes((unsigned char *)RSTRING_PTR(value), RSTRING_LEN(value));
+    }
+
+    return in;
+}
+
+krypt_instream *
+krypt_instream_new_value_pem(VALUE value)
+{
+    krypt_instream *in;
+
+    if (!(in = int_instream_common_new(value))) {
+	value = krypt_to_pem_if_possible(value);
+	StringValue(value);
+	in = krypt_instream_new_bytes((unsigned char *)RSTRING_PTR(value), RSTRING_LEN(value));
+    }
+
+    return in;
+}
 /* end instream */
 
 /* outstream */

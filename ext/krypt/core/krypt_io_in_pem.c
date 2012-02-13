@@ -231,51 +231,50 @@ int_b64_fill(krypt_b64_buffer *in)
     linelen = krypt_instream_gets(in->inner, linebuf, 256);
 
     while (in->state != DONE && total < KRYPT_PEM_THRESHOLD && linelen != -1) {
-	if (linelen > 0) {
-	    switch (in->state) {
-		case HEADER:
-		    if (linebuf[0] == '-') {
-			krypt_pem_parse_ctx linectx;
-			linectx.line = linebuf;
-			linectx.len = linelen;
-			linectx.off = 0;
-		       	if (int_match_header(&linectx)) {
-			    name = linectx.name;
-			    in->state = CONTENT;
-			}
-		    }
-		    linelen = krypt_instream_gets(in->inner, linebuf, 256);
-		    break;
-		case CONTENT:
-		    if (linebuf[0] == '-') {
-			in->state = FOOTER;
-		    }
-		    else {
-		    	krypt_base64_buffer_decode_to(out, (unsigned char *) linebuf, 0, linelen);
-			total += linelen;
-			linelen = krypt_instream_gets(in->inner, linebuf, 256);
-		    }
-		    break;
-		case FOOTER:
-		    if (linebuf[0] == '-') {
-			krypt_pem_parse_ctx linectx;
-			linectx.line = linebuf;
-			linectx.len = linelen;
-			linectx.off = 0;
-			linectx.name = name;
-		       	if (int_match_footer(&linectx))
-			    in->state = DONE;
-		    }
-		    else {
-    			linelen = krypt_instream_gets(in->inner, linebuf, 256);
-		    }
-		    break;
-		default:
-		    break;
-	    }
-	}
-	else {
+	if (linelen == 0) {
 	    linelen = krypt_instream_gets(in->inner, linebuf, 256);
+	    continue;
+	}
+	switch (in->state) {
+	    case HEADER:
+		if (linebuf[0] == '-') {
+		    krypt_pem_parse_ctx linectx;
+		    linectx.line = linebuf;
+		    linectx.len = linelen;
+		    linectx.off = 0;
+		    if (int_match_header(&linectx)) {
+			name = linectx.name;
+			in->state = CONTENT;
+		    }
+		}
+		linelen = krypt_instream_gets(in->inner, linebuf, 256);
+		break;
+	    case CONTENT:
+		if (linebuf[0] == '-') {
+		    in->state = FOOTER;
+		}
+		else {
+		    krypt_base64_buffer_decode_to(out, (unsigned char *) linebuf, 0, linelen);
+		    total += linelen;
+		    linelen = krypt_instream_gets(in->inner, linebuf, 256);
+		}
+		break;
+	    case FOOTER:
+		if (linebuf[0] == '-') {
+		    krypt_pem_parse_ctx linectx;
+		    linectx.line = linebuf;
+		    linectx.len = linelen;
+		    linectx.off = 0;
+		    linectx.name = name;
+		    if (int_match_footer(&linectx))
+			in->state = DONE;
+		}
+		else {
+		    linelen = krypt_instream_gets(in->inner, linebuf, 256);
+		}
+		break;
+	    default:
+		break;
 	}
     }
 
@@ -284,7 +283,7 @@ int_b64_fill(krypt_b64_buffer *in)
 	xfree(name);
 	switch (in->state) {
 	    case HEADER:
-		in->len = 0;
+		in->len = in->off = 0;
 		in->eof = 1;
 		return;
 	    case CONTENT:

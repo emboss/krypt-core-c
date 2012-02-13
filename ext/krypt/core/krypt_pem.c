@@ -16,8 +16,9 @@ VALUE mKryptPEM;
 VALUE eKryptPEMError;
 
 static VALUE
-int_consume_stream(krypt_instream *in)
+int_consume_stream(VALUE wrapped_in)
 {
+    krypt_instream *in = NULL;
     VALUE ret;
     krypt_outstream *out;
     size_t len;
@@ -25,6 +26,7 @@ int_consume_stream(krypt_instream *in)
     unsigned char buf[4096];
     ssize_t read;
 
+    Data_Get_Struct(wrapped_in, krypt_instream, in);
     out = krypt_outstream_new_bytes();
 
     while ((read = krypt_instream_read(in, buf, 4096)) != -1) {
@@ -42,12 +44,17 @@ int_consume_stream(krypt_instream *in)
 static VALUE
 krypt_pem_decode(VALUE self, VALUE pem)
 {
-    VALUE ary, der;
+    VALUE ary, der, wrapped_in;
     size_t i = 0;
-    krypt_instream *in = krypt_instream_new_pem(krypt_instream_new_value(pem));
-
+    int state = 0;
+    krypt_instream *in = krypt_instream_new_pem(krypt_instream_new_value_pem(pem));
+    
+    wrapped_in = Data_Wrap_Struct(rb_cObject, 0, 0, in);
     ary = rb_ary_new();
-    while (!NIL_P(der = int_consume_stream(in))) {
+
+    while (!NIL_P(der = rb_protect(int_consume_stream, wrapped_in, &state))) {
+	if (state) goto error;
+
 	rb_ary_push(ary, der);
 	i++;
 	if(rb_block_given_p()) {
@@ -61,8 +68,15 @@ krypt_pem_decode(VALUE self, VALUE pem)
 	}
 	krypt_pem_continue_stream(in);
     }
+    if (state) goto error;
+
     krypt_instream_free(in);
     return ary;
+
+error:
+    krypt_instream_free(in);
+    rb_jump_tag(state);
+    return Qnil;
 }
 
 void
