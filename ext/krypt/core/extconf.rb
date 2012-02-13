@@ -57,6 +57,10 @@ have_func("rb_big_pack")
 have_func("rb_enumeratorize")
 have_func("rb_str_encode")
 
+message "=== Checking platform features ===\n"
+
+have_func("gmtime_r")
+
 create_header
 create_makefile("kryptcore")
 message "Done.\n"
