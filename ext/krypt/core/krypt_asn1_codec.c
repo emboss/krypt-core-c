@@ -711,7 +711,7 @@ int_encode_integer_bignum(VALUE big, unsigned char **out) {
 
     biglen = RBIGNUM_LEN(big);
     divisor = SIZEOF_LONG / SIZEOF_BDIGITS;
-    num_longs = (biglen % divisor) == 0 ? biglen /divisor : biglen / divisor + 1;
+    num_longs = (biglen % divisor) == 0 ? biglen / divisor : biglen / divisor + 1;
     longs = ALLOC_N(unsigned long, num_longs);
     rb_big_pack(big, longs, num_longs);
     msb = longs[num_longs - 1] >> (SIZEOF_LONG * CHAR_BIT - 1);
