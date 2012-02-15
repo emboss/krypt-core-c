@@ -106,21 +106,24 @@ int_bytes_gets(krypt_instream *instream, char *line, size_t len)
 	return -1;
 
     d = line;
-    to_read = src->len - in->num_read < len ? src->len - in->num_read : len - 1; /* due to '\0' */
+    to_read = src->len - in->num_read < len ? src->len - in->num_read : len;
     end = d + to_read;
 
     while (d < end) {
 	*d = *(src->p);    
 	src->p++;
-	if (*d == '\n')
+	if (*d == '\n') {
+            in->num_read++;
 	    break;
+        }
 	d++;
 	ret++;
     }
     in->num_read += ret;
 
-    *d = '\0';
-    ret++;
+    if (*d == '\n' && *(d - 1) == '\r')
+	ret--;
+
     return ret;
 }
 

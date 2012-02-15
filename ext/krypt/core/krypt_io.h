@@ -18,7 +18,7 @@
 extern ID sKrypt_ID_READ, sKrypt_ID_SEEK, sKrypt_ID_WRITE;
 extern VALUE sKrypt_ID_SEEK_CUR, sKrypt_ID_SEEK_SET, sKrypt_ID_SEEK_END;
 
-#define KRYPT_IO_BUF_SIZE 8092
+#define KRYPT_IO_BUF_SIZE 8192
 
 #define KRYPT_INSTREAM_TYPE_FD         	0
 #define KRYPT_INSTREAM_TYPE_BYTES      	1

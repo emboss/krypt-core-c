@@ -19,7 +19,7 @@ enum krypt_pem_state {
     DONE
 };
 
-#define KRYPT_PEM_THRESHOLD (8192 / 4 * 3)
+#define KRYPT_LINE_BUF_SIZE 256
 
 typedef struct krypt_pem_parse_ctx_st {
     char *line;
@@ -175,27 +175,19 @@ krypt_pem_continue_stream(krypt_instream *instream)
 }
 
 
-#define int_remove_trailing_whitespace(ctx)				\
-do {									\
-    while (((ctx)->len > 0) && ((ctx)->line[(ctx)->len - 1] <= ' '))	\
-        (ctx)->len--;							\
-    (ctx)->line[(ctx)->len] = '\n';					\
-    (ctx)->len++;							\
-    (ctx)->line[(ctx)->len] = '\0';					\
-} while (0)
-
 static int
 int_match_header(krypt_pem_parse_ctx *ctx)
 {
+    if (ctx->len == KRYPT_LINE_BUF_SIZE)
+	return 0;
     if (strncmp(ctx->line, "-----BEGIN ", 11) == 0) {
 	size_t len;
-	int_remove_trailing_whitespace(ctx);
 	len = ctx->len;
-	if (strncmp(ctx->line + len - 6, "-----\n", 6) != 0)
+	if (strncmp(ctx->line + len - 5, "-----", 5) != 0)
 	    return 0;
-	ctx->name = ALLOC_N(char, len - 11 - 6);
-	memcpy(ctx->name, ctx->line + 11, len - 11 - 6);
-	ctx->name[len - 11 - 6] = '\0';
+	ctx->name = ALLOC_N(char, len - 11 - 4);
+	memcpy(ctx->name, ctx->line + 11, len - 11 - 5);
+	ctx->name[len - 11 - 5] = '\0';
 	return 1;
     }
     return 0;
@@ -206,13 +198,14 @@ int_match_footer(krypt_pem_parse_ctx *ctx)
 {
     char *name = ctx->name;
 
+    if (ctx->len == KRYPT_LINE_BUF_SIZE)
+	return 0;
     if (strncmp(ctx->line, "-----END ", 9) == 0) {
 	size_t len;
-	int_remove_trailing_whitespace(ctx);
 	len = ctx->len;
-	if (strncmp(ctx->line + len - 6, "-----\n", 6) != 0)
+	if (strncmp(ctx->line + len - 5, "-----", 5) != 0)
 	    return 0;
-	if (strncmp(ctx->line + 9, name, len - 9 - 6) == 0)
+	if (strncmp(ctx->line + 9, name, len - 9 - 5) == 0)
 	    return 1;
     }
     return 0;
@@ -224,15 +217,19 @@ int_b64_fill(krypt_b64_buffer *in)
     krypt_outstream *out;
     size_t total = 0;
     ssize_t linelen;
-    char linebuf[256]; 
-    char *name = NULL;
+    char linebuf[KRYPT_LINE_BUF_SIZE]; 
 
-    out = krypt_outstream_new_bytes_size(KRYPT_PEM_THRESHOLD / 4 * 3 + 256 / 4 * 3);
-    linelen = krypt_instream_gets(in->inner, linebuf, 256);
+    if (in->buffer) {
+	xfree(in->buffer);
+        in->buffer = NULL;
+    }
 
-    while (in->state != DONE && total < KRYPT_PEM_THRESHOLD && linelen != -1) {
+    out = krypt_outstream_new_bytes_size(KRYPT_IO_BUF_SIZE + KRYPT_LINE_BUF_SIZE);
+    linelen = krypt_instream_gets(in->inner, linebuf, KRYPT_LINE_BUF_SIZE);
+
+    while (in->state != DONE && total < KRYPT_IO_BUF_SIZE && linelen != -1) {
 	if (linelen == 0) {
-	    linelen = krypt_instream_gets(in->inner, linebuf, 256);
+	    linelen = krypt_instream_gets(in->inner, linebuf, KRYPT_LINE_BUF_SIZE);
 	    continue;
 	}
 	switch (in->state) {
@@ -243,11 +240,11 @@ int_b64_fill(krypt_b64_buffer *in)
 		    linectx.len = linelen;
 		    linectx.off = 0;
 		    if (int_match_header(&linectx)) {
-			name = linectx.name;
+			in->name = linectx.name;
 			in->state = CONTENT;
 		    }
 		}
-		linelen = krypt_instream_gets(in->inner, linebuf, 256);
+		linelen = krypt_instream_gets(in->inner, linebuf, KRYPT_LINE_BUF_SIZE);
 		break;
 	    case CONTENT:
 		if (linebuf[0] == '-') {
@@ -256,7 +253,8 @@ int_b64_fill(krypt_b64_buffer *in)
 		else {
 		    krypt_base64_buffer_decode_to(out, (unsigned char *) linebuf, 0, linelen);
 		    total += linelen;
-		    linelen = krypt_instream_gets(in->inner, linebuf, 256);
+		    if (total < KRYPT_IO_BUF_SIZE)
+			linelen = krypt_instream_gets(in->inner, linebuf, KRYPT_LINE_BUF_SIZE);
 		}
 		break;
 	    case FOOTER:
@@ -265,12 +263,14 @@ int_b64_fill(krypt_b64_buffer *in)
 		    linectx.line = linebuf;
 		    linectx.len = linelen;
 		    linectx.off = 0;
-		    linectx.name = name;
+		    linectx.name = in->name;
 		    if (int_match_footer(&linectx))
 			in->state = DONE;
+		    else
+			linelen = krypt_instream_gets(in->inner, linebuf, KRYPT_LINE_BUF_SIZE);
 		}
 		else {
-		    linelen = krypt_instream_gets(in->inner, linebuf, 256);
+		    linelen = krypt_instream_gets(in->inner, linebuf, KRYPT_LINE_BUF_SIZE);
 		}
 		break;
 	    default:
@@ -278,9 +278,11 @@ int_b64_fill(krypt_b64_buffer *in)
 	}
     }
 
+    if (in->state == DONE || linelen == -1)
+	in->eof = 1;
+
     if (linelen == -1 && in->state != DONE) {
 	krypt_outstream_free(out);
-	xfree(name);
 	switch (in->state) {
 	    case HEADER:
 		in->len = in->off = 0;
@@ -289,13 +291,12 @@ int_b64_fill(krypt_b64_buffer *in)
 	    case CONTENT:
 		rb_raise(eKryptPEMError, "PEM data ended prematurely");
 	    default:
-		rb_raise(eKryptPEMError, "Could not find matching pem footer\n");
+		rb_raise(eKryptPEMError, "Could not find matching PEM footer\n");
 	}
     }
 
-    in->eof = 1;
+    in->off = 0;
     in->len = krypt_outstream_bytes_get_bytes_free(out, &in->buffer);
-    in->name = name;
     krypt_outstream_free(out);
 }
 
@@ -325,11 +326,9 @@ int_b64_read(krypt_b64_buffer *in, unsigned char *buf, size_t len)
     while (total != len && !(in->off == in->len && in->eof)) {
 	if (in->off == in->len)
 	    int_b64_fill(in);
-	total += int_consume_bytes(in, buf, len);
+	total += int_consume_bytes(in, buf + total, len - total);
     }
 
-    /* if we attempt to read further values, but none
-     * are available, we will run into this situation */
     if (total == 0 && in->eof)
 	return -1;
 

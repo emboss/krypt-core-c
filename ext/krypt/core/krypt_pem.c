@@ -23,17 +23,18 @@ int_consume_stream(VALUE wrapped_in)
     krypt_outstream *out;
     size_t len;
     unsigned char *str;
-    unsigned char buf[4096];
+    unsigned char buf[KRYPT_IO_BUF_SIZE];
     ssize_t read;
-
+    
     Data_Get_Struct(wrapped_in, krypt_instream, in);
     out = krypt_outstream_new_bytes();
 
-    while ((read = krypt_instream_read(in, buf, 4096)) != -1) {
+    while ((read = krypt_instream_read(in, buf, KRYPT_IO_BUF_SIZE)) != -1) {
 	krypt_outstream_write(out, buf, read);
     }
 
     len = krypt_outstream_bytes_get_bytes_free(out, &str);
+    krypt_outstream_free(out);
     if (len == 0)
 	return Qnil;
     ret = rb_str_new((const char*)str, len);

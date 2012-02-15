@@ -113,7 +113,7 @@ krypt_buffer_resize_free(krypt_byte_buffer *buffer)
     if (!buffer) return;
 
     if (buffer->data) {
-	buffer->data = xrealloc(buffer->data, buffer->size);
+	REALLOC_N(buffer->data, unsigned char, buffer->size);
 	buffer->limit = buffer->size;
     }
     xfree(buffer);

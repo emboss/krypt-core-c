@@ -120,7 +120,7 @@ int_gets_generic(krypt_instream *in, char *line, size_t len)
 {
     ssize_t ret = 0, r = 0;
     char *p = line;
-    char *end = line + len - 1;
+    char *end = line + len;
 
     if (!line)
 	rb_raise(rb_eArgError, "Buffer not initialized");
@@ -136,11 +136,12 @@ int_gets_generic(krypt_instream *in, char *line, size_t len)
 	}
     }
 
-    *p = '\0';
-    ret++;
-
-    if (line[0] == '\0' && r == -1)
+    if (ret == 0 && r == -1)
 	return -1;
+
+    /* normalize CRLF */
+    if (*p == '\n' && *(p - 1) == '\r')
+       ret--;	
 
     return ret;
 }

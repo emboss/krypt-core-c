@@ -100,7 +100,7 @@ int_fd_gets(krypt_instream *instream, char *line, size_t len)
     krypt_instream_fd *in;
     ssize_t ret = 0, r = 0;
     char *p = line;
-    char *end = line + len - 1;
+    char *end = line + len;
 
     int_safe_cast(in, instream);
     if (!line)
@@ -120,11 +120,11 @@ int_fd_gets(krypt_instream *instream, char *line, size_t len)
 	krypt_raise_io_error(eKryptASN1ParseError);
     }
     
-    *p = '\0';
-    ret++;
-
-    if (line[0] == '\0' && r == 0)
+    if (ret == 0 && r == 0)
 	return -1;
+
+    if (*p == '\n' && *(p - 1) == '\r')
+	ret--;
 
     return ret;
 }
