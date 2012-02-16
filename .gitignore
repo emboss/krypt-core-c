@@ -13,4 +13,5 @@ ext/krypt/core/doc
 *.so
 *.o
 .rbx/
+.idea/
 nbproject

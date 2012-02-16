@@ -88,7 +88,7 @@ int_do_read(krypt_instream_seq *in, unsigned char *buf, size_t len)
     ssize_t read;
     size_t total = 0;
 
-    while (total < len && (read = krypt_instream_read(in->active, buf, len - total) != -1)) {
+    while (total < len && ((read = krypt_instream_read(in->active, buf, len - total)) != -1)) {
 	total += read;
 	buf += read;
     }

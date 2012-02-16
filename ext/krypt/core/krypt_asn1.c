@@ -1025,8 +1025,11 @@ int_asn1_decode(VALUE wrapped_in)
 }
 
 static VALUE
-int_asn1_rewind_stream(krypt_instream *in)
+int_asn1_rewind_stream(VALUE wrapped_in)
 {
+    krypt_instream *in;
+
+    Data_Get_Struct(wrapped_in, krypt_instream, in);
     krypt_instream_seek(in, 0, SEEK_SET);
     return Qnil;
 }
@@ -1034,31 +1037,32 @@ int_asn1_rewind_stream(krypt_instream *in)
 static VALUE
 int_asn1_fallback_decode(krypt_instream *in, krypt_instream *cache)
 {
-    VALUE ret, wrapped_pem;
+    VALUE ret, wrapped_in;
     unsigned char *lookahead = NULL;
     size_t la_size;
-    krypt_instream *seq;
-    krypt_instream *bytes;
-    krypt_instream *pem;
+    krypt_instream *retry;
     int state = 0;
 
-    ret = rb_protect((VALUE(*)_((VALUE)))int_asn1_rewind_stream, (VALUE)in, &state);
+    wrapped_in = Data_Wrap_Struct(rb_cObject, 0, 0, in);
+    rb_protect(int_asn1_rewind_stream, wrapped_in, &state);
     if (!state) {
 	xfree(cache); /* do not use krypt_instream_free, would free in too */
-	pem = krypt_instream_new_pem(in);
+	retry = in;
     }
     else {
+	krypt_instream *bytes;
+
 	la_size = krypt_instream_cache_get_bytes(cache, &lookahead);
 	xfree(cache); /* do not use krypt_instream_free, would free in too */
 	bytes = krypt_instream_new_bytes(lookahead, la_size);
-	seq = krypt_instream_new_seq(bytes, in);
-	pem = krypt_instream_new_pem(seq);
+	retry = krypt_instream_new_seq(bytes, in);
     }
-    wrapped_pem = Data_Wrap_Struct(rb_cObject, 0, 0, pem);
-    ret = rb_protect((VALUE(*)_((VALUE)))int_asn1_decode, wrapped_pem, &state);
+    state = 0;
+    wrapped_in = Data_Wrap_Struct(rb_cObject, 0, 0, retry);
+    ret = rb_protect((VALUE(*)_((VALUE)))int_asn1_decode, wrapped_in, &state);
     if (lookahead)
 	xfree(lookahead);
-    krypt_instream_free(pem);
+    krypt_instream_free(retry);
     if (state) {
 	rb_jump_tag(state);
     }
@@ -1098,13 +1102,16 @@ krypt_asn1_decode(VALUE self, VALUE obj)
 {
     krypt_instream *in;
     krypt_instream *cache;
-    VALUE ret, wrapped_cache;
+    krypt_instream *pem;
+    VALUE ret, wrapped_pem;
     int state = 0;
 
+    /* Try PEM first, if it fails, try as DER */
     in = krypt_instream_new_value_der(obj);
     cache = krypt_instream_new_cache(in);
-    wrapped_cache = Data_Wrap_Struct(rb_cObject, 0, 0, cache);
-    ret = rb_protect((VALUE(*)_((VALUE)))int_asn1_decode, wrapped_cache, &state);
+    pem = krypt_instream_new_pem(cache);
+    wrapped_pem = Data_Wrap_Struct(rb_cObject, 0, 0, pem);
+    ret = rb_protect(int_asn1_decode, wrapped_pem, &state);
     if (state) {
 	return int_asn1_fallback_decode(in, cache);
     }
@@ -1119,7 +1126,7 @@ krypt_asn1_decode_der(VALUE self, VALUE obj)
     int state = 0;
     krypt_instream *in = krypt_instream_new_value_der(obj);
     wrapped_in = Data_Wrap_Struct(rb_cObject, 0, 0, in);
-    ret = rb_protect((VALUE(*)_((VALUE)))int_asn1_decode, wrapped_in, &state);
+    ret = rb_protect(int_asn1_decode, wrapped_in, &state);
     krypt_instream_free(in);
     if (state)
 	rb_jump_tag(state);
@@ -1134,7 +1141,7 @@ krypt_asn1_decode_pem(VALUE self, VALUE obj)
     krypt_instream *pem;
     pem = krypt_instream_new_pem(krypt_instream_new_value_pem(obj));
     wrapped_pem = Data_Wrap_Struct(rb_cObject, 0, 0, pem);
-    ret = rb_protect((VALUE(*)_((VALUE)))int_asn1_decode, wrapped_pem, &state);
+    ret = rb_protect(int_asn1_decode, wrapped_pem, &state);
     krypt_instream_free(pem);
     if (state)
 	rb_jump_tag(state);

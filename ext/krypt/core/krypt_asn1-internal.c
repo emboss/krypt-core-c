@@ -24,7 +24,7 @@ do {							  	\
 } while (0)						  	\
 
 static void int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
-static void int_parse_primitive_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
+static void int_parse_primitive_tag(unsigned char b, krypt_asn1_header *out);
 static void int_parse_length(krypt_instream *in, krypt_asn1_header *out);
 static void int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
 static unsigned char *int_parse_read_exactly(krypt_instream *in, size_t n);
@@ -36,7 +36,7 @@ static void int_compute_length(krypt_asn1_header *header);
 do {							\
     (((b) & COMPLEX_TAG_MASK) == COMPLEX_TAG_MASK) ? 	\
     int_parse_complex_tag((b), (in), (out)) : 		\
-    int_parse_primitive_tag((b), (in), (out));		\
+    int_parse_primitive_tag((b), (out));		\
 } while (0)
 
 /**
@@ -308,7 +308,7 @@ krypt_asn1_object_free(krypt_asn1_object *object)
 }
 
 static void
-int_parse_primitive_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out)
+int_parse_primitive_tag(unsigned char b, krypt_asn1_header *out)
 {
     out->tag = b & COMPLEX_TAG_MASK;
     out->is_constructed = (b & CONSTRUCTED_MASK) == CONSTRUCTED_MASK;

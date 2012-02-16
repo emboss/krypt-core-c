@@ -310,7 +310,7 @@ int_consume_bytes(krypt_b64_buffer *in, unsigned char *buf, size_t len)
 
     available = in->len - in->off;
     toread = len < available ? len : available;
-    memcpy(buf, in->buffer, toread);
+    memcpy(buf, in->buffer + in->off, toread);
     in->off += toread;
     return toread;
 }

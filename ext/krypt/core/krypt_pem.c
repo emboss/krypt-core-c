@@ -57,7 +57,6 @@ krypt_pem_decode(VALUE self, VALUE pem)
 	if (state) goto error;
 
 	rb_ary_push(ary, der);
-	i++;
 	if(rb_block_given_p()) {
 	    unsigned char *name;
 	    size_t len;
@@ -65,7 +64,7 @@ krypt_pem_decode(VALUE self, VALUE pem)
 	    len = krypt_pem_get_last_name(in, &name);
 	    vname = rb_str_new((const char *) name, len);
 	    xfree(name);
-	    rb_yield_values(3, der, vname, LONG2NUM(i));
+	    rb_yield_values(3, der, vname, LONG2NUM(i++));
 	}
 	krypt_pem_continue_stream(in);
     }
@@ -92,6 +91,5 @@ Init_krypt_pem(void)
      * from a stream with PEM data.
      */
     eKryptPEMError = rb_define_class_under(mKryptPEM, "PEMError", eKryptError);
-
 }
 
