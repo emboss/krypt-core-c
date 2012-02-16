@@ -1025,39 +1025,19 @@ int_asn1_decode(VALUE wrapped_in)
 }
 
 static VALUE
-int_asn1_rewind_stream(VALUE wrapped_in)
-{
-    krypt_instream *in;
-
-    Data_Get_Struct(wrapped_in, krypt_instream, in);
-    krypt_instream_seek(in, 0, SEEK_SET);
-    return Qnil;
-}
-
-static VALUE
 int_asn1_fallback_decode(krypt_instream *in, krypt_instream *cache)
 {
     VALUE ret, wrapped_in;
     unsigned char *lookahead = NULL;
     size_t la_size;
+    krypt_instream *bytes;
     krypt_instream *retry;
     int state = 0;
 
-    wrapped_in = Data_Wrap_Struct(rb_cObject, 0, 0, in);
-    rb_protect(int_asn1_rewind_stream, wrapped_in, &state);
-    if (!state) {
-	xfree(cache); /* do not use krypt_instream_free, would free in too */
-	retry = in;
-    }
-    else {
-	krypt_instream *bytes;
-
-	la_size = krypt_instream_cache_get_bytes(cache, &lookahead);
-	xfree(cache); /* do not use krypt_instream_free, would free in too */
-	bytes = krypt_instream_new_bytes(lookahead, la_size);
-	retry = krypt_instream_new_seq(bytes, in);
-    }
-    state = 0;
+    la_size = krypt_instream_cache_get_bytes(cache, &lookahead);
+    xfree(cache); /* do not use krypt_instream_free, would free in too */
+    bytes = krypt_instream_new_bytes(lookahead, la_size);
+    retry = krypt_instream_new_seq(bytes, in); /*chain cached bytes and original stream */
     wrapped_in = Data_Wrap_Struct(rb_cObject, 0, 0, retry);
     ret = rb_protect((VALUE(*)_((VALUE)))int_asn1_decode, wrapped_in, &state);
     if (lookahead)
