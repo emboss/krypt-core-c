@@ -19,6 +19,8 @@ ID sKrypt_ID_TO_DER;
 ID sKrypt_ID_TO_PEM;
 ID sKrypt_ID_EACH;
 
+krypt_provider *krypt_default_provider;
+
 VALUE
 krypt_to_der(VALUE obj)
 {
@@ -68,9 +70,16 @@ Init_kryptcore(void)
     sKrypt_ID_TO_PEM = rb_intern("to_pem");
     sKrypt_ID_EACH = rb_intern("each");
 
+    /* Initialize the default provider */
+    krypt_default_provider = krypt_provider_get_default();
+    if (!krypt_default_provider) {
+	rb_raise(rb_eRuntimeError, "Could not initialize default provider");
+    }
+
     /* Init components */
     Init_krypt_io();
     Init_krypt_asn1();
+    Init_krypt_digest();
 
     /* Init per VM, just a precaution */
     InitVM(kryptcore);

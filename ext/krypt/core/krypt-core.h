@@ -43,10 +43,17 @@ extern ID sKrypt_ID_TO_DER;
 extern ID sKrypt_ID_TO_PEM;
 extern ID sKrypt_ID_EACH;
 
+/** krypt-provider interface */
+#include "krypt_provider.h"
+
+/* the default provider to be used for low-level primitives */
+extern krypt_provider *krypt_default_provider;
+
 /** krypt-core headers **/
 #include "krypt_missing.h"
 #include "krypt_io.h"
 #include "krypt_asn1.h"
+#include "krypt_digest.h"
 
 VALUE krypt_to_der_if_possible(VALUE obj);
 VALUE krypt_to_der(VALUE obj);
