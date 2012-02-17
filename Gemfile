@@ -1,6 +1,6 @@
 source :rubygems
 
-gem 'krypt-provider-openssl',       :platforms => :ruby"git://github.com/emboss/krypt-provider-openssl.git"
+gem 'krypt-provider-openssl', :platforms => :ruby, :path => File.expand_path('../krypt-provider-openssl', File.dirname(__FILE__))
 
 group :development do
   gem 'rake'
