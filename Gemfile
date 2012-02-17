@@ -1,6 +1,6 @@
 source :rubygems
 
-gem 'krypt-provider-openssl',       :platforms => :ruby,  :git => "git://github.com/emboss/krypt-provider-openssl.git"
+gem 'krypt-provider-openssl',       :platforms => :ruby"git://github.com/emboss/krypt-provider-openssl.git"
 
 group :development do
   gem 'rake'
