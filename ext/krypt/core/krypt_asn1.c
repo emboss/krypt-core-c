@@ -213,7 +213,9 @@ krypt_asn1_data_new(krypt_instream *in, krypt_asn1_header *header)
     data->is_decoded = 0; /* Lazy decoding of value */
     klass = int_determine_class(header);
     if (NIL_P(klass)) {
-	int_asn1_data_free(data);
+	xfree(data->object->bytes);
+	xfree(data->object);
+	xfree(data); /*header will be freed by caller */
 	return Qnil;
     }
     int_asn1_data_set(klass, obj, data);
@@ -1072,6 +1074,7 @@ int_asn1_decode(krypt_instream *in)
 	krypt_asn1_header_free(header);
 	return Qnil;
     }
+    return ret;
 }
 
 static VALUE
