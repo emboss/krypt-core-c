@@ -60,14 +60,14 @@ int_parsed_header_free(krypt_asn1_parsed_header *header)
     xfree(header);
 }
 
-#define int_krypt_asn1_parsed_header_set(klass, obj, header) do { \
+#define int_asn1_parsed_header_set(klass, obj, header) do { \
     if (!(header)) { \
 	rb_raise(eKryptError, "Uninitialized header"); \
     } \
     (obj) = Data_Wrap_Struct((klass), int_parsed_header_mark, int_parsed_header_free, (header)); \
 } while (0)
 
-#define int_krypt_asn1_parsed_header_get(obj, header) do { \
+#define int_asn1_parsed_header_get(obj, header) do { \
     Data_Get_Struct((obj), krypt_asn1_parsed_header, (header)); \
     if (!(header)) { \
 	rb_raise(eKryptError, "Uninitialized header"); \
@@ -77,7 +77,7 @@ int_parsed_header_free(krypt_asn1_parsed_header *header)
 /* Header code */
 
 static VALUE
-int_krypt_asn1_header_new(krypt_instream *in, krypt_asn1_header *header)
+int_asn1_header_new(krypt_instream *in, krypt_asn1_header *header)
 {
     VALUE obj;
     krypt_asn1_parsed_header *parsed_header;
@@ -95,17 +95,17 @@ int_krypt_asn1_header_new(krypt_instream *in, krypt_asn1_header *header)
     parsed_header->consumed = 0;
     parsed_header->cached_stream = Qnil;
     
-    int_krypt_asn1_parsed_header_set(cKryptASN1Header, obj, parsed_header);
+    int_asn1_parsed_header_set(cKryptASN1Header, obj, parsed_header);
     return obj;
 }
 
-#define KRYPT_ASN1_HEADER_GET_DEFINE(attr)			\
-static VALUE							\
-krypt_asn1_header_get_##attr(VALUE self)			\
-{								\
-    krypt_asn1_parsed_header *header;				\
-    int_krypt_asn1_parsed_header_get(self, header);		\
-    return header->attr;					\
+#define KRYPT_ASN1_HEADER_GET_DEFINE(attr)		\
+static VALUE						\
+krypt_asn1_header_get_##attr(VALUE self)		\
+{							\
+    krypt_asn1_parsed_header *header;			\
+    int_asn1_parsed_header_get(self, header);		\
+    return header->attr;				\
 }
 
 /**
@@ -205,12 +205,29 @@ krypt_asn1_header_encode_to(VALUE self, VALUE io)
 {
     krypt_asn1_parsed_header *header;
     krypt_outstream *out;
+    int result;
 
-    int_krypt_asn1_parsed_header_get(self, header);
+    int_asn1_parsed_header_get(self, header);
 
     out = int_krypt_outstream_new(io);
-    krypt_asn1_header_encode(out, header->header);
+    result = krypt_asn1_header_encode(out, header->header);
+    krypt_outstream_free(out);
+    if (!result)
+	rb_raise(eKryptASN1SerializeError, "Error while encoding header");
     return self;
+}
+
+static VALUE
+int_asn1_header_bytes(VALUE args)
+{
+    krypt_outstream *out;
+    krypt_asn1_header *header;
+
+    Data_Get_Struct(rb_ary_entry(args, 0), krypt_outstream, out);
+    Data_Get_Struct(rb_ary_entry(args, 1), krypt_asn1_header, header);
+
+    krypt_asn1_header_encode(out, header);
+    return Qnil;
 }
 
 /**
@@ -226,12 +243,22 @@ krypt_asn1_header_bytes(VALUE self)
     unsigned char *bytes;
     size_t size;
     krypt_outstream *out;
-    VALUE ret;
+    VALUE ret, args, wrapped_out, wrapped_header;
+    int state = 0;
 
-    int_krypt_asn1_parsed_header_get(self, header);
+    int_asn1_parsed_header_get(self, header);
 
     out = krypt_outstream_new_bytes();
-    krypt_asn1_header_encode(out, header->header);
+    wrapped_out = Data_Wrap_Struct(rb_cObject, 0, 0, out);
+    wrapped_header = Data_Wrap_Struct(rb_cObject, 0, 0, header->header);
+    args = rb_ary_new();
+    rb_ary_push(args, wrapped_out);
+    rb_ary_push(args, wrapped_header);
+    (void) rb_protect(int_asn1_header_bytes, args, &state);
+    if (state) {
+	krypt_outstream_free(out);
+	rb_jump_tag(state);
+    }
     size = krypt_outstream_bytes_get_bytes_free(out, &bytes);
     ret = rb_str_new((const char *)bytes, size);
     xfree(bytes);
@@ -252,7 +279,7 @@ krypt_asn1_header_skip_value(VALUE self)
 {
     krypt_asn1_parsed_header *header;
 
-    int_krypt_asn1_parsed_header_get(self, header);
+    int_asn1_parsed_header_get(self, header);
     krypt_asn1_skip_value(header->in, header->header);
     return Qnil;
 }
@@ -278,7 +305,7 @@ krypt_asn1_header_value(VALUE self)
 {
     krypt_asn1_parsed_header *header;
     
-    int_krypt_asn1_parsed_header_get(self, header);
+    int_asn1_parsed_header_get(self, header);
 
     if (header->consumed && header->cached_stream != Qnil)
 	rb_raise(eKryptASN1ParseError, "The stream has already been consumed");
@@ -332,7 +359,7 @@ krypt_asn1_header_value_io(int argc, VALUE *argv, VALUE self)
 
     rb_scan_args(argc, argv, "01", &values_only);
     
-    int_krypt_asn1_parsed_header_get(self, header);
+    int_asn1_parsed_header_get(self, header);
     if (header->consumed && header->cached_stream == Qnil)
 	rb_raise(eKryptASN1ParseError, "The stream has already been consumed");
 
@@ -365,7 +392,7 @@ krypt_asn1_header_to_s(VALUE self)
     krypt_asn1_parsed_header *header;
     ID to_s;
 
-    int_krypt_asn1_parsed_header_get(self, header);
+    int_asn1_parsed_header_get(self, header);
     to_s = rb_intern("to_s");
 
     str = rb_str_new2("Tag: ");
@@ -418,12 +445,20 @@ krypt_asn1_parser_next(VALUE self, VALUE io)
 {
     krypt_instream *in;
     krypt_asn1_header *header;
+    int ret;
 
     in = int_krypt_instream_new(io);
-    if (!krypt_asn1_next_header(in, &header))
+    ret = krypt_asn1_next_header(in, &header);
+    if (ret == -1) {
+	krypt_instream_free(in);
+	rb_raise(eKryptASN1ParseError, "Error while parsing header");
+    }
+    if (ret == 0) {
+	krypt_instream_free(in);
 	return Qnil;
+    }
 
-    return int_krypt_asn1_header_new(in, header);
+    return int_asn1_header_new(in, header);
 }
 
 /* End Parser code */

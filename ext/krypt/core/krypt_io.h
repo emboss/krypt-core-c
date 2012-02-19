@@ -50,7 +50,7 @@ struct krypt_instream_interface_st {
     ssize_t (*read)(krypt_instream*, unsigned char*, size_t);
     VALUE (*rb_read)(krypt_instream*, VALUE, VALUE);
     ssize_t (*gets)(krypt_instream*, char *, size_t);
-    void (*seek)(krypt_instream*, off_t, int); 
+    int (*seek)(krypt_instream*, off_t, int); 
     void (*mark)(krypt_instream*);
     void (*free)(krypt_instream*);
 };
@@ -87,7 +87,7 @@ void krypt_instream_rb_size_buffer(VALUE *str, size_t len);
 ssize_t krypt_instream_read(krypt_instream *in, unsigned char *buf, size_t len);
 VALUE krypt_instream_rb_read(krypt_instream *in, VALUE vlen, VALUE vbuf);
 ssize_t krypt_instream_gets(krypt_instream *in, char *line, size_t len);
-void krypt_instream_seek(krypt_instream *in, off_t offset, int whence);
+int krypt_instream_seek(krypt_instream *in, off_t offset, int whence);
 #define krypt_instream_skip(in, n)	krypt_instream_seek((in), (n), SEEK_CUR)
 void krypt_instream_mark(krypt_instream *in);
 void krypt_instream_free(krypt_instream *in);
@@ -103,7 +103,9 @@ krypt_instream *krypt_instream_new_definite(krypt_instream *in, size_t length);
 krypt_instream *krypt_instream_new_seq(krypt_instream *in1, krypt_instream *in2);
 krypt_instream *krypt_instream_new_seq_n(int num, krypt_instream *in1, krypt_instream *in2, ...);
 krypt_instream *krypt_instream_new_cache(krypt_instream *original);
+void krypt_instream_cache_free_wrapper(krypt_instream *instream);
 krypt_instream *krypt_instream_new_pem(krypt_instream *original);
+void krypt_instream_pem_free_wrapper(krypt_instream *instream);
 
 size_t krypt_instream_cache_get_bytes(krypt_instream *in, unsigned char **out);
 size_t krypt_pem_get_last_name(krypt_instream *instream, unsigned char **out);

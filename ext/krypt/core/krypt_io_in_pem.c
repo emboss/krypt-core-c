@@ -47,7 +47,7 @@ typedef struct krypt_instream_pem_st {
 
 static krypt_instream_pem* int_pem_alloc(void);
 static ssize_t int_pem_read(krypt_instream *in, unsigned char *buf, size_t len);
-static void int_pem_seek(krypt_instream *in, off_t offset, int whence);
+static int int_pem_seek(krypt_instream *in, off_t offset, int whence);
 static void int_pem_mark(krypt_instream *in);
 static void int_pem_free(krypt_instream *in);
 
@@ -92,10 +92,11 @@ int_pem_alloc(void)
     return ret;
 }
 
-static void
+static int
 int_pem_seek(krypt_instream *instream, off_t offset, int whence)
 {
-    rb_raise(rb_eNotImpError, "Not supported yet");
+    /* TODO */
+    return 0;
 }
 
 static void
@@ -109,6 +110,19 @@ int_pem_mark(krypt_instream *instream)
 }
 
 static void
+int_pem_free_inner(krypt_instream_pem *in)
+{
+    krypt_b64_buffer *b64;
+
+    b64 = in->buffer;
+    if (b64->buffer)
+	xfree(b64->buffer);
+    if (b64->name)
+	xfree(b64->name);
+    xfree(b64);
+}
+
+static void
 int_pem_free(krypt_instream *instream)
 {
     krypt_instream_pem *in;
@@ -119,11 +133,19 @@ int_pem_free(krypt_instream *instream)
     b64 = in->buffer;
 
     krypt_instream_free(b64->inner);
-    if (b64->buffer)
-	xfree(b64->buffer);
-    if (b64->name)
-	xfree(b64->name);
-    xfree(b64);
+    int_pem_free_inner(in);
+}
+
+void
+krypt_instream_pem_free_wrapper(krypt_instream *instream)
+{
+    krypt_instream_pem *in;
+
+    if (!instream) return;
+    int_safe_cast(in, instream);
+
+    int_pem_free_inner(in);
+    xfree(in);
 }
 
 size_t
@@ -211,7 +233,7 @@ int_match_footer(krypt_pem_parse_ctx *ctx)
     return 0;
 }
 
-static void
+static int
 int_b64_fill(krypt_b64_buffer *in)
 {
     krypt_outstream *out;
@@ -287,17 +309,17 @@ int_b64_fill(krypt_b64_buffer *in)
 	    case HEADER:
 		in->len = in->off = 0;
 		in->eof = 1;
-		return;
+		return 1;
 	    case CONTENT:
-		rb_raise(eKryptPEMError, "PEM data ended prematurely");
+		return 0;
 	    default:
-		rb_raise(eKryptPEMError, "Could not find matching PEM footer\n");
+		return 0;
 	}
     }
 
     in->off = 0;
     in->len = krypt_outstream_bytes_get_bytes_free(out, &in->buffer);
-    krypt_outstream_free(out);
+    return 1;
 }
 
 static size_t
@@ -320,12 +342,13 @@ int_b64_read(krypt_b64_buffer *in, unsigned char *buf, size_t len)
 {
     size_t total = 0;
 
-    if (len > SSIZE_MAX)
-	rb_raise(eKryptPEMError, "Too many bytes requested");
+    if (len > SSIZE_MAX) return -2;
 
     while (total != len && !(in->off == in->len && in->eof)) {
-	if (in->off == in->len)
-	    int_b64_fill(in);
+	if (in->off == in->len) {
+	    if (!int_b64_fill(in))
+		return -2;
+	}
 	total += int_consume_bytes(in, buf + total, len - total);
     }
 
@@ -339,12 +362,8 @@ static ssize_t
 int_pem_read(krypt_instream *instream, unsigned char *buf, size_t len)
 {
     krypt_instream_pem *in;
-
-    if (!buf)
-	rb_raise(rb_eArgError, "Buffer not initialized");
-
+    if (!buf) return -2;
     int_safe_cast(in, instream);
-
     return int_b64_read(in->buffer, buf, len);
 }
 

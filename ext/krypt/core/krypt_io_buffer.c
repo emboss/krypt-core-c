@@ -44,19 +44,19 @@ krypt_buffer_new_prealloc(unsigned char *b, size_t len)
 
 static const size_t KRYPT_BUF_MAX = SIZE_MAX / KRYPT_BYTE_BUFFER_GROWTH_FACTOR;
 
-static void
+static int
 int_buffer_grow(krypt_byte_buffer *buffer, size_t cur_len)
 {
     size_t new_size;
 
     if (buffer->prealloc)
-	rb_raise(rb_eRuntimeError, "Cannot grow preallocated buffer");
+	return 0;
 
     if (buffer->data == NULL) {
 	size_t alloc_size = buffer->init_size > cur_len ? buffer->init_size : cur_len;
 	buffer->data = ALLOC_N(unsigned char, alloc_size);
 	buffer->limit = alloc_size;
-	return;
+	return 1;
     }
 
     /* avoid infinite loop for limit == 1 */
@@ -64,25 +64,26 @@ int_buffer_grow(krypt_byte_buffer *buffer, size_t cur_len)
 
     while (new_size - buffer->size < cur_len) {
 	if (new_size >= KRYPT_BUF_MAX)
-	    rb_raise(rb_eRuntimeError, "Cannot grow buffer");
+	    return 0;
     	new_size *= KRYPT_BYTE_BUFFER_GROWTH_FACTOR;
     }
 
     REALLOC_N(buffer->data, unsigned char, new_size);
     buffer->limit = new_size; 
+    return 1;
 }
 
 size_t
 krypt_buffer_write(krypt_byte_buffer *buffer, unsigned char *b, size_t len)
 {
-    if (!b)
-	rb_raise(rb_eArgError, "Buffer not initialized");
+    if (!b) return 0;
 
-    if (len == 0)
-	return 0;
+    if (len == 0) return 0;
 
-    if (buffer->limit - buffer->size < len)
-	int_buffer_grow(buffer, len); 
+    if (buffer->limit - buffer->size < len) {
+	if (!int_buffer_grow(buffer, len))
+	    return 0;
+    }
 
     memcpy(buffer->data + buffer->size, b, len);
     buffer->size += len;
@@ -107,15 +108,18 @@ krypt_buffer_free(krypt_byte_buffer *buffer)
     xfree(buffer);
 }
 
-void
-krypt_buffer_resize_free(krypt_byte_buffer *buffer)
+size_t
+krypt_buffer_resize_free(krypt_byte_buffer *buffer, unsigned char **out)
 {
-    if (!buffer) return;
+    size_t ret;
 
-    if (buffer->data) {
+    if (!buffer) return 0;
+
+    if (buffer->data)
 	REALLOC_N(buffer->data, unsigned char, buffer->size);
-	buffer->limit = buffer->size;
-    }
+    *out = buffer->data;
+    ret = buffer->size;
     xfree(buffer);
+    return ret;
 }
 

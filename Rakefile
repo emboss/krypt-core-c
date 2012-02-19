@@ -63,12 +63,10 @@ task 'coverage' => ['clean', 'enable-coverage', 'compile', 'spec-run', 'report-c
 desc 'Build and run RSpec code examples'
 task 'spec' => ['compile', 'spec-run']
 
-task :build => :compile
+task 'build' => 'compile'
 
-namespace :build do
-  task :debug => ['enable-coverage', 'build']
-  task :profiler => ['enable-profiler', 'build']
-end
+task 'build-debug' => ['enable-coverage', 'build']
+task 'build-profiler' => ['enable-profiler', 'build']
   
 Rake::RDocTask.new("doc") do |rdoc|
   rdoc.rdoc_dir = 'doc'
@@ -76,3 +74,16 @@ Rake::RDocTask.new("doc") do |rdoc|
   rdoc.rdoc_files.include('README.rdoc')
   rdoc.rdoc_files.include('ext/**/*')
 end
+
+desc 'Ensure that bundle is installed for spec run'
+task 'bundler-install' do
+  sh 'bundle install'
+end
+
+desc 'Run the specs for valgrind analysis'
+task 'valgrind-spec-run' do
+  sh 'valgrind --suppressions=.ruby.supp --leak-check=full --partial-loads-ok=yes --undef-value-errors=no --trace-children=yes bundle exec rake spec'
+end
+
+desc 'Build from scratch with debug symbols and run valgrind on a spec run (requires valgrind on PATH)'
+task 'valgrind' => ['clean', 'build-debug', 'bundler-install', 'valgrind-spec-run']

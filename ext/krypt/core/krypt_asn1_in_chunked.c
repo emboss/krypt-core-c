@@ -35,7 +35,7 @@ typedef struct krypt_instream_chunked {
 
 static krypt_instream_chunked* int_chunked_alloc(void);
 static ssize_t int_chunked_read(krypt_instream *in, unsigned char *buf, size_t len);
-static void int_chunked_seek(krypt_instream *in, off_t offset, int whence);
+static int int_chunked_seek(krypt_instream *in, off_t offset, int whence);
 static void int_chunked_mark(krypt_instream *in);
 static void int_chunked_free(krypt_instream *in);
 
@@ -79,12 +79,12 @@ int_read_new_header(krypt_instream_chunked *in)
 
     ret = krypt_asn1_next_header(in->inner, &next);
     if (ret == 0) {
-	xfree(next);
+	krypt_asn1_header_free(next);
 	rb_raise(eKryptASN1ParseError, "Premature end of value detected");
     }
     else {
 	if (in->cur_header)
-	    xfree(in->cur_header);
+	    krypt_asn1_header_free(in->cur_header);
 	in->cur_header = next;
 	in->state = PROCESS_TAG;
 	in->header_offset = 0;
@@ -116,7 +116,7 @@ int_read_header_bytes(krypt_instream_chunked *in,
     return to_read;
 }
 
-static size_t
+static ssize_t
 int_read_value(krypt_instream_chunked *in, unsigned char *buf, size_t len)
 {
     ssize_t read;
@@ -125,6 +125,8 @@ int_read_value(krypt_instream_chunked *in, unsigned char *buf, size_t len)
 	in->cur_value_stream = krypt_asn1_get_value_stream(in->inner, in->cur_header, in->values_only);
 
     read = krypt_instream_read(in->cur_value_stream, buf, len);
+    if (read < -1)
+	return read;
 
     if (read == -1) {
 	if (in->state != DONE)
@@ -150,10 +152,11 @@ do {								\
 } while (0)
 
 /* TODO: check overflow */
-static size_t
+static ssize_t
 int_read_single_element(krypt_instream_chunked *in, unsigned char *buf, size_t len)
 {
-    size_t read = 0, total = 0;
+    ssize_t read = 0;
+    size_t total = 0;
     
     switch (in->state) {
 	case NEW_HEADER:
@@ -168,7 +171,7 @@ int_read_single_element(krypt_instream_chunked *in, unsigned char *buf, size_t l
 	    if (!in->values_only) {
 		total += read;
 		if (total == len)
-		    return total;
+		    return (ssize_t) total;
 		buf += read;
 	    } /* fallthrough */
 	case PROCESS_LENGTH:
@@ -178,35 +181,33 @@ int_read_single_element(krypt_instream_chunked *in, unsigned char *buf, size_t l
 					 PROCESS_VALUE,
 					 buf,
 					 len);
-                
 	    int_check_done(in);
 	    
 	    if (!in->values_only) {
 		total += read;
 		if (total == len || in->state == DONE)
-		    return total;
+		    return (ssize_t) total;
 		buf += read;
 	    } /* fallthrough */
 	case PROCESS_VALUE:
 	    read = int_read_value(in, buf, len);
+	    if (read < -1) return read;
 	    total += read;
 	    buf += read;
-	    return total;
+	    return (ssize_t) total;
 	default:
-	    rb_raise(eKryptASN1ParseError, "Internal error");
-	    return 0; /* dummy */
+	    return -2; /* dummy */
     }
 }
 
-static size_t
+static ssize_t
 int_read(krypt_instream_chunked *in, unsigned char *buf, size_t len)
 {
     size_t read = 0, total = 0;
 
     while (total != len && in->state != DONE) {
 	read = int_read_single_element(in, buf, len);
-	if (total > SIZE_MAX - read)
-	    rb_raise(rb_eRuntimeError, "Stream too large");
+	if (total > SSIZE_MAX - read) return -2;
 	total += read;
 	buf += read;
     }
@@ -217,30 +218,29 @@ static ssize_t
 int_chunked_read(krypt_instream *instream, unsigned char *buf, size_t len)
 {
     krypt_instream_chunked *in;
-    size_t read;
+    ssize_t read;
     
     int_safe_cast(in, instream);
     
-    if (!buf)
-	rb_raise(rb_eArgError, "Buffer not initialized");
+    if (!buf) return -2;
+    if (len > SSIZE_MAX) return -2;
 
     if (in->state == DONE)
 	return -1;
 
     read = int_read(in, buf, len);
-    if (read > SSIZE_MAX)
-	rb_raise(rb_eRuntimeError, "Stream too large");
+    if (read == -2) return -2;
     return read;
 }
 
-static void
+static int
 int_chunked_seek(krypt_instream *instream, off_t offset, int whence)
 {
     /* int_instream_chunked *in;
 
     int_safe_cast(in, instream); */
 
-    rb_raise(rb_eNotImpError, "TODO");
+    return 0;
     /* TODO */
 }
 
@@ -262,6 +262,6 @@ int_chunked_free(krypt_instream *instream)
     if (!instream) return;
     int_safe_cast(in, instream);
     if (in->cur_header)
-	xfree(in->cur_header);
+	krypt_asn1_header_free(in->cur_header);
 }
 

@@ -28,7 +28,7 @@ typedef struct krypt_instream_bytes_st {
 static krypt_instream_bytes* int_bytes_alloc(void);
 static ssize_t int_bytes_read(krypt_instream *in, unsigned char *buf, size_t len);
 static ssize_t int_bytes_gets(krypt_instream *in, char *line, size_t len);
-static void int_bytes_seek(krypt_instream *in, off_t offset, int whence);
+static int int_bytes_seek(krypt_instream *in, off_t offset, int whence);
 static void int_bytes_free(krypt_instream *in);
 
 static krypt_instream_interface krypt_interface_bytes = {
@@ -74,8 +74,7 @@ int_bytes_read(krypt_instream *instream, unsigned char *buf, size_t len)
 
     int_safe_cast(in, instream);
 
-    if (!buf)
-	rb_raise(rb_eArgError, "Buffer not initialized");
+    if (!buf) return -2;
 
     src = in->src;
 
@@ -127,19 +126,20 @@ int_bytes_gets(krypt_instream *instream, char *line, size_t len)
     return ret;
 }
 
-static inline void
+static int
 int_bytes_set_pos(krypt_instream_bytes *in, off_t offset, size_t num_read)
 {
     struct krypt_byte_ary_st *src = in->src;
 
     if (src->len - offset <= num_read)
-	rb_raise(eKryptASN1ParseError, "Unreachable seek position");
+	return 0;
     src->p += offset;
     in->num_read += offset;
+    return 1;
 }
 
 /* TODO check overflow */
-static void
+static int
 int_bytes_seek(krypt_instream *instream, off_t offset, int whence)
 {
     struct krypt_byte_ary_st *src;
@@ -153,16 +153,13 @@ int_bytes_seek(krypt_instream *instream, off_t offset, int whence)
 
     switch (whence) {
 	case SEEK_CUR:
-	    int_bytes_set_pos(in, offset, num_read);
-	    break;
+	    return int_bytes_set_pos(in, offset, num_read);
 	case SEEK_SET:
-	    int_bytes_set_pos(in, offset - num_read, num_read);
-	    break;
+	    return int_bytes_set_pos(in, offset - num_read, num_read);
 	case SEEK_END:
-	    int_bytes_set_pos(in, offset + src->len - num_read, num_read);
-	    break;
+	    return int_bytes_set_pos(in, offset + src->len - num_read, num_read);
 	default:
-	    rb_raise(eKryptASN1ParseError, "Unknown 'whence': %d", whence);
+	    return 0;
     }
 }
 

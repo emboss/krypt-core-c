@@ -130,7 +130,6 @@ krypt_base64_encode(unsigned char *bytes, size_t len, int cols, unsigned char **
     outstream = krypt_outstream_new_bytes_size(retlen);
     krypt_base64_buffer_encode_to(outstream, bytes, 0, len, cols);
     retlen = krypt_outstream_bytes_get_bytes_free(outstream, out);
-    krypt_outstream_free(outstream);
     return retlen;
 }
 
@@ -209,7 +208,6 @@ krypt_base64_decode(unsigned char *bytes, size_t len, unsigned char **out)
     outstream = krypt_outstream_new_bytes_size(retlen);
     krypt_base64_buffer_decode_to(outstream, bytes, 0, len);
     retlen = krypt_outstream_bytes_get_bytes_free(outstream, out);
-    krypt_outstream_free(outstream);
     return retlen;
 }
 

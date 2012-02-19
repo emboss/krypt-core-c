@@ -34,6 +34,6 @@ size_t krypt_buffer_write(krypt_byte_buffer *buffer, unsigned char *b, size_t le
 void krypt_buffer_free_secure(krypt_byte_buffer *buffer);
 void krypt_buffer_free(krypt_byte_buffer *buffer);
 
-void krypt_buffer_resize_free(krypt_byte_buffer *buffer);
+size_t krypt_buffer_resize_free(krypt_byte_buffer *buffer, unsigned char **out);
 
 #endif /* _KRYPT_IO_H_ */

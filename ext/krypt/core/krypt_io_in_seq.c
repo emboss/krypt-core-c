@@ -25,7 +25,7 @@ typedef struct krypt_instream_seq_st {
 
 static krypt_instream_seq* int_seq_alloc(void);
 static ssize_t int_seq_read(krypt_instream *in, unsigned char *buf, size_t len);
-static void int_seq_seek(krypt_instream *in, off_t offset, int whence);
+static int int_seq_seek(krypt_instream *in, off_t offset, int whence);
 static void int_seq_mark(krypt_instream *in);
 static void int_seq_free(krypt_instream *in);
 
@@ -52,8 +52,7 @@ krypt_instream_new_seq_n(int num, krypt_instream *in1, krypt_instream *in2, ...)
     va_list args;
     int i = 0;
 
-    if (num < 2)
-	rb_raise(rb_eArgError, "At least two streams must be passed");
+    if (num < 2) return NULL;
 
     in = int_seq_alloc();
     in->streams = ALLOC_N(krypt_instream *, num);
@@ -108,8 +107,7 @@ int_seq_read(krypt_instream *instream, unsigned char *buf, size_t len)
 
     int_safe_cast(in, instream);
 
-    if (!buf)
-	rb_raise(rb_eArgError, "Buffer not initialized");
+    if (!buf) return -2;
 
     while (total < len) {
     	read = int_do_read(in, buf, len - total);
@@ -131,13 +129,13 @@ int_seq_read(krypt_instream *instream, unsigned char *buf, size_t len)
     return total;
 }
 
-static void
+static int
 int_seq_seek(krypt_instream *instream, off_t offset, int whence)
 {
     krypt_instream_seq *in;
 
     int_safe_cast(in, instream);
-    krypt_instream_seek(in->active, offset, whence);
+    return krypt_instream_seek(in->active, offset, whence);
 }
 
 static void

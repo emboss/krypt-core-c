@@ -22,7 +22,7 @@ typedef struct krypt_instream_cache_st {
 
 static krypt_instream_cache* int_cache_alloc(void);
 static ssize_t int_cache_read(krypt_instream *in, unsigned char *buf, size_t len);
-static void int_cache_seek(krypt_instream *in, off_t offset, int whence);
+static int int_cache_seek(krypt_instream *in, off_t offset, int whence);
 static void int_cache_mark(krypt_instream *in);
 static void int_cache_free(krypt_instream *in);
 
@@ -77,8 +77,7 @@ int_cache_read(krypt_instream *instream, unsigned char *buf, size_t len)
 
     int_safe_cast(in, instream);
 
-    if (!buf)
-	rb_raise(rb_eArgError, "Buffer not initialized");
+    if (!buf) return -2;
 
     read = krypt_instream_read(in->inner, buf, len);
     if (read > 0)
@@ -86,13 +85,13 @@ int_cache_read(krypt_instream *instream, unsigned char *buf, size_t len)
     return read;
 }
 
-static void
+static int
 int_cache_seek(krypt_instream *instream, off_t offset, int whence)
 {
     krypt_instream_cache *in;
 
     int_safe_cast(in, instream);
-    krypt_instream_seek(in->inner, offset, whence);
+    return krypt_instream_seek(in->inner, offset, whence);
 }
 
 static void
@@ -109,8 +108,22 @@ int_cache_free(krypt_instream *instream)
 {
     krypt_instream_cache *in;
 
+    if (!instream) return;
+
     int_safe_cast(in, instream);
     krypt_instream_free(in->inner);
     krypt_outstream_free(in->bytes);
+}
+
+void 
+krypt_instream_cache_free_wrapper(krypt_instream *instream)
+{
+    krypt_instream_cache *in;
+
+    if (!instream) return;
+
+    int_safe_cast(in, instream);
+    krypt_outstream_free(in->bytes);
+    xfree(in);
 }
 

@@ -24,7 +24,7 @@ typedef struct krypt_instream_fd_st {
 static krypt_instream_fd *int_fd_alloc(void);
 static ssize_t int_fd_read(krypt_instream *in, unsigned char *buf, size_t len);
 static ssize_t int_fd_gets(krypt_instream *in, char *line, size_t len);
-static void int_fd_seek(krypt_instream *in, off_t offset, int whence);
+static int int_fd_seek(krypt_instream *in, off_t offset, int whence);
 static void int_fd_free(krypt_instream *in);
 
 static krypt_instream_interface krypt_interface_fd = {
@@ -74,16 +74,14 @@ int_fd_read(krypt_instream *instream, unsigned char *buf, size_t len)
     krypt_instream_fd *in;
 
     int_safe_cast(in, instream);
-    if (!buf)
-	rb_raise(rb_eArgError, "Buffer not initialized");
+    if (!buf) return -2;
 
     fd = in->fd;
     krypt_clear_sys_error();
     r = read(fd, buf, len);
     
     if (r == -1) {
-	krypt_raise_io_error(eKryptASN1ParseError);
-	return 0; /* dummy */
+	return -2;
     }
     else if (r == 0) {
 	return -1;
@@ -103,8 +101,7 @@ int_fd_gets(krypt_instream *instream, char *line, size_t len)
     char *end = line + len;
 
     int_safe_cast(in, instream);
-    if (!line)
-	rb_raise(rb_eArgError, "Buffer not initialized");
+    if (!line) return -2;
 
     fd = in->fd;
     krypt_clear_sys_error();
@@ -117,7 +114,7 @@ int_fd_gets(krypt_instream *instream, char *line, size_t len)
     }
 
     if (r == -1) {
-	krypt_raise_io_error(eKryptASN1ParseError);
+	return -2;
     }
     
     if (ret == 0 && r == 0)
@@ -129,7 +126,7 @@ int_fd_gets(krypt_instream *instream, char *line, size_t len)
     return ret;
 }
 
-static void
+static int
 int_fd_seek(krypt_instream *instream, off_t offset, int whence)
 {
     int fd;
@@ -141,7 +138,8 @@ int_fd_seek(krypt_instream *instream, off_t offset, int whence)
     off = lseek(fd, offset, whence);
 
     if (off == -1) 
-	krypt_raise_io_error(eKryptASN1ParseError);
+	return 0;
+    return 1;
 }
 
 static void

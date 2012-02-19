@@ -438,7 +438,6 @@ int_encode_object_id(unsigned char *str, size_t len, unsigned char **out)
     size_t offset = 0;
     long first, second, cur;
     krypt_byte_buffer *buffer;
-    size_t size;
 
     buffer = krypt_buffer_new();
     if ((first = int_get_sub_id(str, len, &offset)) == -1)
@@ -455,10 +454,7 @@ int_encode_object_id(unsigned char *str, size_t len, unsigned char **out)
 	int_write_long(buffer, cur);
     }
 
-    size = krypt_buffer_get_size(buffer);
-    *out = krypt_buffer_get_data(buffer);
-    krypt_buffer_resize_free(buffer);
-    return size;
+    return krypt_buffer_resize_free(buffer, out);
 }
 
 static long
@@ -537,9 +533,7 @@ int_decode_object_id(unsigned char *bytes, size_t len)
     while ((cur = int_parse_sub_id(bytes, len, &offset)) != -1)
 	int_append_num(buffer, cur, numbuf);
 
-    retbytes = krypt_buffer_get_data(buffer);
-    retlen = krypt_buffer_get_size(buffer);
-    krypt_buffer_resize_free(buffer);
+    retlen = krypt_buffer_resize_free(buffer, &retbytes);
     ret = rb_str_new((const char *)retbytes, retlen);
     xfree(retbytes);
     return ret;

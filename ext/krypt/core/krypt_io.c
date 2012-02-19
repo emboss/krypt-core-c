@@ -160,11 +160,11 @@ krypt_instream_gets(krypt_instream *in, char *line, size_t len)
     }
 }
 
-void
+int
 krypt_instream_seek(krypt_instream *in, off_t offset, int whence)
 {
     int_check_stream_has(in, seek);
-    in->methods->seek(in, offset, whence);
+    return in->methods->seek(in, offset, whence);
 }
 
 void

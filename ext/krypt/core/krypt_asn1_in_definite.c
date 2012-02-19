@@ -23,7 +23,7 @@ typedef struct krypt_instream_definite_st {
 
 static krypt_instream_definite* int_definite_alloc(void);
 static ssize_t int_definite_read(krypt_instream *in, unsigned char *buf, size_t len);
-static void int_definite_seek(krypt_instream *in, off_t offset, int whence);
+static int int_definite_seek(krypt_instream *in, off_t offset, int whence);
 static void int_definite_mark(krypt_instream *in);
 static void int_definite_free(krypt_instream *in);
 
@@ -78,17 +78,14 @@ int_definite_read(krypt_instream *instream, unsigned char *buf, size_t len)
 	to_read = len;
 
     r = krypt_instream_read(in->inner, buf, to_read);
-    if (r == -1)
-	rb_raise(eKryptASN1ParseError, "Premature end of value detected");
-
-    if (in->num_read >= SIZE_MAX - r)
-	rb_raise(rb_eRuntimeError, "Size of stream too large");
+    if (r <= -1) return -2;
+    if (in->num_read >= SIZE_MAX - r) return -2;
 
     in->num_read += r;
     return r;
 }
 
-static void
+static int
 int_definite_seek(krypt_instream *instream, off_t offset, int whence)
 {
     off_t real_off;
@@ -108,14 +105,14 @@ int_definite_seek(krypt_instream *instream, off_t offset, int whence)
 	    real_off = offset + in->max_read - in->num_read;
 	    break;
 	default:
-	    rb_raise(eKryptASN1ParseError, "Unknown 'whence': %d", whence);
+	    return 0;
     }
     
     numread = in->num_read;
     if (numread + real_off < 0 || numread + real_off >= (long)in->max_read)
-	rb_raise(eKryptASN1ParseError, "Unreachable seek position");
+	return 0;
 
-    krypt_instream_seek(in->inner, offset, whence);
+    return krypt_instream_seek(in->inner, offset, whence);
 }
 
 static void

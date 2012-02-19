@@ -23,7 +23,7 @@ typedef struct krypt_instream_io_st {
 static krypt_instream_io* int_io_alloc(void);
 static ssize_t int_io_read(krypt_instream *in, unsigned char *buf, size_t len);
 static VALUE int_io_rb_read(krypt_instream *in, VALUE vlen, VALUE vbuf);
-static void int_io_seek(krypt_instream *in, off_t offset, int whence);
+static int int_io_seek(krypt_instream *in, off_t offset, int whence);
 static void int_io_mark(krypt_instream *in);
 static void int_io_free(krypt_instream *in);
 
@@ -60,6 +60,7 @@ int_io_alloc(void)
     return ret;
 }
 
+/* TODO: rb_protect */
 static ssize_t
 int_io_read(krypt_instream *instream, unsigned char *buf, size_t len)
 {
@@ -68,8 +69,7 @@ int_io_read(krypt_instream *instream, unsigned char *buf, size_t len)
 
     int_safe_cast(in, instream);
 
-    if (!buf)
-	rb_raise(rb_eArgError, "Buffer not initialized");
+    if (!buf) return -2;
 
     read = rb_funcall(in->io, sKrypt_ID_READ, 2, LONG2NUM(len), in->vbuf);
 
@@ -83,15 +83,14 @@ int_io_read(krypt_instream *instream, unsigned char *buf, size_t len)
     }
 }
 
+/* TODO: rb_protect */
 static VALUE
 int_io_rb_read(krypt_instream *instream, VALUE vlen, VALUE vbuf)
 {
     krypt_instream_io *in;
-    VALUE read;
 
     int_safe_cast(in, instream);
-    read = rb_funcall(in->io, sKrypt_ID_READ, 2, vlen, vbuf);
-    return read;
+    return rb_funcall(in->io, sKrypt_ID_READ, 2, vlen, vbuf);
 }
 
 static VALUE
@@ -110,7 +109,8 @@ int_whence_sym_for(int whence)
     }
 }
 
-static void
+/* TODO: rb_protect */
+static int
 int_io_seek(krypt_instream *instream, off_t offset, int whence)
 {
     VALUE io;
@@ -120,6 +120,7 @@ int_io_seek(krypt_instream *instream, off_t offset, int whence)
 
     io = in->io;
     rb_funcall(io, sKrypt_ID_SEEK, 2, LONG2NUM(offset), int_whence_sym_for(whence));
+    return 1;
 }
 
 static void

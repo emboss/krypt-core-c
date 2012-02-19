@@ -29,12 +29,15 @@ int_consume_stream(VALUE wrapped_in)
     Data_Get_Struct(wrapped_in, krypt_instream, in);
     out = krypt_outstream_new_bytes();
 
-    while ((read = krypt_instream_read(in, buf, KRYPT_IO_BUF_SIZE)) != -1) {
+    while ((read = krypt_instream_read(in, buf, KRYPT_IO_BUF_SIZE)) >= 0) {
 	krypt_outstream_write(out, buf, read);
+    }
+    if (read < -1) {
+	krypt_outstream_free(out);
+        rb_raise(eKryptPEMError, "Error while reading PEM data");
     }
 
     len = krypt_outstream_bytes_get_bytes_free(out, &str);
-    krypt_outstream_free(out);
     if (len == 0)
 	return Qnil;
     ret = rb_str_new((const char*)str, len);

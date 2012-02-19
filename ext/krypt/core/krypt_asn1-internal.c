@@ -20,24 +20,18 @@ static const size_t KRYPT_ASN1_LENGTH_LIMIT = SIZE_MAX >> CHAR_BIT;
 #define int_next_byte(in, b)				 	\
 do {							  	\
     if (krypt_instream_read((in), &(b), 1) != 1)	  	\
-    	rb_raise(eKryptASN1ParseError, "Error while parsing.");     \
+    	return 0;						\
 } while (0)						  	\
 
-static void int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
+static int int_parse_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
+static int int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
 static void int_parse_primitive_tag(unsigned char b, krypt_asn1_header *out);
-static void int_parse_length(krypt_instream *in, krypt_asn1_header *out);
-static void int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
-static unsigned char *int_parse_read_exactly(krypt_instream *in, size_t n);
-static size_t int_consume_stream(krypt_instream *in, unsigned char **out);
+static int int_parse_length(krypt_instream *in, krypt_asn1_header *out);
+static int int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn1_header *out);
+static int int_parse_read_exactly(krypt_instream *in, size_t n, unsigned char **out);
+static ssize_t int_consume_stream(krypt_instream *in, unsigned char **out);
 static void int_compute_tag(krypt_asn1_header *header);
 static void int_compute_length(krypt_asn1_header *header);
-
-#define int_parse_tag(b, in, out)			\
-do {							\
-    (((b) & COMPLEX_TAG_MASK) == COMPLEX_TAG_MASK) ? 	\
-    int_parse_complex_tag((b), (in), (out)) : 		\
-    int_parse_primitive_tag((b), (out));		\
-} while (0)
 
 /**
  * Parses a krypt_asn1_header from the krypt_instream at its current
@@ -47,9 +41,7 @@ do {							\
  * @param out	On successful parsing, an instance of krypt_asn1_header
  * 		will be assigned
  * @return	1 if a new header was successfully parsed, 0 if EOF
- * 		has been reached
- * @raises      Krypt::Asn1::ParseError in cases of errors
- * @raises	ArgumentError if in is NULL
+ * 		has been reached, -1 in case of errors
  */		
 int
 krypt_asn1_next_header(krypt_instream *in, krypt_asn1_header **out)
@@ -58,24 +50,23 @@ krypt_asn1_next_header(krypt_instream *in, krypt_asn1_header **out)
     unsigned char b;
     krypt_asn1_header *header;
 
-    if (!in) rb_raise(eKryptASN1ParseError, "Stream is not initialized");
+    if (!in) return -1;
 
     read = krypt_instream_read(in, &b, 1);
-    if (read == -1)
-	return 0;
-    if (read != 1)
-	rb_raise(eKryptASN1ParseError, "Error when parsing stream");
+    if (read == -1) return 0;
+    if (read != 1) return -1;
 
     header = krypt_asn1_header_new();
     
-    int_parse_tag(b, in, header);
-    int_parse_length(in, header);
-
-    if (header->is_infinite && !header->is_constructed)
-	rb_raise(eKryptASN1ParseError, "Infinite length values must be constructed");
+    if (!int_parse_tag(b, in, header)) goto error;
+    if (!int_parse_length(in, header)) goto error;
+    if (header->is_infinite && !header->is_constructed) goto error;
 
     *out = header;
     return 1;
+ error:
+    krypt_asn1_header_free(header);
+    return -1;
 }
 
 /**
@@ -84,15 +75,14 @@ krypt_asn1_next_header(krypt_instream *in, krypt_asn1_header **out)
  *
  * @param in	The krypt_instream that the header was parsed from
  * @param last	The last header that was parsed from the stream
- * @raises	Krypt::Asn1::ParseError if skipping failed
- * @raises	ArgumentError if in or last is NULL	
+ * @return 1 if successful, 0 otherwise
  */
-void
+int
 krypt_asn1_skip_value(krypt_instream *in, krypt_asn1_header *last)
 {
-    if (!in) rb_raise(rb_eArgError, "Stream is not initialized");
-    if (!last) rb_raise(rb_eArgError, "Header is not initialized");
-    krypt_instream_skip(in, last->length);
+    if (!in) return 0;
+    if (!last) return 0;
+    return krypt_instream_skip(in, last->length);
 }
 
 /**
@@ -103,24 +93,25 @@ krypt_asn1_skip_value(krypt_instream *in, krypt_asn1_header *last)
  * @param last	The last header that was parsed from the stream
  * @param out   A pointer to the unsigned char* that shall receive the value
  * 		representing the currently parsed object
- * @return	The length of the value that has been parsed
- * @raises	Krypt::Asn1::ParseError if reading the value failed
- * @raises	ArgumentError if in or last is NULL	
+ * @return	The length of the value that has been parsed, or -1 if an error 
+ *              occurred
  */
-size_t
+ssize_t
 krypt_asn1_get_value(krypt_instream *in, krypt_asn1_header *last, unsigned char **out)
 {
-    if (!in) rb_raise(rb_eArgError, "Stream is not initialized");
-    if (!last) rb_raise(rb_eArgError, "Header is not initialized");
+    if (!in) return -1;
+    if (!last) return -1;
 
     if (!last->is_infinite) {
-	*out = int_parse_read_exactly(in, last->length);
-	return last->length;
+	if (!int_parse_read_exactly(in, last->length, out))
+	    return -1;
+	else
+    	    return last->length;
     }
     else {
 	size_t ret;
 	krypt_instream *inf_stream = krypt_instream_new_chunked(in, 0);
-	ret = int_consume_stream((krypt_instream *)inf_stream, out);
+	ret = int_consume_stream(inf_stream, out);
 	krypt_instream_free(inf_stream);
 	return ret;
     }
@@ -149,8 +140,8 @@ krypt_asn1_get_value(krypt_instream *in, krypt_asn1_header *last, unsigned char 
 krypt_instream *
 krypt_asn1_get_value_stream(krypt_instream *in, krypt_asn1_header *last, int values_only)
 {
-    if (!in) rb_raise(rb_eArgError, "Stream is not initialized");
-    if (!last) rb_raise(rb_eArgError, "Header is not initialized");
+    if (!in) return NULL;
+    if (!last) return NULL;
 
     if (last->is_infinite) {
 	return krypt_instream_new_chunked(in, values_only);
@@ -166,14 +157,13 @@ krypt_asn1_get_value_stream(krypt_instream *in, krypt_asn1_header *last, int val
  * @param out		The krypt_outstream where the header shall be encoded 
  * 			to
  * @param header	The header that shall be encoded
- * @raises		Krypt::Asn1::SerializeError in case of an error
- * @raises		ArgumentError if out or header is NULL	
+ * @return              1 if successful, 0 otherwise
  */
-void
+int
 krypt_asn1_header_encode(krypt_outstream *out, krypt_asn1_header *header)
 {
-    if (!out) rb_raise(rb_eArgError, "Stream is not initialized");
-    if (!header) rb_raise(rb_eArgError, "Header is not initialized");
+    if (!out) return 0;
+    if (!header) return 0;
 
     if (!header->tag_bytes) {
 	int_compute_tag(header);
@@ -182,8 +172,12 @@ krypt_asn1_header_encode(krypt_outstream *out, krypt_asn1_header *header)
 	int_compute_length(header);
     }
 
-    krypt_outstream_write(out, header->tag_bytes, header->tag_len);
-    krypt_outstream_write(out, header->length_bytes, header->length_len);
+    if (!header->tag_len || !krypt_outstream_write(out, header->tag_bytes, header->tag_len))
+	return 0;
+    if (!header->length_len || !krypt_outstream_write(out, header->length_bytes, header->length_len))
+	return 0;
+
+    return 1;
 }
 
 /**
@@ -193,21 +187,19 @@ krypt_asn1_header_encode(krypt_outstream *out, krypt_asn1_header *header)
  * @param out		The krypt_outstream where the object shall be encoded 
  * 			to
  * @param object	The object that shall be encoded
- * @raises		Krypt::Asn1::SerializeError in case of an error
- * @raises		ArgumentError if out or object is NULL	
+ * @return 1 if successful, 0 otherwise
  */
-void
+int
 krypt_asn1_object_encode(krypt_outstream *out, krypt_asn1_object *object)
 {
-    if (!object) rb_raise(rb_eArgError, "Object is not initialized");
-
-    krypt_asn1_header_encode(out, object->header);
-
-    if (!object->bytes)
-	return;	
-	/* rb_raise(eKryptSerializeError, "Value bytes have not been set"); */
-
-    krypt_outstream_write(out, object->bytes, object->bytes_len);
+    if (!object) return 0;
+    if (!krypt_asn1_header_encode(out, object->header)) return 0;
+    if (!object->bytes) return 1;	
+    if (object->bytes_len == 0) return 1;
+    if (!krypt_outstream_write(out, object->bytes, object->bytes_len))
+	return 0;
+    else
+    	return 1;
 }
 
 /**
@@ -278,8 +270,7 @@ krypt_asn1_object_new(krypt_asn1_header *header)
 {
     krypt_asn1_object *obj;
 
-    if (!header)
-	rb_raise(rb_eArgError, "header not initialized");
+    if (!header) return NULL;
 
     obj = ALLOC(krypt_asn1_object);
     obj->header = header;
@@ -307,6 +298,18 @@ krypt_asn1_object_free(krypt_asn1_object *object)
     xfree(object);
 }
 
+static int
+int_parse_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out)
+{
+    if ((b & COMPLEX_TAG_MASK) == COMPLEX_TAG_MASK) {
+    	return int_parse_complex_tag(b, in, out);
+    } else {
+    	int_parse_primitive_tag(b, out);
+	return 1;
+    }
+}
+
+
 static void
 int_parse_primitive_tag(unsigned char b, krypt_asn1_header *out)
 {
@@ -321,19 +324,26 @@ int_parse_primitive_tag(unsigned char b, krypt_asn1_header *out)
 
 #define int_buffer_add_byte(buf, b, out)			\
 do {								\
-    krypt_buffer_write((buf), &(b), 1);				\
-    if ((out)->header_length == SIZE_MAX)			\
-    	rb_raise(eKryptASN1ParseError, "Complex tag too long");	\
+    if (!krypt_buffer_write((buf), &(b), 1)) {			\
+	krypt_buffer_free((buf));				\
+        return 0;						\
+    }								\
+    if ((out)->header_length == SIZE_MAX) {			\
+	krypt_buffer_free((buf));				\
+    	return 0;						\
+    }								\
     (out)->header_length++;					\
 } while (0)
 
-#define int_check_tag(t)					\
+#define int_check_tag(t, buf)					\
 do {								\
-    if ((t) > KRYPT_ASN1_TAG_LIMIT)				\
-	rb_raise(eKryptASN1ParseError, "Complex tag too long");	\
+    if ((t) > KRYPT_ASN1_TAG_LIMIT) {				\
+	krypt_buffer_free((buf));				\
+	return 0;						\
+    }								\
 } while (0)
 
-static void
+static int
 int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out)
 {
     krypt_byte_buffer *buffer;
@@ -347,21 +357,20 @@ int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *ou
     int_next_byte(in, b);
 
     while ((b & INFINITE_LENGTH_MASK) == INFINITE_LENGTH_MASK) {
-	int_check_tag(tag);
+	int_check_tag(tag, buffer);
 	int_buffer_add_byte(buffer, b, out);
 	tag <<= CHAR_BIT_MINUS_ONE;
 	tag |= (b & 0x7f);
 	int_next_byte(in, b);
     }
 
-    int_check_tag(tag);
+    int_check_tag(tag, buffer);
     int_buffer_add_byte(buffer, b, out);
     tag <<= CHAR_BIT_MINUS_ONE;
     tag |= (b & 0x7f);
     out->tag = tag;
-    out->tag_len = krypt_buffer_get_size(buffer);
-    out->tag_bytes = krypt_buffer_get_data(buffer);
-    krypt_buffer_resize_free(buffer);
+    out->tag_len = krypt_buffer_resize_free(buffer, &(out->tag_bytes));
+    return 1;
 }
 
 #define int_set_single_byte_length(h, b)	\
@@ -371,7 +380,7 @@ do {						\
     (h)->length_len = 1;			\
 } while (0)
 
-static void
+static int
 int_parse_length(krypt_instream *in, krypt_asn1_header *out)
 {
     unsigned char b;
@@ -386,16 +395,17 @@ int_parse_length(krypt_instream *in, krypt_asn1_header *out)
     }
     else if ((b & INFINITE_LENGTH_MASK) == INFINITE_LENGTH_MASK) {
 	out->is_infinite = 0;
-	int_parse_complex_definite_length(b, in, out);
+	return int_parse_complex_definite_length(b, in, out);
     }
     else {
 	out->is_infinite = 0;
 	out->length = b;
 	int_set_single_byte_length(out, b);
     }
+    return 1;
 }
 
-static void
+static int
 int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn1_header *out)
 {
     size_t len = 0;
@@ -403,8 +413,7 @@ int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn
     size_t i, num_bytes;
 
     num_bytes = b & 0x7f;
-    if (num_bytes + 1 > sizeof(size_t))
-	rb_raise(eKryptASN1ParseError, "Definite value length too long");
+    if (num_bytes + 1 > sizeof(size_t)) return 0;
 
     out->length_bytes = ALLOC_N(unsigned char, num_bytes + 1);
     out->length_bytes[offset++] = b;
@@ -415,40 +424,45 @@ int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn
 	len <<= CHAR_BIT;
 	len |= b;
 	if (len > KRYPT_ASN1_LENGTH_LIMIT || offset == SIZE_MAX || out->header_length == SIZE_MAX)
-	    rb_raise(eKryptASN1ParseError, "Complex length too long");
+	    return 0;
 	out->length_bytes[offset++] = b;
     }
 
     out->length = len;
     out->length_len = num_bytes + 1;
+    return 1;
 }
 
 
-static unsigned char *
-int_parse_read_exactly(krypt_instream *in, size_t n)
+static int
+int_parse_read_exactly(krypt_instream *in, size_t n, unsigned char **out)
 {
     unsigned char *ret, *p;
     size_t offset = 0;
     ssize_t read;
 
-    if (n == 0)
-	return NULL;
+    if (n == 0) {
+	*out = NULL;
+       	return 1;
+    }
 
     ret = ALLOC_N(unsigned char, n);
     p = ret;
     while (offset != n) {
 	read = krypt_instream_read(in, p, n - offset);
-	if (read == -1) {
-	    rb_raise(eKryptASN1ParseError, "Premature EOF detected.");
-	    return NULL; /* dummy */
+	if (read <= -1) {
+	    xfree(ret);
+	    *out = NULL;
+	    return 0;
 	}
 	p += read;
 	offset += read;
     }
-    return ret;
+    *out = ret;
+    return 1;
 }
 
-static size_t
+static ssize_t
 int_consume_stream(krypt_instream *in, unsigned char **out)
 {
     krypt_byte_buffer *out_buf;
@@ -458,16 +472,22 @@ int_consume_stream(krypt_instream *in, unsigned char **out)
 
     in_buf = ALLOC_N(unsigned char, KRYPT_IO_BUF_SIZE);
     out_buf = krypt_buffer_new();
-    while ((read = krypt_instream_read(in, in_buf, KRYPT_IO_BUF_SIZE)) != -1) {
-	krypt_buffer_write(out_buf, in_buf, read);
+    while ((read = krypt_instream_read(in, in_buf, KRYPT_IO_BUF_SIZE)) >= 0) {
+	if (!krypt_buffer_write(out_buf, in_buf, read)) {
+	    goto error;
+	}
     }
+    if (read < -1) goto error;
 
-    *out = krypt_buffer_get_data(out_buf);
-    size = krypt_buffer_get_size(out_buf);
-
-    krypt_buffer_resize_free(out_buf);
+    size = krypt_buffer_resize_free(out_buf, out);
+    if (size > SSIZE_MAX) goto error;
     xfree(in_buf);
-    return size;
+    return (ssize_t) size;
+
+error:
+    xfree(in_buf);
+    krypt_buffer_free(out_buf);
+    return -1;
 }
 
 #define int_determine_num_shifts(i, value, by)		\
