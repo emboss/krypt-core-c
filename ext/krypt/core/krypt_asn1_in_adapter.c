@@ -73,6 +73,7 @@ static VALUE
 krypt_instream_adapter_read(int argc, VALUE *argv, VALUE self)
 {
     krypt_instream_adapter *adapter;
+    VALUE ret;
     VALUE vlen = Qnil;
     VALUE vbuf = Qnil;
 
@@ -80,7 +81,9 @@ krypt_instream_adapter_read(int argc, VALUE *argv, VALUE self)
 
     int_krypt_instream_adapter_get(self, adapter);
 
-    return krypt_instream_rb_read(adapter->in, vlen, vbuf);
+    if (!krypt_instream_rb_read(adapter->in, vlen, vbuf, &ret))
+	rb_raise(eKryptError, "Error reading stream");
+    return ret;
 }
 
 static int 

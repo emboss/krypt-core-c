@@ -48,7 +48,7 @@ struct krypt_instream_interface_st {
     int type;
 
     ssize_t (*read)(krypt_instream*, unsigned char*, size_t);
-    VALUE (*rb_read)(krypt_instream*, VALUE, VALUE);
+    int (*rb_read)(krypt_instream*, VALUE, VALUE, VALUE*);
     ssize_t (*gets)(krypt_instream*, char *, size_t);
     int (*seek)(krypt_instream*, off_t, int); 
     void (*mark)(krypt_instream*);
@@ -58,13 +58,12 @@ struct krypt_instream_interface_st {
 struct krypt_outstream_interface_st {
     int type;
 
-    size_t (*write)(krypt_outstream*, unsigned char *buf, size_t);
-    VALUE (*rb_write)(krypt_outstream*, VALUE);
+    ssize_t (*write)(krypt_outstream*, unsigned char *buf, size_t);
+    int (*rb_write)(krypt_outstream*, VALUE, VALUE*);
     void (*mark)(krypt_outstream*);
     void (*free)(krypt_outstream*);
 };
 
-#define krypt_stream_ensure(io)	        if (!(io)) rb_raise(eKryptError, "Uninitialized stream")
 #define krypt_safe_cast_stream(out, in, t, ptype, stype)	        \
     do {	                					\
         if (!(in))		                       			\
@@ -85,7 +84,7 @@ void krypt_raise_io_error(VALUE klass);
 void krypt_instream_rb_size_buffer(VALUE *str, size_t len);
 
 ssize_t krypt_instream_read(krypt_instream *in, unsigned char *buf, size_t len);
-VALUE krypt_instream_rb_read(krypt_instream *in, VALUE vlen, VALUE vbuf);
+int krypt_instream_rb_read(krypt_instream *in, VALUE vlen, VALUE vbuf, VALUE *out);
 ssize_t krypt_instream_gets(krypt_instream *in, char *line, size_t len);
 int krypt_instream_seek(krypt_instream *in, off_t offset, int whence);
 #define krypt_instream_skip(in, n)	krypt_instream_seek((in), (n), SEEK_CUR)
@@ -111,8 +110,8 @@ size_t krypt_instream_cache_get_bytes(krypt_instream *in, unsigned char **out);
 size_t krypt_pem_get_last_name(krypt_instream *instream, unsigned char **out);
 void krypt_pem_continue_stream(krypt_instream *instream);
 
-size_t krypt_outstream_write(krypt_outstream *out, unsigned char *buf, size_t len);
-VALUE krypt_outstream_rb_write(krypt_outstream *out, VALUE vbuf);
+ssize_t krypt_outstream_write(krypt_outstream *out, unsigned char *buf, size_t len);
+int krypt_outstream_rb_write(krypt_outstream *out, VALUE vbuf, VALUE *ret);
 void krypt_outstream_mark(krypt_outstream *in);
 void krypt_outstream_free(krypt_outstream *out);
 

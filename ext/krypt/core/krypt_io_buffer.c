@@ -73,21 +73,21 @@ int_buffer_grow(krypt_byte_buffer *buffer, size_t cur_len)
     return 1;
 }
 
-size_t
+ssize_t
 krypt_buffer_write(krypt_byte_buffer *buffer, unsigned char *b, size_t len)
 {
-    if (!b) return 0;
-
+    if (!b) return -1;
     if (len == 0) return 0;
+    if (len > SSIZE_MAX) return -1;
 
     if (buffer->limit - buffer->size < len) {
 	if (!int_buffer_grow(buffer, len))
-	    return 0;
+	    return -1;
     }
 
     memcpy(buffer->data + buffer->size, b, len);
     buffer->size += len;
-    return len;
+    return (ssize_t) len;
 }
 
 void

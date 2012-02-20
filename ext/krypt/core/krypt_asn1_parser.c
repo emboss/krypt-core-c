@@ -80,11 +80,13 @@ static VALUE
 int_asn1_header_new(krypt_instream *in, krypt_asn1_header *header)
 {
     VALUE obj;
+    ID tag_class;
     krypt_asn1_parsed_header *parsed_header;
 
     parsed_header = ALLOC(krypt_asn1_parsed_header);
     parsed_header->tag = INT2NUM(header->tag);
-    parsed_header->tag_class = ID2SYM(krypt_asn1_tag_class_for_int(header->tag_class));
+    if (!(tag_class = krypt_asn1_tag_class_for_int(header->tag_class))) return Qnil; 
+    parsed_header->tag_class = ID2SYM(tag_class);
     parsed_header->constructed = header->is_constructed ? Qtrue : Qfalse;
     parsed_header->infinite = header->is_infinite ? Qtrue : Qfalse;
     parsed_header->length = LONG2NUM(header->length);
@@ -445,20 +447,28 @@ krypt_asn1_parser_next(VALUE self, VALUE io)
 {
     krypt_instream *in;
     krypt_asn1_header *header;
-    int ret;
+    int result;
+    VALUE ret;
 
     in = int_krypt_instream_new(io);
-    ret = krypt_asn1_next_header(in, &header);
-    if (ret == -1) {
-	krypt_instream_free(in);
-	rb_raise(eKryptASN1ParseError, "Error while parsing header");
-    }
-    if (ret == 0) {
+    result = krypt_asn1_next_header(in, &header);
+    if (result == -1) goto error;
+    if (result == 0) {
 	krypt_instream_free(in);
 	return Qnil;
     }
 
-    return int_asn1_header_new(in, header);
+    ret = int_asn1_header_new(in, header);
+    if (NIL_P(ret)) {
+        krypt_asn1_header_free(header);
+        goto error;
+    }
+    
+    return ret;
+    
+error:
+    krypt_instream_free(in);
+    rb_raise(eKryptASN1ParseError, "Error while parsing header");
 }
 
 /* End Parser code */

@@ -30,7 +30,7 @@ typedef struct krypt_byte_buffer_st {
 krypt_byte_buffer *krypt_buffer_new(void);
 krypt_byte_buffer *krypt_buffer_new_size(size_t size);
 krypt_byte_buffer *krypt_buffer_new_prealloc(unsigned char *b, size_t len);
-size_t krypt_buffer_write(krypt_byte_buffer *buffer, unsigned char *b, size_t len);
+ssize_t krypt_buffer_write(krypt_byte_buffer *buffer, unsigned char *b, size_t len);
 void krypt_buffer_free_secure(krypt_byte_buffer *buffer);
 void krypt_buffer_free(krypt_byte_buffer *buffer);
 

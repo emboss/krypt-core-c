@@ -248,6 +248,7 @@ int_b64_fill(krypt_b64_buffer *in)
 
     out = krypt_outstream_new_bytes_size(KRYPT_IO_BUF_SIZE + KRYPT_LINE_BUF_SIZE);
     linelen = krypt_instream_gets(in->inner, linebuf, KRYPT_LINE_BUF_SIZE);
+    if (linelen < -1) return 0;
 
     while (in->state != DONE && total < KRYPT_IO_BUF_SIZE && linelen != -1) {
 	if (linelen == 0) {
@@ -273,7 +274,7 @@ int_b64_fill(krypt_b64_buffer *in)
 		    in->state = FOOTER;
 		}
 		else {
-		    krypt_base64_buffer_decode_to(out, (unsigned char *) linebuf, 0, linelen);
+		    if (!krypt_base64_buffer_decode_to(out, (unsigned char *) linebuf, 0, linelen)) return 0;
 		    total += linelen;
 		    if (total < KRYPT_IO_BUF_SIZE)
 			linelen = krypt_instream_gets(in->inner, linebuf, KRYPT_LINE_BUF_SIZE);
@@ -341,8 +342,6 @@ static ssize_t
 int_b64_read(krypt_b64_buffer *in, unsigned char *buf, size_t len)
 {
     size_t total = 0;
-
-    if (len > SSIZE_MAX) return -2;
 
     while (total != len && !(in->off == in->len && in->eof)) {
 	if (in->off == in->len) {

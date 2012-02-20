@@ -133,9 +133,8 @@ krypt_asn1_get_value(krypt_instream *in, krypt_asn1_header *last, unsigned char 
  *                      returned stream will always read values including the
  *                      headers.
  * @return		A krypt_instream * allowing to read the bytes representing
- *  			the value of the currently parsed object
- * @raises		Krypt::Asn1::ParseError in case of an error
- * @raises		ArgumentError if in or last is NULL	
+ *  			the value of the currently parsed object or NULL if an error
+ *  			occurred.
  */
 krypt_instream *
 krypt_asn1_get_value_stream(krypt_instream *in, krypt_asn1_header *last, int values_only)
@@ -172,9 +171,9 @@ krypt_asn1_header_encode(krypt_outstream *out, krypt_asn1_header *header)
 	int_compute_length(header);
     }
 
-    if (!header->tag_len || !krypt_outstream_write(out, header->tag_bytes, header->tag_len))
+    if (krypt_outstream_write(out, header->tag_bytes, header->tag_len) < 0)
 	return 0;
-    if (!header->length_len || !krypt_outstream_write(out, header->length_bytes, header->length_len))
+    if (krypt_outstream_write(out, header->length_bytes, header->length_len) < 0)
 	return 0;
 
     return 1;
@@ -196,16 +195,14 @@ krypt_asn1_object_encode(krypt_outstream *out, krypt_asn1_object *object)
     if (!krypt_asn1_header_encode(out, object->header)) return 0;
     if (!object->bytes) return 1;	
     if (object->bytes_len == 0) return 1;
-    if (!krypt_outstream_write(out, object->bytes, object->bytes_len))
+    if (krypt_outstream_write(out, object->bytes, object->bytes_len) < 0)
 	return 0;
-    else
-    	return 1;
+    return 1;
 }
 
 /**
  * Creates a new krypt_asn1_header struct.
  * @return 	a newly allocated krypt_asn1_header
- * @raises	NoMemoryError when allocation fails
  */
 krypt_asn1_header *
 krypt_asn1_header_new(void)
@@ -241,8 +238,6 @@ krypt_asn1_header_free(krypt_asn1_header *header)
  * @param header	The header corresponding to the value
  * @param value		The raw byte encoding of the value
  * @param len		The length of the byte encoding
- * @raises		NoMemoryError if allocation fails
- * @raises		ArgumentError if header or value is NULL
  */
 krypt_asn1_object *
 krypt_asn1_object_new_value(krypt_asn1_header *header, unsigned char *value, size_t len)
@@ -262,8 +257,7 @@ krypt_asn1_object_new_value(krypt_asn1_header *header, unsigned char *value, siz
  * be added at a later point.
  *
  * @param header	The header corresponding to the value
- * @raises		NoMemoryError if allocation fails
- * @raises		ArgumentError if header is NULL
+ * @return 		A new header or NULL if allocation fails
  */
 krypt_asn1_object *
 krypt_asn1_object_new(krypt_asn1_header *header)
@@ -450,7 +444,7 @@ int_parse_read_exactly(krypt_instream *in, size_t n, unsigned char **out)
     p = ret;
     while (offset != n) {
 	read = krypt_instream_read(in, p, n - offset);
-	if (read <= -1) {
+	if (read < 0) {
 	    xfree(ret);
 	    *out = NULL;
 	    return 0;

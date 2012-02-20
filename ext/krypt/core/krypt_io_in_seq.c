@@ -84,18 +84,17 @@ int_seq_alloc(void)
 static ssize_t
 int_do_read(krypt_instream_seq *in, unsigned char *buf, size_t len)
 {
-    ssize_t read;
+    ssize_t read = 0;
     size_t total = 0;
 
-    while (total < len && ((read = krypt_instream_read(in->active, buf, len - total)) != -1)) {
+    while (total < len && ((read = krypt_instream_read(in->active, buf, len - total)) >= 0)) {
 	total += read;
 	buf += read;
     }
 
-    if (total == 0)
-	return -1;
-    else
-	return total;
+    if (read < -1) return -2;
+    if (total == 0) return -1;
+    return total;
 }
 
 static ssize_t
@@ -111,6 +110,7 @@ int_seq_read(krypt_instream *instream, unsigned char *buf, size_t len)
 
     while (total < len) {
     	read = int_do_read(in, buf, len - total);
+	if (read < -1) return -2;
 	if (read == -1) {
 	    in->i++;
 	    if (in->i == in->num) {

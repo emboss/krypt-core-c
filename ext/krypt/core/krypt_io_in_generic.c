@@ -22,7 +22,7 @@ typedef struct krypt_instream_io_st {
 
 static krypt_instream_io* int_io_alloc(void);
 static ssize_t int_io_read(krypt_instream *in, unsigned char *buf, size_t len);
-static VALUE int_io_rb_read(krypt_instream *in, VALUE vlen, VALUE vbuf);
+static int int_io_rb_read(krypt_instream *in, VALUE vlen, VALUE vbuf, VALUE *out);
 static int int_io_seek(krypt_instream *in, off_t offset, int whence);
 static void int_io_mark(krypt_instream *in);
 static void int_io_free(krypt_instream *in);
@@ -41,12 +41,10 @@ krypt_instream *
 krypt_instream_new_io_generic(VALUE io)
 {
     krypt_instream_io *in;
-    VALUE buf;
 
     in = int_io_alloc();
     in->io = io;
-    buf = rb_str_new_cstr("");
-    in->vbuf = buf;
+    in->vbuf = rb_str_new_cstr("");
     return (krypt_instream *) in;
 }
 
@@ -60,37 +58,59 @@ int_io_alloc(void)
     return ret;
 }
 
-/* TODO: rb_protect */
+static VALUE
+int_io_rb_protected_read(VALUE args)
+{
+    VALUE io, vbuf, vlen;
+    io = rb_ary_entry(args, 0);
+    vlen = rb_ary_entry(args, 1);
+    vbuf = rb_ary_entry(args, 2);
+    return rb_funcall(io, sKrypt_ID_READ, 2, vlen, vbuf);
+}
+
+static int
+int_io_rb_read_impl(krypt_instream_io *in, VALUE vlen, VALUE vbuf, VALUE *out)
+{
+    VALUE args = rb_ary_new();
+    int state = 0;
+    rb_ary_push(args, in->io);
+    rb_ary_push(args, vlen);
+    rb_ary_push(args, vbuf);
+    *out = rb_protect(int_io_rb_protected_read, args, &state);
+    return state == 0;
+}
+
 static ssize_t
 int_io_read(krypt_instream *instream, unsigned char *buf, size_t len)
 {
-    VALUE read;
+    VALUE read, vlen;
     krypt_instream_io *in;
 
     int_safe_cast(in, instream);
 
     if (!buf) return -2;
 
-    read = rb_funcall(in->io, sKrypt_ID_READ, 2, LONG2NUM(len), in->vbuf);
-
-    if (read == Qnil) {
+    vlen = LONG2NUM(len);
+    if (!int_io_rb_read_impl(in, vlen, in->vbuf, &read)) return -2;
+    
+    if (NIL_P(read)) {
 	return -1;
     }
     else {
 	size_t r = RSTRING_LEN(read);
+	if (r > SSIZE_MAX) return -2;
 	memcpy(buf, RSTRING_PTR(read), r);
-	return r;
+	return (ssize_t) r;
     }
 }
 
-/* TODO: rb_protect */
-static VALUE
-int_io_rb_read(krypt_instream *instream, VALUE vlen, VALUE vbuf)
+static int
+int_io_rb_read(krypt_instream *instream, VALUE vlen, VALUE vbuf, VALUE *out)
 {
     krypt_instream_io *in;
 
     int_safe_cast(in, instream);
-    return rb_funcall(in->io, sKrypt_ID_READ, 2, vlen, vbuf);
+    return int_io_rb_read_impl(in, vlen, vbuf, out);
 }
 
 static VALUE
@@ -104,8 +124,7 @@ int_whence_sym_for(int whence)
 	case SEEK_END:
 	    return sKrypt_ID_SEEK_END;
 	default:
-	    rb_raise(eKryptASN1ParseError, "Unknown 'whence': %d", whence);
-	    return Qnil; /* dummy */
+	    return Qnil;
     }
 }
 
@@ -113,13 +132,15 @@ int_whence_sym_for(int whence)
 static int
 int_io_seek(krypt_instream *instream, off_t offset, int whence)
 {
-    VALUE io;
+    VALUE io, whencesym;
     krypt_instream_io *in;
 
     int_safe_cast(in, instream);
 
     io = in->io;
-    rb_funcall(io, sKrypt_ID_SEEK, 2, LONG2NUM(offset), int_whence_sym_for(whence));
+    whencesym = int_whence_sym_for(whence);
+    if (NIL_P(whencesym)) return 0;
+    rb_funcall(io, sKrypt_ID_SEEK, 2, LONG2NUM(offset), whencesym);
     return 1;
 }
 

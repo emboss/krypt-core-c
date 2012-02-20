@@ -20,7 +20,7 @@ typedef struct krypt_outstream_bytes_st {
 #define int_safe_cast(out, in)		krypt_safe_cast_outstream((out), (in), KRYPT_OUTSTREAM_TYPE_BYTES, krypt_outstream_bytes)
 
 static krypt_outstream_bytes* int_bytes_alloc(void);
-static size_t int_bytes_write(krypt_outstream *out, unsigned char *buf, size_t len);
+static ssize_t int_bytes_write(krypt_outstream *out, unsigned char *buf, size_t len);
 static void int_bytes_free(krypt_outstream *out);
 
 static krypt_outstream_interface krypt_interface_bytes = {
@@ -83,7 +83,7 @@ int_bytes_alloc(void)
     return ret;
 }
 
-static size_t
+static ssize_t
 int_bytes_write(krypt_outstream *outstream, unsigned char *buf, size_t len)
 {
     krypt_outstream_bytes *out;

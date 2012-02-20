@@ -157,9 +157,9 @@ do { 								\
 #define int_asn1_data_set_value(o, v)			rb_ivar_set((o), sKrypt_IV_VALUE, (v))
 
 /* Declaration of en-/decode callbacks */
-static VALUE int_asn1_data_value_decode(VALUE self, krypt_asn1_data *data);
-static VALUE int_asn1_cons_value_decode(VALUE self, krypt_asn1_data *data);
-static VALUE int_asn1_prim_value_decode(VALUE self, krypt_asn1_data *data);
+static int int_asn1_data_value_decode(VALUE self, krypt_asn1_data *data, VALUE *out);
+static int int_asn1_cons_value_decode(VALUE self, krypt_asn1_data *data, VALUE *out);
+static int int_asn1_prim_value_decode(VALUE self, krypt_asn1_data *data, VALUE *out);
 
 static int int_asn1_data_encode_to(VALUE self, krypt_outstream *out, VALUE value, krypt_asn1_data *data);
 static int int_asn1_cons_encode_to(VALUE self, krypt_outstream *out, VALUE value, krypt_asn1_data *data);
@@ -200,9 +200,10 @@ krypt_asn1_data_new(krypt_instream *in, krypt_asn1_header *header)
 {
     VALUE obj;
     VALUE klass;
+    ID tag_class;
     krypt_asn1_data *data;
     krypt_asn1_object *encoding;
-    unsigned char *value;
+    unsigned char *value = NULL;
     ssize_t value_len;
 
     if ((value_len = krypt_asn1_get_value(in, header, &value)) == -1)
@@ -212,21 +213,23 @@ krypt_asn1_data_new(krypt_instream *in, krypt_asn1_header *header)
     data = int_asn1_data_new(encoding);
     data->is_decoded = 0; /* Lazy decoding of value */
     klass = int_determine_class(header);
-    if (NIL_P(klass)) {
-	xfree(data->object->bytes);
-	xfree(data->object);
-	xfree(data); /*header will be freed by caller */
-	return Qnil;
-    }
+    if (NIL_P(klass)) goto error;
     int_asn1_data_set(klass, obj, data);
 
     int_asn1_data_set_tag(obj, INT2NUM(header->tag));
-    int_asn1_data_set_tag_class(obj, ID2SYM(krypt_asn1_tag_class_for_int(header->tag_class)));
+    if (!(tag_class = krypt_asn1_tag_class_for_int(header->tag_class))) goto error;
+    int_asn1_data_set_tag_class(obj, ID2SYM(tag_class));
     int_asn1_data_set_infinite_length(obj, header->is_infinite ? Qtrue : Qfalse);
 
     int_handle_class_specifics(obj, header);
 
     return obj;
+
+error:
+    xfree(data->object->bytes);
+    xfree(data->object);
+    xfree(data); /*header will be freed by caller */
+    return Qnil;
 }
 
 /* Initializer section for ASN1Data created from scratch */
@@ -308,7 +311,8 @@ krypt_asn1_data_initialize(VALUE self, VALUE value, VALUE vtag, VALUE vtag_class
     stag_class = SYM2ID(vtag_class);
     if (stag_class == sKrypt_TC_UNIVERSAL && tag > 30)
 	rb_raise(eKryptASN1Error, "Tag too large for UNIVERSAL tag class");
-    tag_class = krypt_asn1_tag_class_for_id(stag_class);
+    if ((tag_class = krypt_asn1_tag_class_for_id(stag_class)) < 0)
+        rb_raise(eKryptASN1Error, "Unknown tag class");
     is_constructed = rb_respond_to(value, sKrypt_ID_EACH);
     
     int_asn1_data_initialize(self, tag, tag_class, is_constructed, 0);
@@ -341,7 +345,8 @@ int_asn1_default_initialize(VALUE self,
     stag_class = SYM2ID(vtag_class);
     if (stag_class == sKrypt_TC_UNIVERSAL && tag > 30)
 	rb_raise(eKryptASN1Error, "Tag too large for UNIVERSAL tag class");
-    tag_class = krypt_asn1_tag_class_for_id(stag_class);
+    if ((tag_class = krypt_asn1_tag_class_for_id(stag_class)) < 0)
+        rb_raise(eKryptASN1Error, "Unknown tag class");
     
     is_constructed = rb_respond_to(value, sKrypt_ID_EACH);
 
@@ -600,7 +605,8 @@ krypt_asn1_data_set_tag_class(VALUE self, VALUE tag_class)
     int_asn1_data_get(self, data);
 
     header = data->object->header;
-    new_tag_class = krypt_asn1_tag_class_for_id(SYM2ID(tag_class));
+    if ((new_tag_class = krypt_asn1_tag_class_for_id(SYM2ID(tag_class))) < 0)
+        rb_raise(eKryptASN1Error, "Unknown tag class");
     if (header->tag_class == new_tag_class)
 	return tag_class;
 
@@ -670,16 +676,16 @@ krypt_asn1_data_set_inf_length(VALUE self, VALUE inf_length)
     return inf_length;
 }
 
-static VALUE
-int_asn1_data_value_decode(VALUE self, krypt_asn1_data *data)
+static int
+int_asn1_data_value_decode(VALUE self, krypt_asn1_data *data, VALUE *out)
 {
     if (data->object->header->is_constructed)
-	return int_asn1_cons_value_decode(self, data);
+	return int_asn1_cons_value_decode(self, data, out);
     else
-	return int_asn1_prim_value_decode(self, data);
+	return int_asn1_prim_value_decode(self, data, out);
 }
 
-static void
+static int
 int_asn1_decode_value(VALUE self)
 {
     krypt_asn1_data *data;
@@ -688,10 +694,11 @@ int_asn1_decode_value(VALUE self)
     /* TODO: sync */
     if (!data->is_decoded) {
 	VALUE value;
-	value = int_asn1_data_value_decode(self, data);
+	if (!int_asn1_data_value_decode(self, data, &value)) return 0;
 	int_asn1_data_set_value(self, value);
 	data->is_decoded = 1;
     }
+    return 1;
 }
 
 /*
@@ -705,7 +712,8 @@ int_asn1_decode_value(VALUE self)
 static VALUE
 krypt_asn1_data_get_value(VALUE self)
 {
-    int_asn1_decode_value(self);
+    if (!int_asn1_decode_value(self))
+	rb_raise(eKryptASN1Error, "Error while decoding value");
     return int_asn1_data_get_value(self);
 }
 
@@ -864,20 +872,19 @@ krypt_asn1_cons_each(VALUE self)
     return enumerable;
 }
 
-static VALUE
-int_asn1_cons_value_decode(VALUE self, krypt_asn1_data *data)
+static int
+int_asn1_cons_value_decode(VALUE self, krypt_asn1_data *data, VALUE *out)
 {
-    VALUE ary;
     VALUE cur;
     krypt_instream *in;
     krypt_asn1_object *object;
     krypt_asn1_header *header;
     int ret;
 
-    ary = rb_ary_new();
+    *out = rb_ary_new();
     object = data->object;
     if (!object->bytes)
-	return ary;
+	return 1;
 
     in = krypt_instream_new_bytes(object->bytes, object->bytes_len);
     
@@ -885,7 +892,7 @@ int_asn1_cons_value_decode(VALUE self, krypt_asn1_data *data)
 	if (!(cur = krypt_asn1_data_new(in, header))) {
 	    goto error;
 	}
-	rb_ary_push(ary, cur);
+	rb_ary_push(*out, cur);
     }
     if (ret == -1) goto error;
     /* Delete the cached byte encoding */
@@ -894,12 +901,11 @@ int_asn1_cons_value_decode(VALUE self, krypt_asn1_data *data)
     object->bytes_len = 0;
     krypt_instream_free(in);
 
-    return ary;
+    return 1;
 
 error: 
     krypt_instream_free(in);
-    rb_raise(eKryptASN1Error, "Error while decoding constructed value");
-    return Qnil; /* dummy */
+    return 0;
 }
 
 static VALUE
@@ -1008,13 +1014,13 @@ int_asn1_cons_encode_to(VALUE self, krypt_outstream *out, VALUE ary, krypt_asn1_
 
 /* ASN1Primitive methods */
 
-static VALUE
-int_asn1_prim_value_decode(VALUE self, krypt_asn1_data *data)
+static int
+int_asn1_prim_value_decode(VALUE self, krypt_asn1_data *data, VALUE *out)
 {
     krypt_asn1_object *object;
 
     object = data->object;
-    return data->codec->decoder(self, object->bytes, object->bytes_len);
+    return data->codec->decoder(self, object->bytes, object->bytes_len, out);
 }
 
 static int
@@ -1026,12 +1032,11 @@ int_asn1_prim_encode_to(VALUE self, krypt_outstream *out, VALUE value, krypt_asn
 
     if (object->header->tag_class == TAG_CLASS_UNIVERSAL) {
 	int tag = object->header->tag;
-	if (tag == TAGS_SEQUENCE || tag == TAGS_SET)
-	    return 0;
+	if (tag == TAGS_SEQUENCE || tag == TAGS_SET) return 0;
     }
 
-    data->codec->validator(self, value);
-    object->bytes_len = data->codec->encoder(self, value, &object->bytes);
+    if (!data->codec->validator(self, value)) return 0;
+    if (!data->codec->encoder(self, value, &object->bytes, &object->bytes_len)) return 0;
     object->header->length = object->bytes_len;
     return krypt_asn1_object_encode(out, object);
 }
@@ -1051,7 +1056,8 @@ krypt_asn1_bit_string_set_unused_bits(VALUE self, VALUE unused_bits)
 static VALUE
 krypt_asn1_bit_string_get_unused_bits(VALUE self)
 {
-    int_asn1_decode_value(self);
+    if (!int_asn1_decode_value(self))
+	rb_raise(eKryptASN1Error, "Error while decoding value");
     return rb_ivar_get(self, sKrypt_IV_UNUSED_BITS);
 }
 
@@ -1179,8 +1185,7 @@ krypt_asn1_decode_pem(VALUE self, VALUE obj)
  *
  * @param tag_class	The raw tag class value
  * @return		A Ruby Symbol representing the tag class, e.g. 
- * 			:UNIVERSAL
- * @raises		Krypt::ASN1::ASN1Error if tag_class is unknown
+ * 			:UNIVERSAL, or 0 if the class is not recognized
  */
 ID
 krypt_asn1_tag_class_for_int(int tag_class)
@@ -1195,8 +1200,7 @@ krypt_asn1_tag_class_for_int(int tag_class)
 	case TAG_CLASS_PRIVATE:
 	    return sKrypt_TC_PRIVATE;
 	default:
-	    rb_raise(eKryptASN1Error, "Unknown tag class");
-	    return Qnil;
+	    return 0;
     }
 }
 
@@ -1205,8 +1209,8 @@ krypt_asn1_tag_class_for_int(int tag_class)
  * symbol.
  *
  * @param tag_class	The tag class ID
- * @return		An integer representing the tag class
- * @raises		Krypt::ASN1::ASN1Error if tag_class is unknown
+ * @return		A positive integer representing the tag class
+ *                      or 0 if the ID was not recognized
  */
 int
 krypt_asn1_tag_class_for_id(ID tag_class)
@@ -1219,9 +1223,7 @@ krypt_asn1_tag_class_for_id(ID tag_class)
 	return TAG_CLASS_APPLICATION;
     else if (tag_class == sKrypt_TC_PRIVATE)
 	return TAG_CLASS_PRIVATE;
-    
-    rb_raise(eKryptASN1Error, "Unknown tag class");
-    return Qnil;
+    return -1;
 }
 
 void

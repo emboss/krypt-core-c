@@ -41,9 +41,9 @@ extern VALUE cKryptASN1UTCTime, cKryptASN1GeneralizedTime;     /* TIME          
 /* CONSTRUCTIVE */
 extern VALUE cKryptASN1Sequence, cKryptASN1Set;
 
-typedef VALUE (*krypt_asn1_decoder)(VALUE self, unsigned char *bytes, size_t len);
-typedef size_t (*krypt_asn1_encoder)(VALUE self, VALUE value, unsigned char **out);
-typedef void (*krypt_asn1_validator)(VALUE, VALUE);
+typedef int (*krypt_asn1_decoder)(VALUE self, unsigned char *bytes, size_t len, VALUE *out);
+typedef int (*krypt_asn1_encoder)(VALUE self, VALUE value, unsigned char **out, size_t *len);
+typedef int (*krypt_asn1_validator)(VALUE, VALUE);
 
 typedef struct krypt_asn1_codec_st {
     krypt_asn1_encoder encoder;

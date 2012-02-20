@@ -31,24 +31,26 @@ krypt_raise_io_error(VALUE klass)
 
 /* instream */
 
-static VALUE
-int_read_all(krypt_instream *in, VALUE vbuf)
+static int
+int_read_all(krypt_instream *in, VALUE vbuf, VALUE *out)
 {
     unsigned char *buf;
     ssize_t r;
 
     buf = ALLOC_N(unsigned char, KRYPT_IO_BUF_SIZE);
 
-    while ((r = krypt_instream_read(in, buf, KRYPT_IO_BUF_SIZE)) != -1) {
+    while ((r = krypt_instream_read(in, buf, KRYPT_IO_BUF_SIZE)) >= 0) {
 	rb_str_buf_cat(vbuf, (const char *) buf, r);
     }
 
     xfree(buf);
-    return vbuf;
+    if (r < -1) return 0;
+    *out = vbuf;
+    return 1;
 }
 
-static VALUE
-int_rb_read_generic(krypt_instream *in, VALUE vlen, VALUE vbuf)
+static int
+int_rb_read_generic(krypt_instream *in, VALUE vlen, VALUE vbuf, VALUE *out)
 {
 
     long len;
@@ -60,18 +62,17 @@ int_rb_read_generic(krypt_instream *in, VALUE vlen, VALUE vbuf)
 	vbuf = rb_str_new2("");
 
     if (NIL_P(vlen))
-	return int_read_all(in, vbuf);
+	 return int_read_all(in, vbuf, out);
 
     len = NUM2LONG(vlen);
-    if (len < 0)
-	rb_raise(rb_eArgError, "Negative length %ld", len);
-    if (len > (long) SIZE_MAX)
-	rb_raise(rb_eArgError, "Length too large: %ld", len);
+    if (len < 0) return 0;
+    if (len > (long) SIZE_MAX) return 0;
 
     tlen = (size_t) len;
     if (len == 0) {
 	rb_str_resize(vbuf, 0);
-	return vbuf;
+	*out = vbuf;
+	return 1;
     }
 
     buf = ALLOC_N(unsigned char, tlen);
@@ -79,30 +80,32 @@ int_rb_read_generic(krypt_instream *in, VALUE vlen, VALUE vbuf)
 
     if (r == 0) {
 	xfree(buf);
-	rb_raise(eKryptError, "Error while reading from stream");
+	return 0;
     }
     else if (r == -1) {
 	xfree(buf);
 	rb_str_resize(vbuf, 0);
-	return Qnil;
+	*out = Qnil;
+	return 1;
     }
     else {
 	rb_str_buf_cat(vbuf, (const char *)buf, r);
 	xfree(buf);
-	return vbuf;
+	*out = vbuf;
+	return 1;
     }
 }
 
-VALUE
-krypt_instream_rb_read(krypt_instream *in, VALUE vlen, VALUE vbuf)
+int
+krypt_instream_rb_read(krypt_instream *in, VALUE vlen, VALUE vbuf, VALUE *out)
 {
     int_check_stream(in);
 
     if (in->methods->rb_read) {
-	return in->methods->rb_read(in, vlen, vbuf);
+	return in->methods->rb_read(in, vlen, vbuf, out);
     }
     else {
-	return int_rb_read_generic(in, vlen, vbuf);
+	return int_rb_read_generic(in, vlen, vbuf, out);
     }
 }
 
@@ -110,8 +113,8 @@ ssize_t
 krypt_instream_read(krypt_instream *in, unsigned char *buf, size_t len)
 {
     int_check_stream_has(in, read);
-    if (len > SSIZE_MAX)
-	rb_raise(rb_eRuntimeError, "Length too large");
+
+    if (len > SSIZE_MAX) return -2;
     return in->methods->read(in, buf, len);
 }
 
@@ -122,11 +125,10 @@ int_gets_generic(krypt_instream *in, char *line, size_t len)
     char *p = line;
     char *end = line + len;
 
-    if (!line)
-	rb_raise(rb_eArgError, "Buffer not initialized");
+    if (!line) return -2;
 
     while (p < end) {
-	if ((r = in->methods->read(in, (unsigned char *) p, 1)) == -1)
+	if ((r = in->methods->read(in, (unsigned char *) p, 1)) < 0)
 	    break;
 	if (r == 1) {
 	    if (*p == '\n')
@@ -136,6 +138,7 @@ int_gets_generic(krypt_instream *in, char *line, size_t len)
 	}
     }
 
+    if (r < -1) return -2;
     if (ret == 0 && r == -1)
 	return -1;
 
@@ -150,8 +153,7 @@ ssize_t
 krypt_instream_gets(krypt_instream *in, char *line, size_t len)
 {
     int_check_stream(in);
-    if (len > SSIZE_MAX)
-	rb_raise(rb_eRuntimeError, "Length too large");
+    if (len > SSIZE_MAX) return -2;
     if (in->methods->gets) {
 	return in->methods->gets(in, line, len);
     }
@@ -244,23 +246,28 @@ krypt_instream_new_value_pem(VALUE value)
 
 /* outstream */
 
-size_t 
+ssize_t 
 krypt_outstream_write(krypt_outstream *out, unsigned char *buf, size_t len)
 {
     int_check_stream_has(out, write);
+    if (len > SSIZE_MAX) return -1;
     return out->methods->write(out, buf, len);
 }
 
-VALUE
-krypt_outstream_rb_write(krypt_outstream *out, VALUE vbuf)
+int
+krypt_outstream_rb_write(krypt_outstream *out, VALUE vbuf, VALUE *ret)
 {
     int_check_stream(out);
 
     if (out->methods->rb_write) {
-	return out->methods->rb_write(out, vbuf);
+	return out->methods->rb_write(out, vbuf, ret);
     }
     else {
-	return krypt_outstream_write(out, (unsigned char *) RSTRING_PTR(vbuf), RSTRING_LEN(vbuf));
+	ssize_t w;
+	w = krypt_outstream_write(out, (unsigned char *) RSTRING_PTR(vbuf), RSTRING_LEN(vbuf));
+	if (w < 0) return 0;
+	*ret = LONG2NUM(w);
+	return 1;
     }
 }
 
@@ -289,11 +296,9 @@ krypt_outstream_new_value(VALUE value)
 
     if (type == T_FILE)
 	return krypt_outstream_new_fd_io(value);
-    else if (rb_respond_to(value, sKrypt_ID_WRITE))
+    if (rb_respond_to(value, sKrypt_ID_WRITE))
 	return krypt_outstream_new_io_generic(value);
-    else
-	rb_raise(rb_eArgError, "Argument must be an IO");
-    return NULL; /* dummy */
+    return NULL;
 }
 
 /* end outstream */

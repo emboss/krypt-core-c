@@ -82,7 +82,7 @@ end
 
 desc 'Run the specs for valgrind analysis'
 task 'valgrind-spec-run' do
-  sh 'valgrind --suppressions=.ruby.supp --leak-check=full --partial-loads-ok=yes --undef-value-errors=no --trace-children=yes bundle exec rake spec'
+  sh 'valgrind --suppressions=.ruby.supp --leak-check=full --num-callers=50 --partial-loads-ok=yes --undef-value-errors=no --trace-children=yes bundle exec rake spec'
 end
 
 desc 'Build from scratch with debug symbols and run valgrind on a spec run (requires valgrind on PATH)'

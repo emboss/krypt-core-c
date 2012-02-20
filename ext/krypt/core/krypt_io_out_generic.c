@@ -20,8 +20,8 @@ typedef struct krypt_outstream_io_st {
 #define int_safe_cast(out, in)		krypt_safe_cast_outstream((out), (in), KRYPT_OUTSTREAM_TYPE_IO_GENERIC, krypt_outstream_io)
 
 static krypt_outstream_io* int_io_alloc(void);
-static size_t int_io_write(krypt_outstream *out, unsigned char *buf, size_t len);
-static VALUE int_io_rb_write(krypt_outstream *out, VALUE vbuf);
+static ssize_t int_io_write(krypt_outstream *out, unsigned char *buf, size_t len);
+static int int_io_rb_write(krypt_outstream *out, VALUE vbuf, VALUE *ret);
 static void int_io_mark(krypt_outstream *out);
 static void int_io_free(krypt_outstream *out);
 
@@ -53,26 +53,42 @@ int_io_alloc(void)
     return ret;
 }
 
-static size_t
+static ssize_t
 int_io_write(krypt_outstream *outstream, unsigned char *buf, size_t len)
 {
     VALUE vbuf, ret;
+    int w;
 
-    if (!buf)
-	rb_raise(rb_eArgError, "Buffer not initialized");
+    if (!buf) return -1;
 
     vbuf = rb_str_new((const char *)buf, len);
-    ret = int_io_rb_write(outstream, vbuf);
+    w = int_io_rb_write(outstream, vbuf, &ret);
+    if (!w) return -1;
     return NUM2LONG(ret);
 }
 
 static VALUE
-int_io_rb_write(krypt_outstream *outstream, VALUE vbuf)
+int_io_rb_protected_write(VALUE args)
+{
+    VALUE io, vbuf;
+    io = rb_ary_entry(args, 0);
+    vbuf = rb_ary_entry(args, 1);
+    return rb_funcall(io, sKrypt_ID_WRITE, 1, vbuf);
+}
+
+static int
+int_io_rb_write(krypt_outstream *outstream, VALUE vbuf, VALUE *ret)
 {
     krypt_outstream_io *out;
+    VALUE args;
+    int state = 0;
 
     int_safe_cast(out, outstream);
-    return rb_funcall(out->io, sKrypt_ID_WRITE, 1, vbuf);
+    args = rb_ary_new();
+    rb_ary_push(args, out->io);
+    rb_ary_push(args, vbuf);
+    *ret = rb_protect(int_io_rb_protected_write, args, &state);
+    return state == 0;
 }
 
 static void

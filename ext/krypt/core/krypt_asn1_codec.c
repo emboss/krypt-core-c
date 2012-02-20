@@ -15,279 +15,282 @@
 
 #define CHAR_BIT_MINUS_ONE     (CHAR_BIT - 1)
 
-static size_t
-int_asn1_encode_default(VALUE self, VALUE value, unsigned char **out)
+static int
+int_asn1_encode_default(VALUE self, VALUE value, unsigned char **out, size_t *len)
 {
-    size_t len;
+    size_t l;
     unsigned char *ret;
 
     StringValue(value);
-    len = RSTRING_LEN(value);
-    ret = ALLOC_N(unsigned char, len);
-    memcpy(ret, RSTRING_PTR(value), len);
+    l = RSTRING_LEN(value);
+    ret = ALLOC_N(unsigned char, l);
+    memcpy(ret, RSTRING_PTR(value), l);
     *out = ret;
-    return len;
+    *len = l;
+    return 1;
 }
 
-static VALUE
-int_asn1_decode_default(VALUE self, unsigned char *bytes, size_t len)
+static int
+int_asn1_decode_default(VALUE self, unsigned char *bytes, size_t len, VALUE *out)
 {
     if (len == 0 || bytes == NULL)
-	return rb_str_new2("");
-    return rb_str_new((const char *)bytes, len);
+	*out = rb_str_new2("");
+    else
+       	*out = rb_str_new((const char *)bytes, len);
+    return 1;
 }
 
-static void
+static int
 int_asn1_validate_default(VALUE self, VALUE value)
 {
-    if (TYPE(value) != T_STRING)
-	rb_raise(eKryptASN1Error, "ASN.1 type must be a String");
+    if (TYPE(value) != T_STRING) return 0;
+    return 1;
 }
 
 static const long SUB_ID_LIMIT_ENCODE = LONG_MAX / 10;
 static const long SUB_ID_LIMIT_PARSE = LONG_MAX >> CHAR_BIT_MINUS_ONE;
 static const size_t MAX_LONG_DIGITS = sizeof(long) * 2 * 1.21f + 1; /* times 2 -> hex representation, 1.21 ~ log10(16) */
 
-static size_t int_encode_object_id(unsigned char*, size_t, unsigned char **);
-static VALUE int_decode_object_id(unsigned char*, size_t);
-static VALUE int_parse_utc_time(unsigned char *, size_t);
-static VALUE int_parse_generalized_time(unsigned char *, size_t);
-static size_t int_encode_utc_time(VALUE, unsigned char **);
-static size_t int_encode_generalized_time(VALUE, unsigned char **);
-static size_t int_encode_integer(long, unsigned char **);
-static VALUE int_decode_integer(unsigned char *, size_t);
+static int int_encode_object_id(unsigned char*, size_t, unsigned char **, size_t *);
+static int int_decode_object_id(unsigned char*, size_t, VALUE *);
+static int int_parse_utc_time(unsigned char *, size_t, VALUE *);
+static int int_parse_generalized_time(unsigned char *, size_t, VALUE *);
+static int int_encode_utc_time(VALUE, unsigned char **, size_t *);
+static int int_encode_generalized_time(VALUE, unsigned char **, size_t *);
+static int int_encode_integer(long, unsigned char **, size_t *);
+static int int_decode_integer(unsigned char *, size_t, VALUE *);
 #if defined(HAVE_RB_BIG_PACK)
-static size_t int_encode_integer_bignum(VALUE, unsigned char **);
+static int int_encode_integer_bignum(VALUE, unsigned char **, size_t *);
 #endif
 
-#define sanity_check(b)					\
-do {							\
-    if (!b)						\
-        rb_raise(eKryptASN1Error, "Invalid value"); 	\
-} while (0)
+#define sanity_check(b)		if (!b) return 0;
 
-static size_t
-int_asn1_encode_eoc(VALUE self, VALUE value, unsigned char **out)
+static int
+int_asn1_encode_eoc(VALUE self, VALUE value, unsigned char **out, size_t *len)
 {
     *out = NULL;
-    return 0;
+    *len = 0;
+    return 1;
 }
 
-static VALUE
-int_asn1_decode_eoc(VALUE self, unsigned char *bytes, size_t len)
+static int
+int_asn1_decode_eoc(VALUE self, unsigned char *bytes, size_t len, VALUE *out)
 {
-    if (len != 0)
-	rb_raise(eKryptASN1Error, "Invalid encoding for EndOfContents found");
-    return Qnil;
+    if (len != 0) return 0;
+    *out = Qnil;
+    return 1;
 }
 
-static void
+static int
 int_asn1_validate_eoc(VALUE self, VALUE value)
 {
-    if (!NIL_P(value))
-	rb_raise(eKryptASN1Error, "Value for EndOfContents must be nil");
+    if (!NIL_P(value)) return 0;
+    return 1;
 }
 
-static size_t
-int_asn1_encode_boolean(VALUE self, VALUE value, unsigned char **out)
+static int
+int_asn1_encode_boolean(VALUE self, VALUE value, unsigned char **out, size_t *len)
 {
     unsigned char *b;
 
     b = ALLOC(unsigned char);
     *b = RTEST(value) ? 0xff : 0x0;
     *out = b;
+    *len = 1;
     return 1;
 }
 
-static VALUE
-int_asn1_decode_boolean(VALUE self, unsigned char *bytes, size_t len)
+static int
+int_asn1_decode_boolean(VALUE self, unsigned char *bytes, size_t len, VALUE *out)
 {
     unsigned char b;
 
     sanity_check(bytes);
-    if (len != 1)
-	rb_raise(eKryptASN1Error, "Boolean value with length != 1 found");
+    if (len != 1) return 0;
     b = *bytes;
     if (b == 0x0)
-	return Qfalse;
+	*out = Qfalse;
     else
-	return Qtrue;
+	*out = Qtrue;
+    return 1;
 }
 
-static void
+static int
 int_asn1_validate_boolean(VALUE self, VALUE value)
 {
-    if (!(value == Qfalse || value == Qtrue))
-	rb_raise(eKryptASN1Error, "Value for BOOLEAN must be either true or false");
+    if (!(value == Qfalse || value == Qtrue)) return 0;
+    return 1;
 }
 
-static size_t
-int_asn1_encode_integer(VALUE self, VALUE value, unsigned char **out)
+static int
+int_asn1_encode_integer(VALUE self, VALUE value, unsigned char **out, size_t *len)
 {
     long num;
     
 #if defined(HAVE_RB_BIG_PACK)
     if (TYPE(value) == T_BIGNUM) {
-	return int_encode_integer_bignum(value, out);
+	if (!int_encode_integer_bignum(value, out, len)) return 0;
+	return 1;
     }
 #endif
     num = NUM2LONG(value);
-    return int_encode_integer(num, out);
+    if (!int_encode_integer(num, out, len)) return 0;
+    return 1;
 }
 
-static VALUE
-int_asn1_decode_integer(VALUE self, unsigned char *bytes, size_t len)
+static int
+int_asn1_decode_integer(VALUE self, unsigned char *bytes, size_t len, VALUE *out)
 {
-    if (len == 0)
-	rb_raise(eKryptASN1Error, "Size 0 for integer value");
+    if (len == 0) return 0;
     sanity_check(bytes);
 
 #if !defined(HAVE_RB_BIG_PACK)
     if ((bytes[0] == 0x0 && len > sizeof(long) + 1) ||
 	(bytes[0] != 0x0 && len > sizeof(long))) {
-	rb_raise(eKryptASN1Error, "Size of integer too long: %ld", len);
+	return 0;
     }
 #endif
 
-    return int_decode_integer(bytes, len);
+    if (!int_decode_integer(bytes, len, out)) return 0;
+    return 1;
 }
 
-static void
+static int
 int_asn1_validate_integer(VALUE self, VALUE value)
 {
-    if (!(FIXNUM_P(value) || rb_obj_is_kind_of(value, rb_cBignum)))
-	rb_raise(eKryptASN1Error, "Value for integer type must be a integer Number");
+    if (!(FIXNUM_P(value) || rb_obj_is_kind_of(value, rb_cBignum))) return 0;
+    return 1;
 }
 
-#define int_check_unused_bits(b)				\
-do {								\
-    if ((b) < 0 || (b) > 7)					\
-        rb_raise(eKryptASN1Error, "Unused bits must be 0..7");  \
-} while (0)
+#define int_check_unused_bits(b)	if ((b) < 0 || (b) > 7)	return 0;
 
-static size_t
-int_asn1_encode_bit_string(VALUE self, VALUE value, unsigned char **out)
+static int
+int_asn1_encode_bit_string(VALUE self, VALUE value, unsigned char **out, size_t *len)
 {
     int unused_bits;
-    size_t len;
+    size_t l;
     unsigned char *bytes;
 
     unused_bits = NUM2INT(rb_ivar_get(self, sKrypt_IV_UNUSED_BITS));
     int_check_unused_bits(unused_bits);
 
     StringValue(value);
-    len = RSTRING_LEN(value);
-    if (len == SIZE_MAX)
-	rb_raise(eKryptASN1Error, "Size of bit string too long");
-    bytes = ALLOC_N(unsigned char, len + 1);
+    l = RSTRING_LEN(value);
+    if (l == SIZE_MAX) return 0;
+    bytes = ALLOC_N(unsigned char, l + 1);
     bytes[0] = unused_bits & 0xff;
-    memcpy(bytes + 1, RSTRING_PTR(value), len);
+    memcpy(bytes + 1, RSTRING_PTR(value), l);
     *out = bytes;
-
-    return len + 1;
+    *len = l + 1;
+    return 1;
 }
 
-static VALUE
-int_asn1_decode_bit_string(VALUE self, unsigned char *bytes, size_t len)
+static int
+int_asn1_decode_bit_string(VALUE self, unsigned char *bytes, size_t len, VALUE *out)
 {
     int unused_bits;
-    VALUE ret;
 
     sanity_check(bytes);
     unused_bits = bytes[0];
     int_check_unused_bits(unused_bits);
-    ret = int_asn1_decode_default(self, bytes + 1, len - 1);
+    if (!int_asn1_decode_default(self, bytes + 1, len - 1, out)) return 0;
     rb_ivar_set(self, sKrypt_IV_UNUSED_BITS, INT2NUM(unused_bits));
-    return ret;
+    return 1;
 }
 
-static size_t
-int_asn1_encode_null(VALUE self, VALUE value, unsigned char **out)
+static int
+int_asn1_encode_null(VALUE self, VALUE value, unsigned char **out, size_t *len)
 {
     *out = NULL;
-    return 0;
+    *len = 0;
+    return 1;
 }
 
-static VALUE
-int_asn1_decode_null(VALUE self, unsigned char *bytes, size_t len)
+static int
+int_asn1_decode_null(VALUE self, unsigned char *bytes, size_t len, VALUE *out)
 {
-    if (len != 0)
-	rb_raise(eKryptASN1Error, "Invalid encoding for Null value");
-    return Qnil;
+    if (len != 0) return 0;
+    *out = Qnil;
+    return 1;
 }
 
-static void
+static int
 int_asn1_validate_null(VALUE self, VALUE value)
 {
-    if (!NIL_P(value))
-	rb_raise(eKryptASN1Error, "Value for NULL must be nil");
+    if (!NIL_P(value)) return 0;
+    return 1;
 }
 
-static size_t
-int_asn1_encode_object_id(VALUE self, VALUE value, unsigned char **out)
+static int
+int_asn1_encode_object_id(VALUE self, VALUE value, unsigned char **out, size_t *len)
 {
     unsigned char *str;
 
     StringValue(value);
     str = (unsigned char *)RSTRING_PTR(value);
-    return int_encode_object_id(str, RSTRING_LEN(value), out);
+    if (!int_encode_object_id(str, RSTRING_LEN(value), out, len)) return 0;
+    return 1;
 }
 
-static VALUE
-int_asn1_decode_object_id(VALUE self, unsigned char *bytes, size_t len)
+static int
+int_asn1_decode_object_id(VALUE self, unsigned char *bytes, size_t len, VALUE *out)
 {
     sanity_check(bytes);
-    return int_decode_object_id(bytes, len);
+    if (!int_decode_object_id(bytes, len, out)) return 0;
+    return 1;
 }
 
-static void
+static int
 int_asn1_validate_object_id(VALUE self, VALUE value)
 {
     /* TODO: validate more strictly */
-    if (TYPE(value) != T_STRING)
-	rb_raise(eKryptASN1Error, "Value for OBJECT_IDENTIFIER must be a String representing an Oid");
+    if (TYPE(value) != T_STRING) return 0;
+    return 1;
 }
 
-static size_t
-int_asn1_encode_utf8_string(VALUE self, VALUE value, unsigned char **out)
+static int
+int_asn1_encode_utf8_string(VALUE self, VALUE value, unsigned char **out, size_t *len)
 {
     rb_encoding *src_encoding;
 
     src_encoding = rb_enc_get(value);
     if (rb_enc_asciicompat(src_encoding)) {
 	rb_enc_associate(value, rb_utf8_encoding());
-	return int_asn1_encode_default(self, value, out);
+	 if (!int_asn1_encode_default(self, value, out, len)) return 0;
     }
     else {
+	/* TODO rb_protect */
 	VALUE encoded = rb_str_encode(value, rb_enc_from_encoding(rb_utf8_encoding()), 0, Qnil);
-	return int_asn1_encode_default(self, encoded, out);
+	if (!int_asn1_encode_default(self, encoded, out, len)) return 0;
     }
+    return 1;
 }
 
-static VALUE
-int_asn1_decode_utf8_string(VALUE self, unsigned char *bytes, size_t len)
+static int
+int_asn1_decode_utf8_string(VALUE self, unsigned char *bytes, size_t len, VALUE *out)
 {
-    VALUE ret;
-
-    ret = int_asn1_decode_default(self, bytes, len);
-    rb_enc_associate(ret, rb_utf8_encoding());
-    return ret;
+    if (!int_asn1_decode_default(self, bytes, len, out)) return 0;
+    /* TODO rb_protect */
+    rb_enc_associate(*out, rb_utf8_encoding());
+    return 1;
 }
 
-static size_t
-int_asn1_encode_utc_time(VALUE self, VALUE value, unsigned char **out)
+static int
+int_asn1_encode_utc_time(VALUE self, VALUE value, unsigned char **out, size_t *len)
 {
-    return int_encode_utc_time(value, out);
+    if (!int_encode_utc_time(value, out, len)) return 0;
+    return 1;
 }
 
-static VALUE
-int_asn1_decode_utc_time(VALUE self, unsigned char *bytes, size_t len)
+static int
+int_asn1_decode_utc_time(VALUE self, unsigned char *bytes, size_t len, VALUE *out)
 {
     sanity_check(bytes);
-    return int_parse_utc_time(bytes, len);
+    if (!int_parse_utc_time(bytes, len, out)) return 0;
+    return 1;
 }
 
-static void
+static int
 int_asn1_validate_time(VALUE self, VALUE value)
 {
     int type = TYPE(value);
@@ -295,21 +298,24 @@ int_asn1_validate_time(VALUE self, VALUE value)
 	type == T_FIXNUM ||
         type == T_BIGNUM ||	
 	type == T_STRING)) {
-	rb_raise(eKryptASN1Error, "TIME type must be a Time, a Number or a String");
+	return 0;
     }
+    return 1;
 }
 
-static size_t
-int_asn1_encode_generalized_time(VALUE self, VALUE value, unsigned char **out)
+static int
+int_asn1_encode_generalized_time(VALUE self, VALUE value, unsigned char **out, size_t *len)
 {
-    return int_encode_generalized_time(value, out);
+    if (!int_encode_generalized_time(value, out, len)) return 0;
+    return 1;
 }
 
-static VALUE
-int_asn1_decode_generalized_time(VALUE self, unsigned char *bytes, size_t len)
+static int
+int_asn1_decode_generalized_time(VALUE self, unsigned char *bytes, size_t len, VALUE *out)
 {
     sanity_check(bytes);
-    return int_parse_generalized_time(bytes, len);
+    if (!int_parse_generalized_time(bytes, len, out)) return 0;
+    return 1;
 }
 
 krypt_asn1_codec KRYPT_DEFAULT_CODEC = { int_asn1_encode_default, int_asn1_decode_default, int_asn1_validate_default  };
@@ -348,43 +354,23 @@ krypt_asn1_codec krypt_asn1_codecs[] = {
     { int_asn1_encode_default,		int_asn1_decode_default    	, int_asn1_validate_default 	},
 };
 
-#define int_check_offset(off) 					\
-do {								\
-    if ((off) + 1 == SIZE_MAX) 					\
-    	rb_raise(eKryptASN1Error, "Object id value too large");	\
-} while (0)
-
-#define int_check_first_sub_id(first)				\
-do {								\
-    if ((first) > 2)						\
-        rb_raise(eKryptASN1Error, "First sub id must be 0..2"); \
-} while (0)
-
-#define int_check_second_sub_id(sec)					\
-do {									\
-    if ((sec) > 39)							\
-        rb_raise(eKryptASN1Error, "Second sub id must be 0..39"); 	\
-} while (0)
+#define int_check_offset(off)	if ((off) + 1 == SIZE_MAX) return -2;
 
 static long
 int_get_sub_id(unsigned char *str, size_t len, size_t *offset)
 {
     unsigned char c;
-    long ret = 0;
+    ssize_t ret = 0;
     size_t off = *offset;
 
-    if (off >= len) 
-	return -1;
+    if (off >= len) return -1;
 
     c = str[off];
-    if (c == '.')
-	rb_raise(eKryptASN1Error, "Sub identifier cannot start with '.'");
+    if (c == '.') return -2;
 
     while (off < len && (c = str[off]) != '.') {
-	if (c < '0' || c > '9')
-	    rb_raise(eKryptASN1Error, "Invalid character in object id: %x", c);
-	if (ret > SUB_ID_LIMIT_ENCODE)
-	    rb_raise(eKryptASN1Error, "Sub object identifier too large");
+	if (c < '0' || c > '9') return -2;
+	if (ret > SUB_ID_LIMIT_ENCODE) return -2;
 	int_check_offset(off);
 	ret *= 10;
 	ret += c - '0';
@@ -405,17 +391,17 @@ do {							\
 } while (0)
 
 
-static void
+static int
 int_write_long(krypt_byte_buffer *buf, long cur)
 {
-    int num_shifts, i;
+    int num_shifts, i, ret;
     unsigned char b;
     unsigned char *bytes;
 
     if (cur == 0) {
 	b = 0x0;
-	krypt_buffer_write(buf, &b, 1);
-	return;
+	if (krypt_buffer_write(buf, &b, 1) < 0) return 0;
+	return 1;
     }
 
     int_determine_num_shifts(num_shifts, cur, CHAR_BIT_MINUS_ONE);
@@ -428,33 +414,45 @@ int_write_long(krypt_byte_buffer *buf, long cur)
 	bytes[i] = b;
 	cur >>= CHAR_BIT_MINUS_ONE;
     }
-    krypt_buffer_write(buf, bytes, num_shifts);
+
+    if (krypt_buffer_write(buf, bytes, num_shifts) < 0)
+	ret = 0;
+    else
+	ret = 1;
     xfree(bytes);
+    return ret;
 } 
 
-static size_t
-int_encode_object_id(unsigned char *str, size_t len, unsigned char **out)
+#define int_check_first_sub_id(first)	if ((first) > 2) goto error;
+#define int_check_second_sub_id(sec)	if ((sec) > 39) goto error;
+
+static int
+int_encode_object_id(unsigned char *str, size_t len, unsigned char **out, size_t *outlen)
 {
     size_t offset = 0;
     long first, second, cur;
     krypt_byte_buffer *buffer;
 
     buffer = krypt_buffer_new();
-    if ((first = int_get_sub_id(str, len, &offset)) == -1)
-	rb_raise(eKryptASN1Error, "Error while encoding object identifier");
+    if ((first = int_get_sub_id(str, len, &offset)) < 0) goto error;
     int_check_first_sub_id(first);
-    if ((second = int_get_sub_id(str, len, &offset)) == -1)
-	rb_raise(eKryptASN1Error, "Error while encoding object identifier");
+    if ((second = int_get_sub_id(str, len, &offset)) < 0) goto error;
     int_check_second_sub_id(second);
 
     cur = 40 * first + second;
-    int_write_long(buffer, cur);
+    if (!int_write_long(buffer, cur)) goto error;
 
-    while ((cur = int_get_sub_id(str, len, &offset)) != -1) {
-	int_write_long(buffer, cur);
+    while ((cur = int_get_sub_id(str, len, &offset)) >= 0) {
+	if (!int_write_long(buffer, cur)) goto error;
     }
+    if (cur < -1) goto error;
 
-    return krypt_buffer_resize_free(buffer, out);
+    *outlen = krypt_buffer_resize_free(buffer, out);
+    return 1;
+
+error:
+    krypt_buffer_free(buffer);
+    return 0;
 }
 
 static long
@@ -463,16 +461,13 @@ int_parse_sub_id(unsigned char* bytes, size_t len, size_t *offset)
     long num = 0;
     size_t off = *offset;
 
-    if (off >= len)
-	return -1;
+    if (off >= len) return -1;
 
     while (bytes[off] & 0x80) {
-	if (num > SUB_ID_LIMIT_PARSE)
-	    rb_raise(eKryptASN1Error, "Sub identifier too large");
+	if (num > SUB_ID_LIMIT_PARSE) return -1;
 	num <<= CHAR_BIT_MINUS_ONE;
 	num |= bytes[off++] & 0x7f;
-	if (off >= len)
-	    rb_raise(eKryptASN1Error, "Invalid object identifier encoding");
+	if (off >= len) return -1;
     }
 
     num <<= CHAR_BIT_MINUS_ONE;
@@ -493,17 +488,17 @@ int_set_first_sub_ids(long combined, long *first, long *second)
     *second = combined - 40 * (f - 1);
 }
 
-#define int_append_num(buf, cur, numbuf)			\
-do {								\
-    int nl;							\
-    unsigned char b = (unsigned char)'.';  			\
-    krypt_buffer_write((buf), &b, 1);				\
-    nl = sprintf((char *) (numbuf), "%ld", (cur));		\
-    krypt_buffer_write((buf), (numbuf), nl);			\
+#define int_append_num(buf, cur, numbuf)				\
+do {									\
+    int nl;								\
+    unsigned char b = (unsigned char)'.';  				\
+    if (krypt_buffer_write((buf), &b, 1) < 0) goto error;		\
+    nl = sprintf((char *) (numbuf), "%ld", (cur));			\
+    if (krypt_buffer_write((buf), (numbuf), nl) < 0) goto error;	\
 } while (0)
 
-static VALUE
-int_decode_object_id(unsigned char *bytes, size_t len)
+static int
+int_decode_object_id(unsigned char *bytes, size_t len, VALUE *out)
 {
     long cur, first, second;
     size_t offset = 0;
@@ -512,37 +507,31 @@ int_decode_object_id(unsigned char *bytes, size_t len)
     unsigned char numbuf[MAX_LONG_DIGITS];
     unsigned char *retbytes;
     size_t retlen;
-    VALUE ret;
 
     sanity_check(bytes);
     
     buffer = krypt_buffer_new();
-    if ((cur = int_parse_sub_id(bytes, len, &offset)) == -1)
-	rb_raise(eKryptASN1Error, "Error while parsing object identifier");
-    
-    if (cur > 40 * 2 + 39)
-	rb_raise(eKryptASN1Error, "Illegal first octet, value too large");
+    if ((cur = int_parse_sub_id(bytes, len, &offset)) == -1) goto error;
+    if (cur > 40 * 2 + 39) goto error;
     int_set_first_sub_ids(cur, &first, &second);
     int_check_first_sub_id(first);
     int_check_second_sub_id(second);
 
     numlen = sprintf((char *)numbuf, "%ld", first);
-    krypt_buffer_write(buffer, numbuf, numlen);
+    if (krypt_buffer_write(buffer, numbuf, numlen) < 0) goto error;
     int_append_num(buffer, second, numbuf);
 
     while ((cur = int_parse_sub_id(bytes, len, &offset)) != -1)
 	int_append_num(buffer, cur, numbuf);
 
     retlen = krypt_buffer_resize_free(buffer, &retbytes);
-    ret = rb_str_new((const char *)retbytes, retlen);
+    *out = rb_str_new((const char *)retbytes, retlen);
     xfree(retbytes);
-    return ret;
-}
+    return 1;
 
-static VALUE
-int_convert_integer(VALUE number)
-{
-    return rb_Integer(number);
+error:
+    krypt_buffer_free(buffer);
+    return 0;
 }
 
 #define int_as_time_t(t, time)					\
@@ -550,19 +539,16 @@ do {								\
     int state = 0;						\
     VALUE coerced;						\
     long tmp;							\
-    coerced = rb_protect(int_convert_integer, time, &state);    \
-    if (state)							\
-        rb_raise(eKryptASN1Error, "Invalid time argument");	\
+    coerced = rb_protect(rb_Integer, time, &state);   		\
+    if (state) return 0;					\
     tmp = (long) rb_protect((VALUE(*)_((VALUE)))rb_num2long, coerced, &state); \
-    if (state)							\
-        rb_raise(eKryptASN1Error, "Invalid time argument");	\
-    if (tmp < 0)						\
-	rb_raise(eKryptASN1Error, "Negative time value given");	\
+    if (state) return 0;					\
+    if (tmp < 0) return 0;					\
     (t) = (time_t) tmp;						\
 } while (0)
 
-static size_t
-int_encode_utc_time(VALUE value, unsigned char **out)
+static int
+int_encode_utc_time(VALUE value, unsigned char **out, size_t *len)
 {
     time_t time;
     struct tm tm;
@@ -570,8 +556,7 @@ int_encode_utc_time(VALUE value, unsigned char **out)
     int r;
 
     int_as_time_t(time, value);
-    if (!(gmtime_r(&time, &tm)))
-	rb_raise(rb_eNoMemError, NULL);
+    if (!(gmtime_r(&time, &tm))) return 0;
 
     ret = ALLOC_N(char, 20);
     
@@ -586,21 +571,21 @@ int_encode_utc_time(VALUE value, unsigned char **out)
 
     if (r > 20) {
 	xfree(ret);
-	rb_raise(eKryptASN1Error, "Error while encoding UTC time value");
+	return 0;
     }
 
     *out = (unsigned char *) ret;
-    return 13;
+    *len = 13;
+    return 1;
 }
 
-static VALUE
-int_parse_utc_time(unsigned char *bytes, size_t len)
+static int
+int_parse_utc_time(unsigned char *bytes, size_t len, VALUE *out)
 {
     VALUE argv[6];
     struct tm tm = { 0 };
 
-    if (len != 13)
-	rb_raise(eKryptASN1Error, "Invalid UTC time format. Value must be 15 characters");
+    if (len != 13) return 0;
 
     if (sscanf((const char *) bytes,
 		"%2d%2d%2d%2d%2d%2dZ",
@@ -610,7 +595,7 @@ int_parse_utc_time(unsigned char *bytes, size_t len)
 		&tm.tm_hour,
 		&tm.tm_min,
 		&tm.tm_sec) != 6) {
-	    rb_raise(eKryptASN1Error, "Invalid UTC time format");
+	return 0;
     }
     if (tm.tm_year < 69)
 	tm.tm_year += 2000;
@@ -624,11 +609,12 @@ int_parse_utc_time(unsigned char *bytes, size_t len)
     argv[4] = INT2NUM(tm.tm_min);
     argv[5] = INT2NUM(tm.tm_sec);
 
-    return rb_funcall2(rb_cTime, rb_intern("utc"), 6, argv);
+    *out = rb_funcall2(rb_cTime, rb_intern("utc"), 6, argv);
+    return 1;
 }
 
-static size_t
-int_encode_generalized_time(VALUE value, unsigned char **out)
+static int
+int_encode_generalized_time(VALUE value, unsigned char **out, size_t *len)
 {
     time_t time;
     struct tm tm;
@@ -637,8 +623,7 @@ int_encode_generalized_time(VALUE value, unsigned char **out)
 
     int_as_time_t(time, value);
     gmtime_r(&time, &tm);
-    if (!(gmtime_r(&time, &tm)))
-	rb_raise(rb_eNoMemError, NULL);
+    if (!(gmtime_r(&time, &tm))) return 0;
 
     ret = ALLOC_N(char, 20);
     
@@ -652,21 +637,21 @@ int_encode_generalized_time(VALUE value, unsigned char **out)
 		 tm.tm_sec);
     if (r  > 20) {
 	xfree(ret);
-	rb_raise(eKryptASN1Error, "Error while encoding generalized time value");
+	return 0;
     }
 
     *out = (unsigned char *)ret;
-    return 15;
+    *len = 15;
+    return 1;
 }
 
-static VALUE
-int_parse_generalized_time(unsigned char *bytes, size_t len)
+static int
+int_parse_generalized_time(unsigned char *bytes, size_t len, VALUE *out)
 {
     VALUE argv[6];
     struct tm tm = { 0 };
 
-    if (len != 15)
-	rb_raise(eKryptASN1Error, "Invalid generalized time format. Value must be 13 characters");
+    if (len != 15) return 0;
 
     if (sscanf((const char *)bytes,
 		"%4d%2d%2d%2d%2d%2dZ",
@@ -676,7 +661,7 @@ int_parse_generalized_time(unsigned char *bytes, size_t len)
 		&tm.tm_hour,
 		&tm.tm_min,
 		&tm.tm_sec) != 6) {
-	rb_raise(eKryptASN1Error, "Invalid generalized time format" );
+	return 0;
     }
 
     argv[0] = INT2NUM(tm.tm_year);
@@ -686,15 +671,16 @@ int_parse_generalized_time(unsigned char *bytes, size_t len)
     argv[4] = INT2NUM(tm.tm_min);
     argv[5] = INT2NUM(tm.tm_sec);
 
-    return rb_funcall2(rb_cTime, rb_intern("utc"), 6, argv);
+    *out = rb_funcall2(rb_cTime, rb_intern("utc"), 6, argv);
+    return 1;
 }
 
 #if defined(HAVE_RB_BIG_PACK)
 /* TODO: This function uses rb_big_pack which is in intern.h.  We need to
  * implement String <-> binary converter by ourselves for Rubinius support.
  */
-static size_t
-int_encode_integer_bignum(VALUE big, unsigned char **out) {
+static int
+int_encode_integer_bignum(VALUE big, unsigned char **out, size_t *outlen) {
     int len, i, j;
     long num_longs, biglen, divisor;
     unsigned long *longs;
@@ -721,7 +707,10 @@ int_encode_integer_bignum(VALUE big, unsigned char **out) {
 	unsigned char* buf;
 	size_t encoded;
 
-	encoded = int_encode_integer(longs[num_longs - 1], &buf);
+	if (!int_encode_integer(longs[num_longs - 1], &buf, &encoded)) {
+	    xfree(longs);
+	    return 0;
+	}
 	len = encoded + (num_longs - 1) * SIZEOF_LONG;
 	bytes = ALLOC_N(unsigned char, len);
 	ptr = bytes;
@@ -740,13 +729,13 @@ int_encode_integer_bignum(VALUE big, unsigned char **out) {
     }
     xfree(longs);
     *out = bytes;
-
-    return ptr - bytes;
+    *outlen = ptr - bytes;
+    return 1;
 }
 #endif
 
-static size_t
-int_encode_integer(long num, unsigned char **out)
+static int
+int_encode_integer(long num, unsigned char **out, size_t *outlen)
 {
     int len, i, need_extra_byte = 0;
     int sign = num >= 0;
@@ -777,7 +766,8 @@ int_encode_integer(long num, unsigned char **out)
 	*ptr++ = numbytes[--len];
     }
     *out = bytes;
-    return ptr - bytes;
+    *outlen = ptr - bytes;
+    return 1;
 }
 
 #if defined(HAVE_RB_BIG_PACK)
@@ -786,8 +776,8 @@ int_encode_integer(long num, unsigned char **out)
  *
  * See int_encode_integer, too.
  */
-static VALUE
-int_decode_integer(unsigned char *bytes, size_t len)
+static int
+int_decode_integer(unsigned char *bytes, size_t len, VALUE *out)
 {
     long num_longs;
     int i, j, pos, sign;
@@ -816,13 +806,14 @@ int_decode_integer(unsigned char *bytes, size_t len)
 	RBIGNUM_SET_SIGN(value, !sign);
     }
     xfree(longs);
-    return value;
+    *out = value;
+    return 1;
 }
 
 #else
 
-static VALUE
-int_decode_positive_integer(unsigned char *bytes, size_t len)
+static int
+int_decode_positive_integer(unsigned char *bytes, size_t len, VALUE *out)
 {
     unsigned long num = 0;
     size_t i;
@@ -830,14 +821,14 @@ int_decode_positive_integer(unsigned char *bytes, size_t len)
     for (i = 0; i < len; i++)
 	num |= bytes[i] << ((len - i - 1) * CHAR_BIT);
 
-    if (num > LONG_MAX)
-	rb_raise(eKryptASN1Error, "Integer too large: %lu", num);
+    if (num > LONG_MAX) return 0;
 
-    return LONG2NUM((long)num);
+    *out = LONG2NUM((long)num);
+    return 1;
 }
 
-static VALUE
-int_decode_negative_integer(unsigned char *bytes, size_t len)
+static int
+int_decode_negative_integer(unsigned char *bytes, size_t len, VALUE *out)
 {
     long num = 0;
     size_t i;
@@ -851,20 +842,21 @@ int_decode_negative_integer(unsigned char *bytes, size_t len)
 	num |= b << ((size - i - 1) * CHAR_BIT);
     }
 
-    return LONG2NUM(num);
+    *out = LONG2NUM(num);
+    return 1;
 }
 
-static VALUE
-int_decode_integer(unsigned char *bytes, size_t len)
+static int
+int_decode_integer(unsigned char *bytes, size_t len, VALUE *out)
 {
     if (bytes[0] & 0x80) {
-	return int_decode_negative_integer(bytes, len);
+	return int_decode_negative_integer(bytes, len, out);
     }
     else {
 	if (bytes[0] == 0x0)
-	    return int_decode_positive_integer(bytes + 1, len - 1);
+	    return int_decode_positive_integer(bytes + 1, len - 1, out);
 	else
-	    return int_decode_positive_integer(bytes, len);
+	    return int_decode_positive_integer(bytes, len, out);
     }
 }
 #endif

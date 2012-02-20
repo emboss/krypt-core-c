@@ -71,7 +71,7 @@ int_chunked_alloc(void)
     return ret;
 }
 
-static void
+static int
 int_read_new_header(krypt_instream_chunked *in)
 {
     int ret;
@@ -80,15 +80,15 @@ int_read_new_header(krypt_instream_chunked *in)
     ret = krypt_asn1_next_header(in->inner, &next);
     if (ret == 0) {
 	krypt_asn1_header_free(next);
-	rb_raise(eKryptASN1ParseError, "Premature end of value detected");
+	return 0;
     }
-    else {
-	if (in->cur_header)
-	    krypt_asn1_header_free(in->cur_header);
-	in->cur_header = next;
-	in->state = PROCESS_TAG;
-	in->header_offset = 0;
-    }
+
+    if (in->cur_header)
+	krypt_asn1_header_free(in->cur_header);
+    in->cur_header = next;
+    in->state = PROCESS_TAG;
+    in->header_offset = 0;
+    return 1;
 }
 
 static size_t
@@ -157,10 +157,23 @@ int_read_single_element(krypt_instream_chunked *in, unsigned char *buf, size_t l
 {
     ssize_t read = 0;
     size_t total = 0;
-    
+
+#define add_header_bytes()			\
+do {						\
+   if (!in->values_only) {			\
+      total += read;				\
+      if (total == len || in->state == DONE)	\
+          return (ssize_t) total;		\
+      if (total > len) return -2;		\
+      buf += read;				\
+   }						\
+} while (0)
+
     switch (in->state) {
 	case NEW_HEADER:
-	    int_read_new_header(in); /* fallthrough */
+	    if (!int_read_new_header(in))
+	       return -2;
+    	    /* fallthrough */
 	case PROCESS_TAG: 
 	    read = int_read_header_bytes(in,
 		    			 in->cur_header->tag_bytes,
@@ -168,12 +181,8 @@ int_read_single_element(krypt_instream_chunked *in, unsigned char *buf, size_t l
 					 PROCESS_LENGTH, 
 					 buf,
 					 len);
-	    if (!in->values_only) {
-		total += read;
-		if (total == len)
-		    return (ssize_t) total;
-		buf += read;
-	    } /* fallthrough */
+	    add_header_bytes();
+	    /* fallthrough */
 	case PROCESS_LENGTH:
 	    read = int_read_header_bytes(in,
 		    			 in->cur_header->length_bytes,
@@ -182,13 +191,8 @@ int_read_single_element(krypt_instream_chunked *in, unsigned char *buf, size_t l
 					 buf,
 					 len);
 	    int_check_done(in);
-	    
-	    if (!in->values_only) {
-		total += read;
-		if (total == len || in->state == DONE)
-		    return (ssize_t) total;
-		buf += read;
-	    } /* fallthrough */
+	    add_header_bytes();
+	    /* fallthrough */
 	case PROCESS_VALUE:
 	    read = int_read_value(in, buf, len);
 	    if (read < -1) return read;
@@ -203,11 +207,13 @@ int_read_single_element(krypt_instream_chunked *in, unsigned char *buf, size_t l
 static ssize_t
 int_read(krypt_instream_chunked *in, unsigned char *buf, size_t len)
 {
-    size_t read = 0, total = 0;
+    ssize_t read = 0;
+    size_t total = 0;
 
     while (total != len && in->state != DONE) {
 	read = int_read_single_element(in, buf, len);
-	if (total > SSIZE_MAX - read) return -2;
+	if (read < -1) return -2;
+	if (total > (size_t) (SSIZE_MAX - read)) return -2;
 	total += read;
 	buf += read;
     }
@@ -218,19 +224,14 @@ static ssize_t
 int_chunked_read(krypt_instream *instream, unsigned char *buf, size_t len)
 {
     krypt_instream_chunked *in;
-    ssize_t read;
     
     int_safe_cast(in, instream);
     
     if (!buf) return -2;
-    if (len > SSIZE_MAX) return -2;
-
     if (in->state == DONE)
 	return -1;
 
-    read = int_read(in, buf, len);
-    if (read == -2) return -2;
-    return read;
+    return int_read(in, buf, len);
 }
 
 static int
