@@ -54,21 +54,23 @@ int
 krypt_md_final(krypt_md *md, unsigned char **digest, size_t *len)
 {
     int_check_digest_has(md, md_final);
-    return md->methods->md_final(md, digest, len);
+    if (!md->methods->md_final(md, digest, len)) return 0;
+    return krypt_md_reset(md);
 }
 
 int
 krypt_md_digest(krypt_md *md, unsigned char *data, size_t len, unsigned char **digest, size_t *digest_len)
 {
     int_check_digest_has(md, md_digest);
-    return md->methods->md_digest(md, data, len, digest, digest_len);
+    if(!md->methods->md_digest(md, data, len, digest, digest_len)) return 0;
+    return krypt_md_reset(md);
 }
 
 int
-krypt_md_length(krypt_md *md, int *len)
+krypt_md_digest_length(krypt_md *md, int *len)
 {
-    int_check_digest_has(md, md_length);
-    return md->methods->md_length(md, len);
+    int_check_digest_has(md, md_digest_length);
+    return md->methods->md_digest_length(md, len);
 }
 
 int
@@ -232,13 +234,13 @@ krypt_digest_digest(int argc, VALUE *args, VALUE self)
 }
 
 static VALUE
-krypt_digest_length(VALUE self)
+krypt_digest_digest_length(VALUE self)
 {
     krypt_md *md;
     int len;
 
     int_md_get(self, md);
-    if (!krypt_md_length(md, &len)) {
+    if (!krypt_md_digest_length(md, &len)) {
 	rb_raise(eKryptDigestError, "Error while getting digest length");
     }
     return INT2NUM(len);
@@ -283,7 +285,7 @@ Init_krypt_digest(void)
     rb_define_method(cKryptDigest, "update", krypt_digest_update, 1);
     rb_define_alias(cKryptDigest, "<<", "update");
     rb_define_method(cKryptDigest, "digest", krypt_digest_digest, -1);
-    rb_define_method(cKryptDigest, "digest_length", krypt_digest_length, 0);
+    rb_define_method(cKryptDigest, "digest_length", krypt_digest_digest_length, 0);
     rb_define_method(cKryptDigest, "block_length", krypt_digest_block_length, 0);
     rb_define_method(cKryptDigest, "name", krypt_digest_name, 0);
 
