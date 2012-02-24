@@ -13,6 +13,11 @@
 #ifndef _KRYPT_PROVIDER_H_
 #define _KRYPT_PROVIDER_H_
 
+#define RSTRING_NOT_MODIFIED 1
+#define RUBY_READONLY_STRING 1
+
+#include <ruby.h>
+
 typedef struct krypt_provider_st krypt_provider;
 
 /* Message digest */
