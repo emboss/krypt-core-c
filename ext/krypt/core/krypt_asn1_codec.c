@@ -717,7 +717,7 @@ int_decode_integer_to_long(unsigned char *bytes, size_t len, long *out)
 	num |= bytes[i] << ((len - i - 1) * CHAR_BIT);
 
     if (num > LONG_MAX) return 0;
-    *out = num;
+    *out = (long) num;
     return 1;
 }
 
@@ -727,14 +727,14 @@ int_decode_positive_integer(unsigned char *bytes, size_t len, VALUE *out)
     long num;
 
     if (!(int_decode_integer_to_long(bytes, len, &num))) return 0;
-    *out = LONG2NUM((long)num);
+    *out = LONG2NUM(num);
     return 1;
 }
 
 static int
 int_decode_negative_integer(unsigned char *bytes, size_t len, VALUE *out)
 {
-    unsigned long num;
+    long num;
     unsigned char *copy;
     int result;
 
