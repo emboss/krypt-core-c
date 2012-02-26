@@ -21,13 +21,13 @@ static const char krypt_hex_table_inv[] = {
 -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,10,11,12,
 13,14,15}; /* 102 */
 
-#define KRYPT_HEX_INV_TABLE_LEN 102
+#define KRYPT_HEX_INV_MAX 102
 
 ssize_t
-krypt_hex_encode(unsigned char *bytes, size_t len, unsigned char **out)
+krypt_hex_encode(unsigned char *bytes, size_t len, char **out)
 {
     size_t retlen;
-    unsigned char *ret;
+    char *ret;
     size_t i;
     unsigned char b;
    
@@ -35,7 +35,7 @@ krypt_hex_encode(unsigned char *bytes, size_t len, unsigned char **out)
     if (!bytes) return -1;
 
     retlen = 2 * len; 
-    ret = ALLOC_N(unsigned char, retlen);
+    ret = ALLOC_N(char, retlen);
 
     for (i=0; i<len; i++) {
 	b = bytes[i];
@@ -48,7 +48,7 @@ krypt_hex_encode(unsigned char *bytes, size_t len, unsigned char **out)
 }
 
 ssize_t
-krypt_hex_decode(unsigned char *bytes, size_t len, unsigned char **out)
+krypt_hex_decode(char *bytes, size_t len, unsigned char **out)
 {
     size_t retlen;
     unsigned char *ret;
@@ -64,9 +64,9 @@ krypt_hex_decode(unsigned char *bytes, size_t len, unsigned char **out)
     ret = ALLOC_N(unsigned char, retlen);
 
     for (i=0; i<retlen; i++) {
-	c = bytes[i*2];
-	d = bytes[i*2+1];
-	if (c > KRYPT_HEX_INV_TABLE_LEN || d > KRYPT_HEX_INV_TABLE_LEN) return -1;
+	c = (unsigned char) bytes[i*2];
+	d = (unsigned char) bytes[i*2+1];
+	if (c > KRYPT_HEX_INV_MAX || d > KRYPT_HEX_INV_MAX) return -1;
 	b = krypt_hex_table_inv[c];
 	if (b < 0) return -1;
 	ret[i] = b << 4;
@@ -76,6 +76,6 @@ krypt_hex_decode(unsigned char *bytes, size_t len, unsigned char **out)
     }
 
     *out = ret;
-    return retlen;
+    return (ssize_t) retlen;
 }
 

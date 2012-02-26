@@ -57,11 +57,7 @@ static int int_parse_utc_time(unsigned char *, size_t, VALUE *);
 static int int_parse_generalized_time(unsigned char *, size_t, VALUE *);
 static int int_encode_utc_time(VALUE, unsigned char **, size_t *);
 static int int_encode_generalized_time(VALUE, unsigned char **, size_t *);
-static int int_encode_integer(long, unsigned char **, size_t *);
 static int int_decode_integer(unsigned char *, size_t, VALUE *);
-#if defined(HAVE_RB_BIG_PACK)
-static int int_encode_integer_bignum(VALUE, unsigned char **, size_t *);
-#endif
 
 #define sanity_check(b)		if (!b) return 0;
 
@@ -127,14 +123,13 @@ int_asn1_encode_integer(VALUE self, VALUE value, unsigned char **out, size_t *le
 {
     long num;
     
-#if defined(HAVE_RB_BIG_PACK)
     if (TYPE(value) == T_BIGNUM) {
-	if (!int_encode_integer_bignum(value, out, len)) return 0;
+	if (!krypt_asn1_encode_bignum(value, out, len)) return 0;
 	return 1;
     }
-#endif
+
     num = NUM2LONG(value);
-    if (!int_encode_integer(num, out, len)) return 0;
+    *len = krypt_asn1_encode_integer(num, out);
     return 1;
 }
 
@@ -144,12 +139,14 @@ int_asn1_decode_integer(VALUE self, unsigned char *bytes, size_t len, VALUE *out
     if (len == 0) return 0;
     sanity_check(bytes);
 
-#if !defined(HAVE_RB_BIG_PACK)
-    if ((bytes[0] == 0x0 && len > sizeof(long) + 1) ||
-	(bytes[0] != 0x0 && len > sizeof(long))) {
-	return 0;
+    /* Even if in the range of long, high numbers may already have to
+     * be represented as Bignums in Ruby. To be safe, call the Bignum
+     * decoder for all of these cases. */
+    if ((bytes[0] == 0x0 && len > sizeof(long)) ||
+	(bytes[0] != 0x0 && len >= sizeof(long))) {
+	if (!krypt_asn1_decode_bignum(bytes, len, out)) return 0;
+	return 1;
     }
-#endif
 
     if (!int_decode_integer(bytes, len, out)) return 0;
     return 1;
@@ -675,67 +672,8 @@ int_parse_generalized_time(unsigned char *bytes, size_t len, VALUE *out)
     return 1;
 }
 
-#if defined(HAVE_RB_BIG_PACK)
-/* TODO: This function uses rb_big_pack which is in intern.h.  We need to
- * implement String <-> binary converter by ourselves for Rubinius support.
- */
-static int
-int_encode_integer_bignum(VALUE big, unsigned char **out, size_t *outlen) {
-    int len, i, j;
-    long num_longs, biglen, divisor;
-    unsigned long *longs;
-    unsigned char* bytes;
-    unsigned char* ptr;
-    unsigned char msb;
-    unsigned long l;
-
-    biglen = RBIGNUM_LEN(big);
-    divisor = SIZEOF_LONG / SIZEOF_BDIGITS;
-    num_longs = (biglen % divisor) == 0 ? biglen / divisor : biglen / divisor + 1;
-    longs = ALLOC_N(unsigned long, num_longs);
-    rb_big_pack(big, longs, num_longs);
-    msb = longs[num_longs - 1] >> (SIZEOF_LONG * CHAR_BIT - 1);
-
-    if (RBIGNUM_SIGN(big) == ((msb & 1) == 1)) {
-	/* We can't use int_encode_integer here because longs are unsigned */
-	len = num_longs * SIZEOF_LONG + 1;
-	bytes = ALLOC_N(unsigned char, len);
-	ptr = bytes;
-	*ptr++ = RBIGNUM_SIGN(big) ? 0x00 : 0xff;
-    }
-    else {
-	unsigned char* buf;
-	size_t encoded;
-
-	if (!int_encode_integer(longs[num_longs - 1], &buf, &encoded)) {
-	    xfree(longs);
-	    return 0;
-	}
-	len = encoded + (num_longs - 1) * SIZEOF_LONG;
-	bytes = ALLOC_N(unsigned char, len);
-	ptr = bytes;
-	memcpy(ptr, buf, encoded);
-	ptr += encoded;
-	--num_longs;
-	xfree(buf);
-    }
-    for (i = num_longs - 1; i >= 0; --i) {
-	l = longs[i];
-	for (j = 0; j < SIZEOF_LONG; ++j) {
-	    ptr[SIZEOF_LONG - j - 1] = l & 0xff;
-	    l >>= CHAR_BIT;
-	}
-	ptr += SIZEOF_LONG;
-    }
-    xfree(longs);
-    *out = bytes;
-    *outlen = ptr - bytes;
-    return 1;
-}
-#endif
-
-static int
-int_encode_integer(long num, unsigned char **out, size_t *outlen)
+size_t
+krypt_asn1_encode_integer(long num, unsigned char **out)
 {
     int len, i, need_extra_byte = 0;
     int sign = num >= 0;
@@ -766,54 +704,11 @@ int_encode_integer(long num, unsigned char **out, size_t *outlen)
 	*ptr++ = numbytes[--len];
     }
     *out = bytes;
-    *outlen = ptr - bytes;
-    return 1;
+    return ptr - bytes;
 }
 
-#if defined(HAVE_RB_BIG_PACK)
-/* TODO: This function uses rb_big_unpack which is in intern.h.  We need to
- * implement String <-> binary converter by ourselves for Rubinius support.
- *
- * See int_encode_integer, too.
- */
 static int
-int_decode_integer(unsigned char *bytes, size_t len, VALUE *out)
-{
-    long num_longs;
-    int i, j, pos, sign;
-    unsigned long *longs;
-    long l;
-    VALUE value;
-
-    sign = bytes[0] & 0x80;
-    num_longs = (len - 1) / SIZEOF_LONG + 1;
-    longs = ALLOC_N(unsigned long, num_longs);
-    for (i = 0; i < num_longs; ++i) {
-	l = 0;
-	for (j = 0; j < SIZEOF_LONG; ++j) {
-	    pos = len - i * SIZEOF_LONG - j - 1;
-	    if (pos >= 0) {
-		l += ((long)(bytes[pos] & 0xff) << (j * CHAR_BIT));
-	    }
-	    else if (sign) {
-		l |= ((long)0xff << (j * CHAR_BIT));
-	    }
-	}
-	longs[i] = l;
-    }
-    value = rb_big_unpack(longs, num_longs);
-    if (TYPE(value) == T_BIGNUM) {
-	RBIGNUM_SET_SIGN(value, !sign);
-    }
-    xfree(longs);
-    *out = value;
-    return 1;
-}
-
-#else
-
-static int
-int_decode_positive_integer(unsigned char *bytes, size_t len, VALUE *out)
+int_decode_integer_to_long(unsigned char *bytes, size_t len, long *out)
 {
     unsigned long num = 0;
     size_t i;
@@ -822,7 +717,16 @@ int_decode_positive_integer(unsigned char *bytes, size_t len, VALUE *out)
 	num |= bytes[i] << ((len - i - 1) * CHAR_BIT);
 
     if (num > LONG_MAX) return 0;
+    *out = num;
+    return 1;
+}
 
+static int
+int_decode_positive_integer(unsigned char *bytes, size_t len, VALUE *out)
+{
+    long num;
+
+    if (!(int_decode_integer_to_long(bytes, len, &num))) return 0;
     *out = LONG2NUM((long)num);
     return 1;
 }
@@ -830,19 +734,16 @@ int_decode_positive_integer(unsigned char *bytes, size_t len, VALUE *out)
 static int
 int_decode_negative_integer(unsigned char *bytes, size_t len, VALUE *out)
 {
-    long num = 0;
-    size_t i;
-    unsigned char b;
-    size_t size = sizeof(long);
+    unsigned long num;
+    unsigned char *copy;
+    int result;
 
-    /* Fill with 0xff from MSB down to len-th byte, then
-     * fill with bytes in successive order */
-    for (i = 0; i < size; i++) {
-	b = i < size - len ? 0xff : bytes[i - (size - len)];
-	num |= b << ((size - i - 1) * CHAR_BIT);
-    }
-
-    *out = LONG2NUM(num);
+    copy = ALLOC_N(unsigned char, len);
+    krypt_compute_twos_complement(copy, bytes, len);
+    result = int_decode_integer_to_long(copy, len, &num);
+    xfree(copy);
+    if (!result) return 0;
+    *out = LONG2NUM(-num);
     return 1;
 }
 
@@ -859,4 +760,4 @@ int_decode_integer(unsigned char *bytes, size_t len, VALUE *out)
 	    return int_decode_positive_integer(bytes, len, out);
     }
 }
-#endif
+

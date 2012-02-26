@@ -59,6 +59,21 @@ krypt_to_pem_if_possible(VALUE obj)
     return obj;
 }
 
+void
+krypt_compute_twos_complement(unsigned char *dest, unsigned char *src, size_t len)
+{
+    size_t i;
+
+    for (i=0; i<len; ++i) {
+	dest[i] = ~src[i];
+    }
+    while (dest[i - 1] == 0xff) {
+	dest[i - 1] = 0x0;
+	i--;
+    }
+    dest[i-1]++;
+}
+
 void 
 Init_kryptcore(void)
 {

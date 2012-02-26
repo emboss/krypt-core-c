@@ -237,12 +237,14 @@ static VALUE
 krypt_digest_hexdigest(int argc, VALUE *args, VALUE self)
 {
     VALUE digest, ret;
-    unsigned char *bytes;
-    size_t len;
+    char *bytes;
+    ssize_t len;
 
     digest = krypt_digest_digest(argc, args, self);
     len = krypt_hex_encode((unsigned char *) RSTRING_PTR(digest), RSTRING_LEN(digest), &bytes);
-    ret = rb_str_new((const char *) bytes, len);
+    if (len == -1)
+	rb_raise(eKryptDigestError, "Error while hex-encoding digest");
+    ret = rb_str_new(bytes, len);
     xfree(bytes);
     return ret;
 }

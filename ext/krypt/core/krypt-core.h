@@ -67,8 +67,11 @@ ssize_t krypt_base64_decode(unsigned char *bytes, size_t len, unsigned char **ou
 int krypt_base64_buffer_decode_to(krypt_outstream *out, unsigned char *bytes, size_t off, size_t len);
 
 /* internal hex en-/decoder */
-ssize_t krypt_hex_encode(unsigned char *bytes, size_t len, unsigned char **out);
-ssize_t krypt_hex_decode(unsigned char *bytes, size_t len, unsigned char **out);
+ssize_t krypt_hex_encode(unsigned char *bytes, size_t len, char **out);
+ssize_t krypt_hex_decode(char *bytes, size_t len, unsigned char **out);
+
+/* helper for integer encoding/decoding */
+void krypt_compute_twos_complement(unsigned char *dest, unsigned char *src, size_t len);
 
 void Init_kryptcore(void);
 void Init_krypt_io(void);
