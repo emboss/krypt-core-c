@@ -99,7 +99,6 @@ krypt_asn1_encode_bignum(VALUE bignum, unsigned char **out, size_t *outlen)
     sign = RBIGNUM_NEGATIVE_P(bignum);
 
     hexstr = rb_funcall(bignum, rb_intern("to_s"), 1, INT2NUM(16));
-    StringValueCStr(hexstr);
     hexstrbytes = (char *) RSTRING_PTR(hexstr);
     hexstrlen = RSTRING_LEN(hexstr);
 
