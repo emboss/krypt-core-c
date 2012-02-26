@@ -234,6 +234,20 @@ krypt_digest_digest(int argc, VALUE *args, VALUE self)
 }
 
 static VALUE
+krypt_digest_hexdigest(int argc, VALUE *args, VALUE self)
+{
+    VALUE digest, ret;
+    unsigned char *bytes;
+    size_t len;
+
+    digest = krypt_digest_digest(argc, args, self);
+    len = krypt_hex_encode((unsigned char *) RSTRING_PTR(digest), RSTRING_LEN(digest), &bytes);
+    ret = rb_str_new((const char *) bytes, len);
+    xfree(bytes);
+    return ret;
+}
+
+static VALUE
 krypt_digest_digest_length(VALUE self)
 {
     krypt_md *md;
@@ -285,6 +299,7 @@ Init_krypt_digest(void)
     rb_define_method(cKryptDigest, "update", krypt_digest_update, 1);
     rb_define_alias(cKryptDigest, "<<", "update");
     rb_define_method(cKryptDigest, "digest", krypt_digest_digest, -1);
+    rb_define_method(cKryptDigest, "hexdigest", krypt_digest_hexdigest, -1);
     rb_define_method(cKryptDigest, "digest_length", krypt_digest_digest_length, 0);
     rb_define_method(cKryptDigest, "block_length", krypt_digest_block_length, 0);
     rb_define_method(cKryptDigest, "name", krypt_digest_name, 0);
