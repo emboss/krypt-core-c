@@ -44,6 +44,42 @@ int_consume_stream(krypt_instream *in, VALUE *vout)
     return 1;
 }
 
+/*
+ *  call-seq:
+ *      Krypt::PEM.decode(data) { |der, name, i| block } -> Array
+ *
+ * +data+ can be either a PEM-encoded String, an IO-like object that features
+ * a +read+ method or any arbitrary object that has a +to_pem+ method returning
+ * either a String or an IO-like object.
+ *
+ * Returns an Array that contains the DER-encoded results in the order they
+ * were decoded. PEM data can potentially consist of multiple elements, a
+ * common example being 'trusted certificate bundles' that contain a set of
+ * to-be-trusted certificates.
+ *
+ * If additionally a block is given, +block+ is called for each element that is
+ * decoded, where +der+ contains the decoded element, +name+ the identifier of
+ * the current element (e.g. 'CERTIFICATE') and +i+ the index of the current
+ * element starting with 0. 
+ *
+ * === Example: Decoding a simple certificate file
+ *
+ *   File.open("certificate.pem", "rb") do |f|
+ *     cert = Krypt::PEM.decode(f)[0]
+ *     # process the certificate
+ *   end
+ *
+ * === Example: Decoding multiple elements contained in one file
+ *
+ *   File.open("trusted-certs.pem", "rb") do |f|
+ *     Krypt::PEM.decode(f) do |der, name, i|
+ *       puts "Element #{i}: #{name}"
+ *       File.open("cert-#{i}.der", "wb") do |g|
+ *         g.print der
+ *       end
+ *     end
+ *   end
+ */
 static VALUE
 krypt_pem_decode(VALUE self, VALUE pem)
 {
@@ -84,6 +120,28 @@ error:
 void
 Init_krypt_pem(void)
 {
+#if 0
+    mKrypt = rb_define_module("Krypt"); /* Let RDoc know */
+#endif
+
+    /* Document-module: Krypt::PEM
+     *
+     * The popular PEM format is essentially the Base64 encoding of some
+     * DER-encoded data, with additional "header" and "footer" lines
+     * indicating the type of data being encoded. The PEM module offers
+     * ways to conveniently encode and decode arbitrary PEM-formatted
+     * data.
+     *
+     * === Converting from PEM to DER
+     *
+     * PEM-encoded data can be easily converted to equivalent DER-encoded
+     * data:
+     *
+     *   pem = File.read("data.pem")
+     *   File.open("data.der", "wb") do |f|
+     *     f.print(Krypt::PEM.decode(pem))
+     *   end
+     */
     mKryptPEM = rb_define_module_under(mKrypt, "PEM");
     rb_define_module_function(mKryptPEM, "decode", krypt_pem_decode, 1);
 
