@@ -11,6 +11,7 @@
 */
 
 #include "krypt-core.h"
+#include <stdarg.h>
 
 typedef struct krypt_err_stack_elem_st krypt_err_stack_elem;
 
@@ -119,7 +120,7 @@ void
 krypt_error_clear(void)
 {
     while (!int_err_stack_empty()) {
-	(void) int_err_stack_pop();
+	xfree(int_err_stack_pop());
     }
 }
 

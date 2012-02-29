@@ -865,11 +865,9 @@ krypt_asn1_cons_each(VALUE self)
     KRYPT_RETURN_ENUMERATOR(enumerable, sKrypt_ID_EACH);
 
     if (rb_obj_is_kind_of(enumerable, rb_cArray))
-	rb_ary_each(krypt_asn1_data_get_value(self));
+	return rb_ary_each(krypt_asn1_data_get_value(self));
     else
-	rb_iterate(rb_each, enumerable, int_cons_each_i, Qnil);
-
-    return enumerable;
+	return rb_iterate(rb_each, enumerable, int_cons_each_i, Qnil);
 }
 
 static int
