@@ -215,21 +215,8 @@ krypt_asn1_header_encode_to(VALUE self, VALUE io)
     result = krypt_asn1_header_encode(out, header->header);
     krypt_outstream_free(out);
     if (!result)
-	rb_raise(eKryptASN1SerializeError, "Error while encoding header");
+	krypt_error_raise(eKryptASN1SerializeError, "Error while encoding header");
     return self;
-}
-
-static VALUE
-int_asn1_header_bytes(VALUE args)
-{
-    krypt_outstream *out;
-    krypt_asn1_header *header;
-
-    Data_Get_Struct(rb_ary_entry(args, 0), krypt_outstream, out);
-    Data_Get_Struct(rb_ary_entry(args, 1), krypt_asn1_header, header);
-
-    krypt_asn1_header_encode(out, header);
-    return Qnil;
 }
 
 /**
@@ -245,21 +232,14 @@ krypt_asn1_header_bytes(VALUE self)
     unsigned char *bytes;
     size_t size;
     krypt_outstream *out;
-    VALUE ret, args, wrapped_out, wrapped_header;
-    int state = 0;
+    VALUE ret;
 
     int_asn1_parsed_header_get(self, header);
 
     out = krypt_outstream_new_bytes();
-    wrapped_out = Data_Wrap_Struct(rb_cObject, 0, 0, out);
-    wrapped_header = Data_Wrap_Struct(rb_cObject, 0, 0, header->header);
-    args = rb_ary_new();
-    rb_ary_push(args, wrapped_out);
-    rb_ary_push(args, wrapped_header);
-    (void) rb_protect(int_asn1_header_bytes, args, &state);
-    if (state) {
+    if (!krypt_asn1_header_encode(out, header->header)) {
 	krypt_outstream_free(out);
-	rb_jump_tag(state);
+	krypt_error_raise(eKryptASN1SerializeError, "Error while encoding ASN.1 header");
     }
     size = krypt_outstream_bytes_get_bytes_free(out, &bytes);
     ret = rb_str_new((const char *)bytes, size);

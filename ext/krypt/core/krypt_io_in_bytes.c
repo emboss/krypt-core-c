@@ -131,8 +131,10 @@ int_bytes_set_pos(krypt_instream_bytes *in, off_t offset, size_t num_read)
 {
     struct krypt_byte_ary_st *src = in->src;
 
-    if (src->len - offset <= num_read)
+    if (src->len - offset <= num_read) {
+	krypt_error_add("Unreachable seek position");
 	return 0;
+    }
     src->p += offset;
     in->num_read += offset;
     return 1;
@@ -159,6 +161,7 @@ int_bytes_seek(krypt_instream *instream, off_t offset, int whence)
 	case SEEK_END:
 	    return int_bytes_set_pos(in, offset + src->len - num_read, num_read);
 	default:
+	    krypt_error_add("Unknown whence: %d", whence);
 	    return 0;
     }
 }

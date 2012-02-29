@@ -79,7 +79,10 @@ int_definite_read(krypt_instream *instream, unsigned char *buf, size_t len)
 
     r = krypt_instream_read(in->inner, buf, to_read);
     if (r <= -1) return -2;
-    if (in->num_read >= SIZE_MAX - r) return -2;
+    if (in->num_read >= SIZE_MAX - r) {
+	krypt_error_add("Stream too large");
+	return -2;
+    }
 
     in->num_read += r;
     return r;
@@ -105,12 +108,15 @@ int_definite_seek(krypt_instream *instream, off_t offset, int whence)
 	    real_off = offset + in->max_read - in->num_read;
 	    break;
 	default:
+	    krypt_error_add("Unknown whence: %d", whence);
 	    return 0;
     }
     
     numread = in->num_read;
-    if (numread + real_off < 0 || numread + real_off >= (long)in->max_read)
+    if (numread + real_off < 0 || numread + real_off >= (long)in->max_read) {
+	krypt_error_add("Invalid seek position: %ld", numread + real_off);
 	return 0;
+    }
 
     return krypt_instream_seek(in->inner, offset, whence);
 }

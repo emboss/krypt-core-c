@@ -31,7 +31,10 @@ krypt_hex_encode(unsigned char *bytes, size_t len, char **out)
     size_t i;
     unsigned char b;
    
-    if (len > SSIZE_MAX / 2) return -1;
+    if (len > SSIZE_MAX / 2) {
+	krypt_error_add("Buffer too large: %ld", len);
+	return -1;
+    }
     if (!bytes) return -1;
 
     retlen = 2 * len; 
@@ -57,8 +60,14 @@ krypt_hex_decode(char *bytes, size_t len, unsigned char **out)
     unsigned char c, d;
 
     if (!bytes) return -1;
-    if (len % 2) return -1;
-    if (len / 2 > SSIZE_MAX) return -1;
+    if (len % 2) {
+	krypt_error_add("Buffer length must be a multiple of 2");
+	return -1;
+    }
+    if (len / 2 > SSIZE_MAX) {
+	krypt_error_add("Buffer too large: %ld", len);
+	return -1;
+    }
 
     retlen = len / 2;
     ret = ALLOC_N(unsigned char, retlen);
@@ -66,12 +75,21 @@ krypt_hex_decode(char *bytes, size_t len, unsigned char **out)
     for (i=0; i<retlen; i++) {
 	c = (unsigned char) bytes[i*2];
 	d = (unsigned char) bytes[i*2+1];
-	if (c > KRYPT_HEX_INV_MAX || d > KRYPT_HEX_INV_MAX) return -1;
+	if (c > KRYPT_HEX_INV_MAX || d > KRYPT_HEX_INV_MAX) {
+	    krypt_error_add("Illegal hex character detected: %x or %x", c, d);
+	    return -1;
+	}
 	b = krypt_hex_table_inv[c];
-	if (b < 0) return -1;
+	if (b < 0) {
+	    krypt_error_add("Illegal hex character detected: %x", c);
+	    return -1;
+	}
 	ret[i] = b << 4;
 	b = krypt_hex_table_inv[d];
-	if (b < 0) return -1;
+	if (b < 0) {
+	    krypt_error_add("Illegal hex character detected: %x", d);
+	    return -1;
+	}
 	ret[i] |= b;
     }
 

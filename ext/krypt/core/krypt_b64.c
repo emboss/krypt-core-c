@@ -124,14 +124,20 @@ krypt_base64_encode(unsigned char *bytes, size_t len, int cols, unsigned char **
     krypt_outstream *outstream;
 
     if (!bytes) return -1;
-    if ( (len / 3 + 1) > (SIZE_MAX / 4) ) return -1;
+    if ( (len / 3 + 1) > (SIZE_MAX / 4) ) {
+	krypt_error_add("Buffer too large: %ld", len);
+	return -1;
+    }
 
     /* this is the maximum value, no exactness needed, we'll resize anyway */
     retlen = 4.0 * (len / 3 + 1); 
 
     /* Add the number of new line characters */
     if (cols > 0) {
-	if ( (len / cols * 2) > SIZE_MAX - retlen ) return -1;
+	if ( (len / cols * 2) > SIZE_MAX - retlen ) {
+	    krypt_error_add("Buffer too large: %ld", len);
+	    return -1;
+	}
 	retlen += len / cols * 2;
     }
 
@@ -142,6 +148,7 @@ krypt_base64_encode(unsigned char *bytes, size_t len, int cols, unsigned char **
     }
     retlen = krypt_outstream_bytes_get_bytes_free(outstream, out);
     if (retlen > SSIZE_MAX) {
+	krypt_error_add("Return value too large");
 	xfree(*out);
        	return -1;
     }
@@ -189,7 +196,10 @@ krypt_base64_buffer_decode_to(krypt_outstream *out, unsigned char *bytes, size_t
     int remainder = 0;
     char inv;
 
-    if (len > SIZE_MAX - off) return 0;
+    if (len > SIZE_MAX - off) {
+	krypt_error_add("Buffer too large: %ld", len);
+	return 0;
+    }
 
     for (i=0; i < len; i++) {
 	unsigned char b = bytes[off + i];

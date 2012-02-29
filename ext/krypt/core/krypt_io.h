@@ -80,7 +80,7 @@ struct krypt_outstream_interface_st {
 #define krypt_safe_cast_outstream(out, in, type, ptrtype)	krypt_safe_cast_stream((out), (in), (type), ptrtype, krypt_outstream)
 #define krypt_safe_cast_instream(out, in, type, ptrtype)	krypt_safe_cast_stream((out), (in), (type), ptrtype, krypt_instream)
 
-void krypt_raise_io_error(VALUE klass);
+void krypt_add_io_error(void);
 void krypt_instream_rb_size_buffer(VALUE *str, size_t len);
 
 ssize_t krypt_instream_read(krypt_instream *in, unsigned char *buf, size_t len);

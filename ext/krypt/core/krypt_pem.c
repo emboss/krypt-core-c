@@ -15,18 +15,15 @@
 VALUE mKryptPEM;
 VALUE eKryptPEMError;
 
-static VALUE
-int_consume_stream(VALUE wrapped_in)
+static int
+int_consume_stream(krypt_instream *in, VALUE *vout)
 {
-    krypt_instream *in = NULL;
-    VALUE ret;
     krypt_outstream *out;
     size_t len;
     unsigned char *str;
     unsigned char buf[KRYPT_IO_BUF_SIZE];
     ssize_t read;
     
-    Data_Get_Struct(wrapped_in, krypt_instream, in);
     out = krypt_outstream_new_bytes();
 
     while ((read = krypt_instream_read(in, buf, KRYPT_IO_BUF_SIZE)) >= 0) {
@@ -34,30 +31,32 @@ int_consume_stream(VALUE wrapped_in)
     }
     if (read < -1) {
 	krypt_outstream_free(out);
-        rb_raise(eKryptPEMError, "Error while reading PEM data");
+	return 0;
     }
 
     len = krypt_outstream_bytes_get_bytes_free(out, &str);
-    if (len == 0)
-	return Qnil;
-    ret = rb_str_new((const char*)str, len);
+    if (len == 0) {
+	*vout = Qnil;
+    } else {
+    	*vout = rb_str_new((const char*)str, len);
+    }
     xfree(str);
-    return ret;
+    return 1;
 }
 
 static VALUE
 krypt_pem_decode(VALUE self, VALUE pem)
 {
-    VALUE ary, der, wrapped_in;
+    VALUE ary, der;
     size_t i = 0;
-    int state = 0;
+    int result;
     krypt_instream *in = krypt_instream_new_pem(krypt_instream_new_value_pem(pem));
     
-    wrapped_in = Data_Wrap_Struct(rb_cObject, 0, 0, in);
     ary = rb_ary_new();
 
-    while (!NIL_P(der = rb_protect(int_consume_stream, wrapped_in, &state))) {
-	if (state) goto error;
+    while ((result = int_consume_stream(in, &der))) {
+	if (NIL_P(der))
+	    break;
 
 	rb_ary_push(ary, der);
 	if(rb_block_given_p()) {
@@ -71,14 +70,14 @@ krypt_pem_decode(VALUE self, VALUE pem)
 	}
 	krypt_pem_continue_stream(in);
     }
-    if (state) goto error;
+    if (!result) goto error;
 
     krypt_instream_free(in);
     return ary;
 
 error:
     krypt_instream_free(in);
-    rb_jump_tag(state);
+    krypt_error_raise(eKryptPEMError, "Error while decoding PEM data");
     return Qnil;
 }
 

@@ -274,7 +274,10 @@ int_b64_fill(krypt_b64_buffer *in)
 		    in->state = FOOTER;
 		}
 		else {
-		    if (!krypt_base64_buffer_decode_to(out, (unsigned char *) linebuf, 0, linelen)) return 0;
+		    if (!krypt_base64_buffer_decode_to(out, (unsigned char *) linebuf, 0, linelen)) {
+			krypt_error_add("Could not decode Base64 data");
+			return 0;
+		    }
 		    total += linelen;
 		    if (total < KRYPT_IO_BUF_SIZE)
 			linelen = krypt_instream_gets(in->inner, linebuf, KRYPT_LINE_BUF_SIZE);
@@ -312,8 +315,10 @@ int_b64_fill(krypt_b64_buffer *in)
 		in->eof = 1;
 		return 1;
 	    case CONTENT:
+		krypt_error_add("PEM data ended prematurely");
 		return 0;
 	    default:
+		krypt_error_add("Could not find matching PEM footer");
 		return 0;
 	}
     }
@@ -354,6 +359,10 @@ int_b64_read(krypt_b64_buffer *in, unsigned char *buf, size_t len)
     if (total == 0 && in->eof)
 	return -1;
 
+    if (total > SSIZE_MAX) {
+	krypt_error_add("Return size too large: %ld", total);
+	return -2;
+    }
     return (ssize_t) total;
 }
 

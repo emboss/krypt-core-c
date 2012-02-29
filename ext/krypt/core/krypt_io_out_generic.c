@@ -63,7 +63,10 @@ int_io_write(krypt_outstream *outstream, unsigned char *buf, size_t len)
 
     vbuf = rb_str_new((const char *)buf, len);
     w = int_io_rb_write(outstream, vbuf, &ret);
-    if (!w) return -1;
+    if (!w) {
+	krypt_error_add("Error while writing to IO");
+	return -1;
+    }
     return NUM2LONG(ret);
 }
 

@@ -183,10 +183,14 @@ static VALUE
 int_determine_class(krypt_asn1_header *header)
 {
     if (header->tag_class == TAG_CLASS_UNIVERSAL) {
-	if (header->tag > 30)
+	if (header->tag > 30) {
+	    krypt_error_add("Universal tag too large: %d", header->tag);
 	    return Qnil;
-	if (!krypt_asn1_infos[header->tag].klass)
+	}
+	if (!krypt_asn1_infos[header->tag].klass) {
+	    krypt_error_add("Unsupported tag: %d", header->tag);
 	    return Qnil;
+	}
 	return *(krypt_asn1_infos[header->tag].klass);
     }
     else {
@@ -971,8 +975,10 @@ int_asn1_cons_encode_to(VALUE self, krypt_outstream *out, VALUE ary, krypt_asn1_
 
     if (header->tag_class == TAG_CLASS_UNIVERSAL) {
 	int tag = header->tag;
-	if (tag != TAGS_SEQUENCE && tag != TAGS_SET && !header->is_infinite)
+	if (tag != TAGS_SEQUENCE && tag != TAGS_SET && !header->is_infinite) {
+	    krypt_error_add("Primitive constructed values must be infinite length");
 	    return 0;
+	}
     }
 
     /* If the length encoding is still cached or we have an infinite length
@@ -1030,7 +1036,10 @@ int_asn1_prim_encode_to(VALUE self, krypt_outstream *out, VALUE value, krypt_asn
 
     if (object->header->tag_class == TAG_CLASS_UNIVERSAL) {
 	int tag = object->header->tag;
-	if (tag == TAGS_SEQUENCE || tag == TAGS_SET) return 0;
+	if (tag == TAGS_SEQUENCE || tag == TAGS_SET) {
+	    krypt_error_add("Set/Sequence value must be constructed");
+	    return 0;
+	}
     }
 
     if (!data->codec->validator(self, value)) return 0;

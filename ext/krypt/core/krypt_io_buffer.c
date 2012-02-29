@@ -11,6 +11,7 @@
 */
 
 #include "krypt_io_buffer.h"
+#include "krypt_error.h"
 
 krypt_byte_buffer *
 krypt_buffer_new(void)
@@ -49,8 +50,10 @@ int_buffer_grow(krypt_byte_buffer *buffer, size_t cur_len)
 {
     size_t new_size;
 
-    if (buffer->prealloc)
+    if (buffer->prealloc) {
+	krypt_error_add("Cannot grow preallocated buffer");
 	return 0;
+    }
 
     if (buffer->data == NULL) {
 	size_t alloc_size = buffer->init_size > cur_len ? buffer->init_size : cur_len;
@@ -63,8 +66,10 @@ int_buffer_grow(krypt_byte_buffer *buffer, size_t cur_len)
     new_size = buffer->limit == 1 ? 2 : buffer->limit;
 
     while (new_size - buffer->size < cur_len) {
-	if (new_size >= KRYPT_BUF_MAX)
+	if (new_size >= KRYPT_BUF_MAX) {
+	    krypt_error_add("Cannot grow buffer");
 	    return 0;
+	}
     	new_size *= KRYPT_BYTE_BUFFER_GROWTH_FACTOR;
     }
 

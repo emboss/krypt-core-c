@@ -79,6 +79,7 @@ int_fd_write(krypt_outstream *outstream, unsigned char *buf, size_t len)
     w = write(fd, buf, len);
     
     if (w < 0) {
+	krypt_add_io_error();
 	return -1;
     }
     else {

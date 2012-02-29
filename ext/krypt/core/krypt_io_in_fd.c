@@ -81,6 +81,7 @@ int_fd_read(krypt_instream *instream, unsigned char *buf, size_t len)
     r = read(fd, buf, len);
     
     if (r == -1) {
+	krypt_add_io_error();
 	return -2;
     }
     else if (r == 0) {

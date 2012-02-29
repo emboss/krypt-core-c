@@ -79,6 +79,7 @@ int_read_new_header(krypt_instream_chunked *in)
 
     ret = krypt_asn1_next_header(in->inner, &next);
     if (ret == 0) {
+	krypt_error_add("Premature end of value detected");
 	krypt_asn1_header_free(next);
 	return 0;
     }
@@ -200,6 +201,7 @@ do {						\
 	    buf += read;
 	    return (ssize_t) total;
 	default:
+	    krypt_error_add("Internal error");
 	    return -2; /* dummy */
     }
 }
@@ -213,7 +215,10 @@ int_read(krypt_instream_chunked *in, unsigned char *buf, size_t len)
     while (total != len && in->state != DONE) {
 	read = int_read_single_element(in, buf, len);
 	if (read < -1) return -2;
-	if (total > (size_t) (SSIZE_MAX - read)) return -2;
+	if (total > (size_t) (SSIZE_MAX - read)) {
+	    krypt_error_add("Stream too large");
+	    return -2;
+	}
 	total += read;
 	buf += read;
     }

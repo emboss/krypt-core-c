@@ -22,11 +22,11 @@ VALUE sKrypt_ID_SEEK_CUR, sKrypt_ID_SEEK_SET, sKrypt_ID_SEEK_END;
 ID sKrypt_ID_READ, sKrypt_ID_SEEK, sKrypt_ID_WRITE;
 
 void
-krypt_raise_io_error(VALUE klass)
+krypt_add_io_error(void)
 {
     int err;
     err = krypt_last_sys_error();
-    rb_raise(klass, "Error stream IO: %d", err);
+    krypt_error_add("Error stream IO: %d", err);
 }
 
 /* instream */
@@ -65,8 +65,14 @@ int_rb_read_generic(krypt_instream *in, VALUE vlen, VALUE vbuf, VALUE *out)
 	 return int_read_all(in, vbuf, out);
 
     len = NUM2LONG(vlen);
-    if (len < 0) return 0;
-    if (len > (long) SIZE_MAX) return 0;
+    if (len < 0) {
+	krypt_error_add("Negative length given");
+	return 0;
+    }
+    if ((size_t) len > SIZE_MAX) {
+	krypt_error_add("Size too large: %ld", len);
+	return 0;
+    }
 
     tlen = (size_t) len;
     if (len == 0) {
@@ -79,6 +85,7 @@ int_rb_read_generic(krypt_instream *in, VALUE vlen, VALUE vbuf, VALUE *out)
     r = krypt_instream_read(in, buf, tlen);
 
     if (r == 0) {
+	krypt_error_add("Error while reading from stream");
 	xfree(buf);
 	return 0;
     }
@@ -114,7 +121,10 @@ krypt_instream_read(krypt_instream *in, unsigned char *buf, size_t len)
 {
     int_check_stream_has(in, read);
 
-    if (len > SSIZE_MAX) return -2;
+    if (len > SSIZE_MAX) {
+	krypt_error_add("Size too large: %ld", len);
+	return -2;
+    }
     return in->methods->read(in, buf, len);
 }
 
@@ -153,7 +163,10 @@ ssize_t
 krypt_instream_gets(krypt_instream *in, char *line, size_t len)
 {
     int_check_stream(in);
-    if (len > SSIZE_MAX) return -2;
+    if (len > SSIZE_MAX) {
+	krypt_error_add("Size too large: %ld", len);
+	return -2;
+    }
     if (in->methods->gets) {
 	return in->methods->gets(in, line, len);
     }
@@ -212,6 +225,7 @@ int_instream_common_new(VALUE value)
 	    }
 	}
     }
+    krypt_error_add("Value cannot be converted into a stream");
     return NULL;
 }
 
@@ -250,7 +264,10 @@ ssize_t
 krypt_outstream_write(krypt_outstream *out, unsigned char *buf, size_t len)
 {
     int_check_stream_has(out, write);
-    if (len > SSIZE_MAX) return -1;
+    if (len > SSIZE_MAX) {
+	krypt_error_add("Size too large: %ld", len);
+	return -1;
+    }
     return out->methods->write(out, buf, len);
 }
 
@@ -265,7 +282,10 @@ krypt_outstream_rb_write(krypt_outstream *out, VALUE vbuf, VALUE *ret)
     else {
 	ssize_t w;
 	w = krypt_outstream_write(out, (unsigned char *) RSTRING_PTR(vbuf), RSTRING_LEN(vbuf));
-	if (w < 0) return 0;
+	if (w < 0) {
+	    krypt_error_add("Error while writing to stream");
+	    return 0;
+	}
 	*ret = LONG2NUM(w);
 	return 1;
     }
@@ -298,6 +318,7 @@ krypt_outstream_new_value(VALUE value)
 	return krypt_outstream_new_fd_io(value);
     if (rb_respond_to(value, sKrypt_ID_WRITE))
 	return krypt_outstream_new_io_generic(value);
+    krypt_error_add("Value cannot be converted into a stream");
     return NULL;
 }
 

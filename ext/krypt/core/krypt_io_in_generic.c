@@ -91,16 +91,18 @@ int_io_read(krypt_instream *instream, unsigned char *buf, size_t len)
     if (!buf) return -2;
 
     vlen = LONG2NUM(len);
-    if (!int_io_rb_read_impl(in, vlen, in->vbuf, &read)) return -2;
+    if (!int_io_rb_read_impl(in, vlen, in->vbuf, &read)) {
+	krypt_error_add("Error while reading from IO");
+	return -2;
+    }
     
     if (NIL_P(read)) {
 	return -1;
     }
     else {
-	size_t r = RSTRING_LEN(read);
-	if (r > SSIZE_MAX) return -2;
+	ssize_t r = (ssize_t) RSTRING_LEN(read);
 	memcpy(buf, RSTRING_PTR(read), r);
-	return (ssize_t) r;
+	return r;
     }
 }
 
@@ -124,6 +126,7 @@ int_whence_sym_for(int whence)
 	case SEEK_END:
 	    return sKrypt_ID_SEEK_END;
 	default:
+	    krypt_error_add("Unknown whence: %d", whence);
 	    return Qnil;
     }
 }

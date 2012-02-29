@@ -52,7 +52,10 @@ krypt_instream_new_seq_n(int num, krypt_instream *in1, krypt_instream *in2, ...)
     va_list args;
     int i = 0;
 
-    if (num < 2) return NULL;
+    if (num < 2) {
+	krypt_error_add("At least two streams must be passed");
+	return NULL;
+    }
 
     in = int_seq_alloc();
     in->streams = ALLOC_N(krypt_instream *, num);

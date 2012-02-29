@@ -43,7 +43,10 @@ int_asn1_decode_default(VALUE self, unsigned char *bytes, size_t len, VALUE *out
 static int
 int_asn1_validate_default(VALUE self, VALUE value)
 {
-    if (TYPE(value) != T_STRING) return 0;
+    if (TYPE(value) != T_STRING) {
+	krypt_error_add("ASN.1 type must be a String");
+	return 0;
+    }
     return 1;
 }
 
@@ -72,7 +75,10 @@ int_asn1_encode_eoc(VALUE self, VALUE value, unsigned char **out, size_t *len)
 static int
 int_asn1_decode_eoc(VALUE self, unsigned char *bytes, size_t len, VALUE *out)
 {
-    if (len != 0) return 0;
+    if (len != 0) {
+	krypt_error_add("Invalid encoding for END OF CONTENTS found - must be empty");
+	return 0;
+    }
     *out = Qnil;
     return 1;
 }
@@ -80,7 +86,10 @@ int_asn1_decode_eoc(VALUE self, unsigned char *bytes, size_t len, VALUE *out)
 static int
 int_asn1_validate_eoc(VALUE self, VALUE value)
 {
-    if (!NIL_P(value)) return 0;
+    if (!NIL_P(value)) {
+	krypt_error_add("Value for END OF CONTENTS must be nil");
+	return 0;
+    }
     return 1;
 }
 
@@ -102,7 +111,10 @@ int_asn1_decode_boolean(VALUE self, unsigned char *bytes, size_t len, VALUE *out
     unsigned char b;
 
     sanity_check(bytes);
-    if (len != 1) return 0;
+    if (len != 1) {
+	krypt_error_add("Boolean value with length != 1 found");
+	return 0;
+    }
     b = *bytes;
     if (b == 0x0)
 	*out = Qfalse;
@@ -114,7 +126,10 @@ int_asn1_decode_boolean(VALUE self, unsigned char *bytes, size_t len, VALUE *out
 static int
 int_asn1_validate_boolean(VALUE self, VALUE value)
 {
-    if (!(value == Qfalse || value == Qtrue)) return 0;
+    if (!(value == Qfalse || value == Qtrue)) {
+	krypt_error_add("Value for BOOLEAN must be either true or false");
+	return 0;
+    }
     return 1;
 }
 
@@ -124,7 +139,10 @@ int_asn1_encode_integer(VALUE self, VALUE value, unsigned char **out, size_t *le
     long num;
     
     if (TYPE(value) == T_BIGNUM) {
-	if (!krypt_asn1_encode_bignum(value, out, len)) return 0;
+	if (!krypt_asn1_encode_bignum(value, out, len)) {
+	    krypt_error_add("Error while encoding Bignum INTEGER");
+	    return 0;
+	}
 	return 1;
     }
 
@@ -136,7 +154,10 @@ int_asn1_encode_integer(VALUE self, VALUE value, unsigned char **out, size_t *le
 static int
 int_asn1_decode_integer(VALUE self, unsigned char *bytes, size_t len, VALUE *out)
 {
-    if (len == 0) return 0;
+    if (len == 0) {
+	krypt_error_add("Invalid zero length value for INTEGER found");
+	return 0;
+    }
     sanity_check(bytes);
 
     /* Even if in the range of long, high numbers may already have to
@@ -144,18 +165,27 @@ int_asn1_decode_integer(VALUE self, unsigned char *bytes, size_t len, VALUE *out
      * decoder for all of these cases. */
     if ((bytes[0] == 0x0 && len > sizeof(long)) ||
 	(bytes[0] != 0x0 && len >= sizeof(long))) {
-	if (!krypt_asn1_decode_bignum(bytes, len, out)) return 0;
+	if (!krypt_asn1_decode_bignum(bytes, len, out)) {
+	   krypt_error_add("Error while decoding Bignum INTEGER");
+	   return 0;
+	}
 	return 1;
     }
 
-    if (!int_decode_integer(bytes, len, out)) return 0;
+    if (!int_decode_integer(bytes, len, out)) {
+	krypt_error_add("Error while decoding INTEGER");
+	return 0;
+    }
     return 1;
 }
 
 static int
 int_asn1_validate_integer(VALUE self, VALUE value)
 {
-    if (!(FIXNUM_P(value) || rb_obj_is_kind_of(value, rb_cBignum))) return 0;
+    if (!(FIXNUM_P(value) || rb_obj_is_kind_of(value, rb_cBignum))) {
+	krypt_error_add("Value for INTEGER must be an integer number");
+	return 0;
+    }
     return 1;
 }
 
@@ -173,7 +203,10 @@ int_asn1_encode_bit_string(VALUE self, VALUE value, unsigned char **out, size_t 
 
     StringValue(value);
     l = RSTRING_LEN(value);
-    if (l == SIZE_MAX) return 0;
+    if (l == SIZE_MAX) {
+	krypt_error_add("Size of BIT STRING too long: %ld", l);
+	return 0;
+    }
     bytes = ALLOC_N(unsigned char, l + 1);
     bytes[0] = unused_bits & 0xff;
     memcpy(bytes + 1, RSTRING_PTR(value), l);
@@ -190,7 +223,10 @@ int_asn1_decode_bit_string(VALUE self, unsigned char *bytes, size_t len, VALUE *
     sanity_check(bytes);
     unused_bits = bytes[0];
     int_check_unused_bits(unused_bits);
-    if (!int_asn1_decode_default(self, bytes + 1, len - 1, out)) return 0;
+    if (!int_asn1_decode_default(self, bytes + 1, len - 1, out)) {
+	krypt_error_add("Error while decoding BIT STRING");
+	return 0;
+    }
     rb_ivar_set(self, sKrypt_IV_UNUSED_BITS, INT2NUM(unused_bits));
     return 1;
 }
@@ -206,7 +242,10 @@ int_asn1_encode_null(VALUE self, VALUE value, unsigned char **out, size_t *len)
 static int
 int_asn1_decode_null(VALUE self, unsigned char *bytes, size_t len, VALUE *out)
 {
-    if (len != 0) return 0;
+    if (len != 0) {
+	krypt_error_add("Invalid encoding for NULL value found - must be empty");
+	return 0;
+    }
     *out = Qnil;
     return 1;
 }
@@ -214,7 +253,10 @@ int_asn1_decode_null(VALUE self, unsigned char *bytes, size_t len, VALUE *out)
 static int
 int_asn1_validate_null(VALUE self, VALUE value)
 {
-    if (!NIL_P(value)) return 0;
+    if (!NIL_P(value)) {
+	krypt_error_add("Value for NULL must be nil");
+	return 0;
+    }
     return 1;
 }
 
@@ -225,7 +267,10 @@ int_asn1_encode_object_id(VALUE self, VALUE value, unsigned char **out, size_t *
 
     StringValue(value);
     str = (unsigned char *)RSTRING_PTR(value);
-    if (!int_encode_object_id(str, RSTRING_LEN(value), out, len)) return 0;
+    if (!int_encode_object_id(str, RSTRING_LEN(value), out, len)) {
+	krypt_error_add("Encoding OBJECT IDENTIFIER failed");
+	return 0;
+    }
     return 1;
 }
 
@@ -233,15 +278,20 @@ static int
 int_asn1_decode_object_id(VALUE self, unsigned char *bytes, size_t len, VALUE *out)
 {
     sanity_check(bytes);
-    if (!int_decode_object_id(bytes, len, out)) return 0;
+    if (!int_decode_object_id(bytes, len, out)) {
+	krypt_error_add("Decoding OBJECT IDENTIFIER failed");
+	return 0;
+    }
     return 1;
 }
 
 static int
 int_asn1_validate_object_id(VALUE self, VALUE value)
 {
-    /* TODO: validate more strictly */
-    if (TYPE(value) != T_STRING) return 0;
+    if (TYPE(value) != T_STRING) {
+	krypt_error_add("Value for OBJECT IDENTIFIER must be a String");
+	return 0;
+    }
     return 1;
 }
 
@@ -253,12 +303,18 @@ int_asn1_encode_utf8_string(VALUE self, VALUE value, unsigned char **out, size_t
     src_encoding = rb_enc_get(value);
     if (rb_enc_asciicompat(src_encoding)) {
 	rb_enc_associate(value, rb_utf8_encoding());
-	 if (!int_asn1_encode_default(self, value, out, len)) return 0;
+	 if (!int_asn1_encode_default(self, value, out, len)) {
+	     krypt_error_add("Encoding UTF8 STRING failed");
+	     return 0;
+	 }
     }
     else {
 	/* TODO rb_protect */
 	VALUE encoded = rb_str_encode(value, rb_enc_from_encoding(rb_utf8_encoding()), 0, Qnil);
-	if (!int_asn1_encode_default(self, encoded, out, len)) return 0;
+	if (!int_asn1_encode_default(self, encoded, out, len)) {
+	    krypt_error_add("Encoding UTF8 STRING failed");
+	    return 0;
+	}
     }
     return 1;
 }
@@ -266,7 +322,10 @@ int_asn1_encode_utf8_string(VALUE self, VALUE value, unsigned char **out, size_t
 static int
 int_asn1_decode_utf8_string(VALUE self, unsigned char *bytes, size_t len, VALUE *out)
 {
-    if (!int_asn1_decode_default(self, bytes, len, out)) return 0;
+    if (!int_asn1_decode_default(self, bytes, len, out)) {
+	krypt_error_add("Decoding UTF8 STRING failed");
+	return 0;
+    }
     /* TODO rb_protect */
     rb_enc_associate(*out, rb_utf8_encoding());
     return 1;
@@ -275,7 +334,10 @@ int_asn1_decode_utf8_string(VALUE self, unsigned char *bytes, size_t len, VALUE 
 static int
 int_asn1_encode_utc_time(VALUE self, VALUE value, unsigned char **out, size_t *len)
 {
-    if (!int_encode_utc_time(value, out, len)) return 0;
+    if (!int_encode_utc_time(value, out, len)) {
+	krypt_error_add("Encoding UTC TIME failed");
+	return 0;
+    }
     return 1;
 }
 
@@ -283,7 +345,10 @@ static int
 int_asn1_decode_utc_time(VALUE self, unsigned char *bytes, size_t len, VALUE *out)
 {
     sanity_check(bytes);
-    if (!int_parse_utc_time(bytes, len, out)) return 0;
+    if (!int_parse_utc_time(bytes, len, out)) {
+	krypt_error_add("Decoding UTC TIME failed");
+	return 0;
+    }
     return 1;
 }
 
@@ -295,6 +360,7 @@ int_asn1_validate_time(VALUE self, VALUE value)
 	type == T_FIXNUM ||
         type == T_BIGNUM ||	
 	type == T_STRING)) {
+	krypt_error_add("Time value must be either a String or an integer Number");
 	return 0;
     }
     return 1;
@@ -303,7 +369,10 @@ int_asn1_validate_time(VALUE self, VALUE value)
 static int
 int_asn1_encode_generalized_time(VALUE self, VALUE value, unsigned char **out, size_t *len)
 {
-    if (!int_encode_generalized_time(value, out, len)) return 0;
+    if (!int_encode_generalized_time(value, out, len)) {
+	krypt_error_add("Encoding GENERALIZED TIME failed");
+	return 0;
+    }
     return 1;
 }
 
@@ -311,7 +380,10 @@ static int
 int_asn1_decode_generalized_time(VALUE self, unsigned char *bytes, size_t len, VALUE *out)
 {
     sanity_check(bytes);
-    if (!int_parse_generalized_time(bytes, len, out)) return 0;
+    if (!int_parse_generalized_time(bytes, len, out)) {
+	krypt_error_add("Decoding GENERALIZED TIME failed");
+	return 0;
+    }
     return 1;
 }
 
@@ -351,7 +423,13 @@ krypt_asn1_codec krypt_asn1_codecs[] = {
     { int_asn1_encode_default,		int_asn1_decode_default    	, int_asn1_validate_default 	},
 };
 
-#define int_check_offset(off)	if ((off) + 1 == SIZE_MAX) return -2;
+#define int_check_offset(off)					\
+do {								\
+    if ((off) + 1 == SIZE_MAX) {				\
+	krypt_error_add("OBJECT IDENTIFIER value too large");	\
+	return -2;						\
+    }								\
+} while (0)
 
 static long
 int_get_sub_id(unsigned char *str, size_t len, size_t *offset)
@@ -363,11 +441,20 @@ int_get_sub_id(unsigned char *str, size_t len, size_t *offset)
     if (off >= len) return -1;
 
     c = str[off];
-    if (c == '.') return -2;
+    if (c == '.') {
+	krypt_error_add("OBJECT IDENTIFIER cannot start with '.'");
+	return -2;
+    }
 
     while (off < len && (c = str[off]) != '.') {
-	if (c < '0' || c > '9') return -2;
-	if (ret > SUB_ID_LIMIT_ENCODE) return -2;
+	if (c < '0' || c > '9') {
+	    krypt_error_add("Invalid OBJECT IDENTIFIER character detected: %x", c);
+	    return -2;
+	}
+	if (ret > SUB_ID_LIMIT_ENCODE) {
+	    krypt_error_add("Sub OBJECT IDENTIFIER too large");
+	    return -2;
+	}
 	int_check_offset(off);
 	ret *= 10;
 	ret += c - '0';
@@ -397,7 +484,10 @@ int_write_long(krypt_byte_buffer *buf, long cur)
 
     if (cur == 0) {
 	b = 0x0;
-	if (krypt_buffer_write(buf, &b, 1) < 0) return 0;
+	if (krypt_buffer_write(buf, &b, 1) < 0) {
+	    krypt_error_add("Writing to buffer failed");
+	    return 0;
+	}
 	return 1;
     }
 
@@ -412,16 +502,31 @@ int_write_long(krypt_byte_buffer *buf, long cur)
 	cur >>= CHAR_BIT_MINUS_ONE;
     }
 
-    if (krypt_buffer_write(buf, bytes, num_shifts) < 0)
+    if (krypt_buffer_write(buf, bytes, num_shifts) < 0) {
+	krypt_error_add("Writing to buffer failed");
 	ret = 0;
-    else
+    } else {
 	ret = 1;
+    }
     xfree(bytes);
     return ret;
 } 
 
-#define int_check_first_sub_id(first)	if ((first) > 2) goto error;
-#define int_check_second_sub_id(sec)	if ((sec) > 39) goto error;
+#define int_check_first_sub_id(first)			\
+do {							\
+    if ((first) > 2) {					\
+	krypt_error_add("First sub id must be 0..2");   \
+	goto error;					\
+    }							\
+} while (0)
+
+#define int_check_second_sub_id(sec)			\
+do {							\
+    if ((sec) > 39) {					\
+	krypt_error_add("Second sub id must be 0..39"); \
+	goto error;					\
+    }							\
+} while (0)
 
 static int
 int_encode_object_id(unsigned char *str, size_t len, unsigned char **out, size_t *outlen)
@@ -461,10 +566,16 @@ int_parse_sub_id(unsigned char* bytes, size_t len, size_t *offset)
     if (off >= len) return -1;
 
     while (bytes[off] & 0x80) {
-	if (num > SUB_ID_LIMIT_PARSE) return -1;
+	if (num > SUB_ID_LIMIT_PARSE) {
+	    krypt_error_add("Sub identifier too large");
+	    return -2;
+	}
 	num <<= CHAR_BIT_MINUS_ONE;
 	num |= bytes[off++] & 0x7f;
-	if (off >= len) return -1;
+	if (off >= len) {
+	    krypt_error_add("Invalid OBJECT IDENTIFIER encoding");
+	    return -2;
+	}
     }
 
     num <<= CHAR_BIT_MINUS_ONE;
@@ -489,9 +600,15 @@ int_set_first_sub_ids(long combined, long *first, long *second)
 do {									\
     int nl;								\
     unsigned char b = (unsigned char)'.';  				\
-    if (krypt_buffer_write((buf), &b, 1) < 0) goto error;		\
+    if (krypt_buffer_write((buf), &b, 1) < 0) {				\
+	krypt_error_add("Writing to buffer failed");			\
+	goto error;							\
+    }									\
     nl = sprintf((char *) (numbuf), "%ld", (cur));			\
-    if (krypt_buffer_write((buf), (numbuf), nl) < 0) goto error;	\
+    if (krypt_buffer_write((buf), (numbuf), nl) < 0) {			\
+	krypt_error_add("Writing to buffer failed");			\
+	goto error;							\
+    }									\
 } while (0)
 
 static int
@@ -508,18 +625,29 @@ int_decode_object_id(unsigned char *bytes, size_t len, VALUE *out)
     sanity_check(bytes);
     
     buffer = krypt_buffer_new();
-    if ((cur = int_parse_sub_id(bytes, len, &offset)) == -1) goto error;
-    if (cur > 40 * 2 + 39) goto error;
+    if ((cur = int_parse_sub_id(bytes, len, &offset)) == -1) {
+	krypt_error_add("Decoding OBJECT IDENTIFIER failed");
+	goto error;
+    }
+    if (cur > 40 * 2 + 39) {
+	krypt_error_add("Illegal first octet, value too large");
+	goto error;
+    }
     int_set_first_sub_ids(cur, &first, &second);
     int_check_first_sub_id(first);
     int_check_second_sub_id(second);
 
     numlen = sprintf((char *)numbuf, "%ld", first);
-    if (krypt_buffer_write(buffer, numbuf, numlen) < 0) goto error;
+    if (krypt_buffer_write(buffer, numbuf, numlen) < 0) {
+	krypt_error_add("Writing to buffer failed");
+	goto error;
+    }
     int_append_num(buffer, second, numbuf);
 
-    while ((cur = int_parse_sub_id(bytes, len, &offset)) != -1)
+    while ((cur = int_parse_sub_id(bytes, len, &offset)) != -1) {
 	int_append_num(buffer, cur, numbuf);
+    }
+    if (cur < -1) goto error;
 
     retlen = krypt_buffer_resize_free(buffer, &retbytes);
     *out = rb_str_new((const char *)retbytes, retlen);
@@ -537,10 +665,19 @@ do {								\
     VALUE coerced;						\
     long tmp;							\
     coerced = rb_protect(rb_Integer, time, &state);   		\
-    if (state) return 0;					\
+    if (state) {						\
+	krypt_error_add("Invalid Time argument");		\
+	return 0;						\
+    }								\
     tmp = (long) rb_protect((VALUE(*)_((VALUE)))rb_num2long, coerced, &state); \
-    if (state) return 0;					\
-    if (tmp < 0) return 0;					\
+    if (state) {						\
+	krypt_error_add("Invalid Time argument");		\
+	return 0;						\
+    }								\
+    if (tmp < 0) {						\
+	krypt_error_add("Negative Time value given");		\
+	return 0;						\
+    }								\
     (t) = (time_t) tmp;						\
 } while (0)
 
@@ -567,6 +704,7 @@ int_encode_utc_time(VALUE value, unsigned char **out, size_t *len)
 	        tm.tm_sec);
 
     if (r > 20) {
+	krypt_error_add("Encoding into UTC format failed");
 	xfree(ret);
 	return 0;
     }
@@ -582,7 +720,10 @@ int_parse_utc_time(unsigned char *bytes, size_t len, VALUE *out)
     VALUE argv[6];
     struct tm tm = { 0 };
 
-    if (len != 13) return 0;
+    if (len != 13) {
+	krypt_error_add("Invalid UTC TIME format. Must be 13 characters long");
+	return 0;
+    }
 
     if (sscanf((const char *) bytes,
 		"%2d%2d%2d%2d%2d%2dZ",
@@ -633,6 +774,7 @@ int_encode_generalized_time(VALUE value, unsigned char **out, size_t *len)
 		 tm.tm_min,
 		 tm.tm_sec);
     if (r  > 20) {
+	krypt_error_add("Encoding into GENERALIZED format failed");
 	xfree(ret);
 	return 0;
     }
@@ -648,7 +790,10 @@ int_parse_generalized_time(unsigned char *bytes, size_t len, VALUE *out)
     VALUE argv[6];
     struct tm tm = { 0 };
 
-    if (len != 15) return 0;
+    if (len != 15) {
+	krypt_error_add("Invalid GENERALIZED TIME format. Must be 15 characters long");
+	return 0;
+    }
 
     if (sscanf((const char *)bytes,
 		"%4d%2d%2d%2d%2d%2dZ",
@@ -716,7 +861,10 @@ int_decode_integer_to_long(unsigned char *bytes, size_t len, long *out)
     for (i = 0; i < len; i++)
 	num |= bytes[i] << ((len - i - 1) * CHAR_BIT);
 
-    if (num > LONG_MAX) return 0;
+    if (num > LONG_MAX) {
+	krypt_error_add("Integer value too large");
+	return 0;
+    }
     *out = (long) num;
     return 1;
 }
