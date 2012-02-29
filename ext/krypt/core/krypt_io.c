@@ -58,8 +58,10 @@ int_rb_read_generic(krypt_instream *in, VALUE vlen, VALUE vbuf, VALUE *out)
     ssize_t r;
     unsigned char *buf;
 
-    if (NIL_P(vbuf))
+    if (NIL_P(vbuf)) {
 	vbuf = rb_str_new2("");
+	rb_enc_associate(vbuf, rb_ascii8bit_encoding());
+    }
 
     if (NIL_P(vlen))
 	 return int_read_all(in, vbuf, out);

@@ -243,6 +243,7 @@ krypt_asn1_header_bytes(VALUE self)
     }
     size = krypt_outstream_bytes_get_bytes_free(out, &bytes);
     ret = rb_str_new((const char *)bytes, size);
+    rb_enc_associate(ret, rb_ascii8bit_encoding());
     xfree(bytes);
     return ret;
 }
@@ -301,8 +302,10 @@ krypt_asn1_header_value(VALUE self)
 	length = krypt_asn1_get_value(header->in, header->header, &value);
 	tag = header->header->tag;
 
-	if (length != 0 || (tag != TAGS_NULL && tag != TAGS_END_OF_CONTENTS))
+	if (length != 0 || (tag != TAGS_NULL && tag != TAGS_END_OF_CONTENTS)) {
 	    header->value = rb_str_new((const char *)value, length);
+	    rb_enc_associate(header->value, rb_ascii8bit_encoding());
+	}
 
 	header->consumed = 1;
 	xfree(value);

@@ -45,6 +45,7 @@ krypt_instream_new_io_generic(VALUE io)
     in = int_io_alloc();
     in->io = io;
     in->vbuf = rb_str_new_cstr("");
+    rb_enc_associate(in->vbuf, rb_ascii8bit_encoding());
     return (krypt_instream *) in;
 }
 
