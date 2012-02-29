@@ -606,7 +606,7 @@ krypt_asn1_data_set_tag_class(VALUE self, VALUE tag_class)
 
     header = data->object->header;
     if ((new_tag_class = krypt_asn1_tag_class_for_id(SYM2ID(tag_class))) < 0)
-        rb_raise(eKryptASN1Error, "Unknown tag class");
+        krypt_error_raise(eKryptASN1Error, "Cannot set tag class");
     if (header->tag_class == new_tag_class)
 	return tag_class;
 
@@ -713,7 +713,7 @@ static VALUE
 krypt_asn1_data_get_value(VALUE self)
 {
     if (!int_asn1_decode_value(self))
-	rb_raise(eKryptASN1Error, "Error while decoding value");
+	krypt_error_raise(eKryptASN1Error, "Error while decoding value");
     return int_asn1_data_get_value(self);
 }
 
@@ -801,7 +801,7 @@ krypt_asn1_data_encode_to(VALUE self, VALUE io)
     result = int_asn1_encode_to(out, self);
     krypt_outstream_free(out);
     if (!result)
-	rb_raise(eKryptASN1Error, "Error while encoding value");
+	krypt_error_raise(eKryptASN1Error, "Error while encoding value");
     return self;
 }
 
@@ -825,7 +825,7 @@ krypt_asn1_data_to_der(VALUE self)
     out = krypt_outstream_new_bytes();
     if (!int_asn1_encode_to(out, self)) {
 	krypt_outstream_free(out);
-	rb_raise(eKryptASN1Error, "Error while encoding value");
+	krypt_error_raise(eKryptASN1Error, "Error while encoding value");
     }
     len = krypt_outstream_bytes_get_bytes_free(out, &bytes);
     ret = rb_str_new((const char *)bytes, len);
@@ -1057,7 +1057,7 @@ static VALUE
 krypt_asn1_bit_string_get_unused_bits(VALUE self)
 {
     if (!int_asn1_decode_value(self))
-	rb_raise(eKryptASN1Error, "Error while decoding value");
+	krypt_error_raise(eKryptASN1Error, "Error while decoding value");
     return rb_ivar_get(self, sKrypt_IV_UNUSED_BITS);
 }
 
@@ -1101,7 +1101,7 @@ int_asn1_fallback_decode(krypt_instream *in, krypt_instream *cache)
 	xfree(lookahead);
     krypt_instream_free(retry);
     if (NIL_P(ret)) 
-	rb_raise(eKryptASN1Error, "Error while DER-decoding value");
+	krypt_error_raise(eKryptASN1Error, "Error while DER-decoding value");
     return ret;
 }
 
@@ -1162,7 +1162,7 @@ krypt_asn1_decode_der(VALUE self, VALUE obj)
     ret = int_asn1_decode(in);
     krypt_instream_free(in);
     if (NIL_P(ret))
-	rb_raise(eKryptASN1Error, "Error while DER-decoding value");
+	krypt_error_raise(eKryptASN1Error, "Error while DER-decoding value");
     return ret;
 }
 
@@ -1175,7 +1175,7 @@ krypt_asn1_decode_pem(VALUE self, VALUE obj)
     ret = int_asn1_decode(pem);
     krypt_instream_free(pem);
     if (NIL_P(ret))
-	rb_raise(eKryptASN1Error, "Error while PEM-decoding value");
+	krypt_error_raise(eKryptASN1Error, "Error while PEM-decoding value");
     return ret;
 }
 
@@ -1200,6 +1200,7 @@ krypt_asn1_tag_class_for_int(int tag_class)
 	case TAG_CLASS_PRIVATE:
 	    return sKrypt_TC_PRIVATE;
 	default:
+	    krypt_error_add("Unknown tag class: %d", tag_class);
 	    return 0;
     }
 }
@@ -1215,6 +1216,7 @@ krypt_asn1_tag_class_for_int(int tag_class)
 int
 krypt_asn1_tag_class_for_id(ID tag_class)
 {
+    VALUE str;
     if (tag_class == sKrypt_TC_UNIVERSAL)
 	return TAG_CLASS_UNIVERSAL;
     else if (tag_class == sKrypt_TC_CONTEXT_SPECIFIC)
@@ -1223,6 +1225,9 @@ krypt_asn1_tag_class_for_id(ID tag_class)
 	return TAG_CLASS_APPLICATION;
     else if (tag_class == sKrypt_TC_PRIVATE)
 	return TAG_CLASS_PRIVATE;
+    str = rb_funcall(ID2SYM(tag_class), rb_intern("to_s"), 0);
+    StringValueCStr(str);
+    krypt_error_add("Unknown tag class: %s", RSTRING_PTR(str));
     return -1;
 }
 

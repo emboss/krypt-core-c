@@ -10,6 +10,9 @@
 * See the file 'LICENSE' for further details.
 */
 
+#ifndef _KRYPT_MISSING_H_
+#define _KRYPT_MISSING_H_
+
 #include RUBY_EXTCONF_H
 
 #ifndef HAVE_RB_IO_CHECK_BYTE_READABLE 
@@ -42,4 +45,6 @@ struct tm *krypt_gmtime_r(const time_t *tp, struct tm *result);
 
 int krypt_asn1_encode_bignum(VALUE bignum, unsigned char **out, size_t *len);
 int krypt_asn1_decode_bignum(unsigned char *bytes, size_t len, VALUE *out);
+
+#endif /* KRYPT_MISSING_H */
 

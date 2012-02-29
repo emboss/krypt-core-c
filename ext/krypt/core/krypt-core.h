@@ -50,6 +50,7 @@ extern ID sKrypt_ID_EACH;
 extern krypt_provider *krypt_default_provider;
 
 /** krypt-core headers **/
+#include "krypt_error.h"
 #include "krypt_missing.h"
 #include "krypt_io.h"
 #include "krypt_asn1.h"

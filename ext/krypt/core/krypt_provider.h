@@ -17,6 +17,7 @@
 #define RUBY_READONLY_STRING 1
 
 #include <ruby.h>
+#include "krypt_error.h"
 
 typedef struct krypt_provider_st krypt_provider;
 

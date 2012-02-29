@@ -54,13 +54,25 @@ krypt_asn1_next_header(krypt_instream *in, krypt_asn1_header **out)
 
     read = krypt_instream_read(in, &b, 1);
     if (read == -1) return 0;
-    if (read != 1) return -1;
+    if (read != 1) {
+       krypt_error_add("Error when parsing stream");
+       return -1;
+    }
 
     header = krypt_asn1_header_new();
     
-    if (!int_parse_tag(b, in, header)) goto error;
-    if (!int_parse_length(in, header)) goto error;
-    if (header->is_infinite && !header->is_constructed) goto error;
+    if (!int_parse_tag(b, in, header)) {
+       krypt_error_add("Error when parsing tag");
+       goto error;
+    }
+    if (!int_parse_length(in, header)) {
+	krypt_error_add("Error when parsing length");
+	goto error;
+    }
+    if (header->is_infinite && !header->is_constructed) {
+	krypt_error_add("Infinite length values must be constructed");
+	goto error;
+    }
 
     *out = header;
     return 1;
@@ -407,7 +419,10 @@ int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn
     size_t i, num_bytes;
 
     num_bytes = b & 0x7f;
-    if (num_bytes + 1 > sizeof(size_t)) return 0;
+    if (num_bytes + 1 > sizeof(size_t)) {
+       krypt_error_add("Definite length value too long");
+       return 0;
+    }
 
     out->length_bytes = ALLOC_N(unsigned char, num_bytes + 1);
     out->length_bytes[offset++] = b;
@@ -417,8 +432,10 @@ int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn
 	out->header_length++;
 	len <<= CHAR_BIT;
 	len |= b;
-	if (len > KRYPT_ASN1_LENGTH_LIMIT || offset == SIZE_MAX || out->header_length == SIZE_MAX)
+	if (len > KRYPT_ASN1_LENGTH_LIMIT || offset == SIZE_MAX || out->header_length == SIZE_MAX) {
+	    krypt_error_add("Complex length too long");
 	    return 0;
+	}
 	out->length_bytes[offset++] = b;
     }
 
@@ -447,6 +464,7 @@ int_parse_read_exactly(krypt_instream *in, size_t n, unsigned char **out)
 	if (read < 0) {
 	    xfree(ret);
 	    *out = NULL;
+	    krypt_error_add("Premature EOF detected");
 	    return 0;
 	}
 	p += read;
