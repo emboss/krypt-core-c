@@ -147,6 +147,7 @@ int_read_value(krypt_instream_chunked *in, unsigned char *buf, size_t len)
 #define int_check_done(in)					\
 do {								\
     if ((in)->cur_header->tag == TAGS_END_OF_CONTENTS &&	\
+	(in)->cur_header->tag_class == TAG_CLASS_UNIVERSAL &&   \
 	(in)->state == PROCESS_VALUE) {				\
 	(in)->state = DONE;					\
     }								\

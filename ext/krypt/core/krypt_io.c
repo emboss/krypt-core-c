@@ -213,19 +213,9 @@ int_instream_common_new(VALUE value)
 	    return krypt_instream_new_fd_io(value);
 	}
 	else if (rb_respond_to(value, sKrypt_ID_READ)) {
-	    ID id_string;
-	    id_string = rb_intern("string");
-	    if (rb_respond_to(value, id_string)) { /* StringIO */
-		VALUE str;
-		str = rb_funcall(value, id_string, 0);
-		return krypt_instream_new_bytes((unsigned char *)RSTRING_PTR(str), RSTRING_LEN(str));
-	    }
-	    else {
-    		return krypt_instream_new_io_generic(value);
-	    }
+	    return krypt_instream_new_io_generic(value);
 	}
     }
-    krypt_error_add("Value cannot be converted into a stream");
     return NULL;
 }
 

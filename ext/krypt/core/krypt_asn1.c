@@ -188,8 +188,10 @@ int_determine_class(krypt_asn1_header *header)
 	    return Qnil;
 	}
 	if (!krypt_asn1_infos[header->tag].klass) {
-	    krypt_error_add("Unsupported tag: %d", header->tag);
-	    return Qnil;
+	    if (header->is_constructed)
+		return cKryptASN1Constructive;
+	    else
+		return cKryptASN1Data;
 	}
 	return *(krypt_asn1_infos[header->tag].klass);
     }
