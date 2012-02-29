@@ -53,6 +53,7 @@ int_err_stack_pop()
 
     err_stack.head = head->prev;
     message = head->message;
+    xfree(head);
     err_stack.count--;
     return message;
 }
