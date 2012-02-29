@@ -363,6 +363,10 @@ int_asn1_validate_time(VALUE self, VALUE value)
 	krypt_error_add("Time value must be either a String or an integer Number");
 	return 0;
     }
+    if (type == T_STRING && RSTRING_LEN(value) == 0) {
+	krypt_error_add("Time value cannot be an empty String");
+	return 0;
+    }
     return 1;
 }
 
