@@ -1,4 +1,4 @@
-== krypt-core
+== krypt-core-c
 
 The C implementation of the krypt-core API.
 
