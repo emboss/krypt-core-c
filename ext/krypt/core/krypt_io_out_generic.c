@@ -29,6 +29,7 @@ static krypt_outstream_interface krypt_interface_io = {
     KRYPT_OUTSTREAM_TYPE_IO_GENERIC,
     int_io_write,
     int_io_rb_write,
+    NULL,
     int_io_mark,
     int_io_free
 };

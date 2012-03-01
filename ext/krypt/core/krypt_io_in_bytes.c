@@ -12,14 +12,9 @@
 
 #include "krypt-core.h"
 
-struct krypt_byte_ary_st {
-    unsigned char *p;
-    size_t len;
-};
-
 typedef struct krypt_instream_bytes_st {
     krypt_instream_interface *methods;
-    struct krypt_byte_ary_st *src;
+    krypt_byte_ary *src;
     size_t num_read;
 } krypt_instream_bytes;
 
@@ -45,7 +40,7 @@ krypt_instream *
 krypt_instream_new_bytes(unsigned char *bytes, size_t len)
 {
     krypt_instream_bytes *in;
-    struct krypt_byte_ary_st *byte_ary;
+    krypt_byte_ary *byte_ary;
 
     in = int_bytes_alloc();
     byte_ary = ALLOC(struct krypt_byte_ary_st);
@@ -68,7 +63,7 @@ int_bytes_alloc(void)
 static ssize_t
 int_bytes_read(krypt_instream *instream, unsigned char *buf, size_t len)
 {
-    struct krypt_byte_ary_st *src;
+    krypt_byte_ary *src;
     size_t to_read;
     krypt_instream_bytes *in;
 
@@ -91,7 +86,7 @@ int_bytes_read(krypt_instream *instream, unsigned char *buf, size_t len)
 static ssize_t
 int_bytes_gets(krypt_instream *instream, char *line, size_t len)
 {
-    struct krypt_byte_ary_st *src;
+    krypt_byte_ary *src;
     krypt_instream_bytes *in;
     ssize_t ret = 0;
     size_t to_read;
@@ -129,7 +124,7 @@ int_bytes_gets(krypt_instream *instream, char *line, size_t len)
 static int
 int_bytes_set_pos(krypt_instream_bytes *in, off_t offset, size_t num_read)
 {
-    struct krypt_byte_ary_st *src = in->src;
+    krypt_byte_ary *src = in->src;
 
     if (src->len - offset <= num_read) {
 	krypt_error_add("Unreachable seek position");
@@ -144,7 +139,7 @@ int_bytes_set_pos(krypt_instream_bytes *in, off_t offset, size_t num_read)
 static int
 int_bytes_seek(krypt_instream *instream, off_t offset, int whence)
 {
-    struct krypt_byte_ary_st *src;
+    krypt_byte_ary *src;
     size_t num_read;
     krypt_instream_bytes *in;
 

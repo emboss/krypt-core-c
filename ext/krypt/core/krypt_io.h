@@ -13,6 +13,7 @@
 #if !defined(_KRYPT_IO_H_)
 #define _KRYPT_IO_H_
 
+#include <sys/uio.h>
 #include "krypt_io_buffer.h"
 
 extern ID sKrypt_ID_READ, sKrypt_ID_SEEK, sKrypt_ID_WRITE;
@@ -32,6 +33,7 @@ extern VALUE sKrypt_ID_SEEK_CUR, sKrypt_ID_SEEK_SET, sKrypt_ID_SEEK_END;
 #define KRYPT_OUTSTREAM_TYPE_FD         10
 #define KRYPT_OUTSTREAM_TYPE_BYTES      11
 #define KRYPT_OUTSTREAM_TYPE_IO_GENERIC 12
+#define KRYPT_OUTSTREAM_TYPE_VECTOR     13
 
 typedef struct krypt_instream_interface_st krypt_instream_interface;
 typedef struct krypt_outstream_interface_st krypt_outstream_interface;
@@ -60,9 +62,15 @@ struct krypt_outstream_interface_st {
 
     ssize_t (*write)(krypt_outstream*, unsigned char *buf, size_t);
     int (*rb_write)(krypt_outstream*, VALUE, VALUE*);
+    ssize_t (*writev)(krypt_outstream*, struct iovec*, int);
     void (*mark)(krypt_outstream*);
     void (*free)(krypt_outstream*);
 };
+
+typedef struct krypt_byte_ary_st {
+    unsigned char *p;
+    size_t len;
+} krypt_byte_ary;
 
 #define krypt_safe_cast_stream(out, in, t, ptype, stype)	        \
     do {	                					\
@@ -112,10 +120,14 @@ void krypt_pem_continue_stream(krypt_instream *instream);
 
 ssize_t krypt_outstream_write(krypt_outstream *out, unsigned char *buf, size_t len);
 int krypt_outstream_rb_write(krypt_outstream *out, VALUE vbuf, VALUE *ret);
+ssize_t krypt_outstream_writev(krypt_outstream *out, struct iovec *vector, int count);
 void krypt_outstream_mark(krypt_outstream *in);
 void krypt_outstream_free(krypt_outstream *out);
 
 size_t krypt_outstream_bytes_get_bytes_free(krypt_outstream *outstream, unsigned char **bytes);
+size_t krypt_outstream_vector_total_size(krypt_outstream *outstream);
+ssize_t krypt_outstream_vector_flush_to(krypt_outstream *vector_stream, krypt_outstream *target);
+VALUE krypt_outstream_vector_to_s(krypt_outstream *outstream);
 
 krypt_outstream *krypt_outstream_new_fd(int fd);
 krypt_outstream *krypt_outstream_new_fd_io(VALUE io);
@@ -124,6 +136,7 @@ krypt_outstream *krypt_outstream_new_bytes_size(size_t size);
 krypt_outstream *krypt_outstream_new_bytes_prealloc(unsigned char *b, size_t len);
 krypt_outstream *krypt_outstream_new_io_generic(VALUE io);
 krypt_outstream *krypt_outstream_new_value(VALUE value);
+krypt_outstream *krypt_outstream_new_vector(void);
 
 #endif /* _KRYPT_IO_H_ */
 

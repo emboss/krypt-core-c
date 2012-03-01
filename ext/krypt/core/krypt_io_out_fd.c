@@ -23,12 +23,14 @@ typedef struct krypt_outstream_fd_st {
 
 static krypt_outstream_fd* int_fd_alloc(void);
 static ssize_t int_fd_write(krypt_outstream *out, unsigned char *buf, size_t len);
+static ssize_t int_fd_writev(krypt_outstream* out, struct iovec *vector, int count);
 static void int_fd_free(krypt_outstream *out);
 
 static krypt_outstream_interface krypt_interface_fd = {
     KRYPT_OUTSTREAM_TYPE_FD,
     int_fd_write,
     NULL,
+    int_fd_writev,
     NULL,
     int_fd_free
 };
@@ -85,6 +87,16 @@ int_fd_write(krypt_outstream *outstream, unsigned char *buf, size_t len)
     else {
     	return w;
     }
+}
+
+static ssize_t
+int_fd_writev(krypt_outstream* outstream, struct iovec *vector, int count)
+{
+    krypt_outstream_fd *out;
+
+    int_safe_cast(out, outstream);
+
+    return writev(out->fd, vector, count);
 }
 
 static void

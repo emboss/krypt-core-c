@@ -283,6 +283,37 @@ krypt_outstream_rb_write(krypt_outstream *out, VALUE vbuf, VALUE *ret)
     }
 }
 
+static ssize_t
+int_outstream_writev_generic(krypt_outstream *out, struct iovec *vector, int count)
+{
+    int i;
+    ssize_t total = 0;
+    ssize_t result;
+
+    for (i=0; i < count; ++i) {
+	result = krypt_outstream_write(out, (unsigned char *) vector[i].iov_base, vector[i].iov_len);
+	if (result < 0) return -1;
+	if (total > SSIZE_MAX - result) {
+	    krypt_error_add("Total size too large");
+	    return -1;
+	}
+	total += result;
+    }
+
+    return total;
+}
+
+ssize_t
+krypt_outstream_writev(krypt_outstream *out, struct iovec *vector, int count)
+{
+    int_check_stream(out);
+
+    if (out->methods->writev)
+	return out->methods->writev(out, vector, count);
+    else
+	return int_outstream_writev_generic(out, vector, count);
+}
+
 void
 krypt_outstream_mark(krypt_outstream *out)
 {
