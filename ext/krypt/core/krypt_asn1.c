@@ -427,6 +427,15 @@ krypt_asn1_end_of_contents_initialize(int argc, VALUE *argv, VALUE self)
 				       tag_class);
 }
 
+static VALUE
+int_asn1_end_of_contents_new_instance(void)
+{
+    VALUE eoc;
+
+    eoc = rb_obj_alloc(cKryptASN1EndOfContents);
+    return krypt_asn1_end_of_contents_initialize(0, NULL, eoc);
+}
+   
 /* Special treatment for NULL: no-arg constructor */
 static VALUE
 krypt_asn1_null_initialize(int argc, VALUE *argv, VALUE self)
@@ -952,65 +961,107 @@ error:
 }
 
 static VALUE
-int_cons_encode_sub_elems_i(VALUE cur, VALUE wrapped_out)
+int_cons_encode_sub_elems_i(VALUE cur, VALUE args)
 {
     krypt_outstream *out = NULL;
+    int *eoc_p;
     krypt_asn1_data *data;
+    krypt_asn1_header *header;
     
-    Data_Get_Struct(wrapped_out, krypt_outstream, out);
+    Data_Get_Struct(rb_ary_entry(args, 0), krypt_outstream, out);
+    Data_Get_Struct(rb_ary_entry(args, 1), int, eoc_p);
     int_asn1_data_get(cur, data);
 
     if (!int_asn1_encode_to(out, data, cur))
 	rb_raise(eKryptASN1Error, "Error while encoding values");
+
+    header = data->object->header;
+    *eoc_p = header->tag == TAGS_END_OF_CONTENTS && header->tag_class == TAG_CLASS_UNIVERSAL;
+
     return Qnil;
 }
 
 static VALUE
 int_cons_encode_sub_elems_wrapped(VALUE args)
 {
-    VALUE enumerable, wrapped_out;
+    VALUE enumerable = rb_ary_pop(args);
 
-    wrapped_out = rb_ary_entry(args, 0);
-    enumerable = rb_ary_entry(args, 1);
-
-    rb_iterate(rb_each, enumerable, int_cons_encode_sub_elems_i, wrapped_out);
+    rb_iterate(rb_each, enumerable, int_cons_encode_sub_elems_i, args);
+    
     return Qnil;
 }
 
 static int
-int_cons_encode_sub_elems(krypt_outstream *out, VALUE enumerable) 
+int_cons_encode_sub_elems_enum(krypt_outstream *out, VALUE enumerable, int infinite)
+{
+    VALUE args, wrapped_out, wrapped_eoc_p;
+    int state = 0;
+    int eoc_p = 0;
+
+    wrapped_out = Data_Wrap_Struct(rb_cObject, 0, 0, out); 
+    wrapped_eoc_p = Data_Wrap_Struct(rb_cObject, 0, 0, &eoc_p);
+    args = rb_ary_new();
+    rb_ary_push(args, wrapped_out);
+    rb_ary_push(args, wrapped_eoc_p);
+    rb_ary_push(args, enumerable);
+    (void) rb_protect(int_cons_encode_sub_elems_wrapped, args, &state);
+    if (state) return 0;
+    if (infinite && !eoc_p) { /* add EOC if it was missing */
+	krypt_asn1_data *data;
+	VALUE eoc = int_asn1_end_of_contents_new_instance();
+	int_asn1_data_get(eoc, data);
+	if (!int_asn1_encode_to(out, data, eoc)) {
+	    krypt_error_add("Adding final END OF CONTENTS failed");
+	    return 0;
+	}
+    }
+    return 1;
+}
+
+static int
+int_cons_encode_sub_elems_ary(krypt_outstream *out, VALUE ary, int infinite)
+{
+    long size, i;
+    VALUE cur;
+    size = RARRAY_LEN(ary);
+
+    for (i=0; i < size; i++) {
+	krypt_asn1_data *data;
+
+	cur = rb_ary_entry(ary, i);
+	int_asn1_data_get(cur, data);
+	if (!int_asn1_encode_to(out, data, cur))
+	    return 0;
+    }
+    if (infinite) { /* add closing EOC if it was missing */
+	krypt_asn1_data *data;
+	krypt_asn1_header *header;
+	VALUE last = rb_ary_entry(ary, i - 1);
+
+	int_asn1_data_get(last, data);
+	header = data->object->header;
+	if (header->tag != TAGS_END_OF_CONTENTS || header->tag_class != TAG_CLASS_UNIVERSAL) {
+	    VALUE eoc = int_asn1_end_of_contents_new_instance();
+	    int_asn1_data_get(eoc, data);
+	    if (!int_asn1_encode_to(out, data, eoc))
+		return 0;
+	}
+    }
+    return 1;
+}
+
+
+static int
+int_cons_encode_sub_elems(krypt_outstream *out, VALUE enumerable, int infinite) 
 {
     if (NIL_P(enumerable))
 	return 1;
 
-    if (rb_obj_is_kind_of(enumerable, rb_cArray)) {
-	/* Optimize for Array */
-	long size, i;
-	VALUE cur;
-	size = RARRAY_LEN(enumerable);
-
-	for (i=0; i < size; i++) {
-	    krypt_asn1_data *data;
-
-	    cur = rb_ary_entry(enumerable, i);
-	    int_asn1_data_get(cur, data);
-	    if (!int_asn1_encode_to(out, data, cur))
-		return 0;
-	}
-    }
-    else {
-	VALUE args, wrapped_out;
-	int state = 0;
-
-	wrapped_out = Data_Wrap_Struct(rb_cObject, 0, 0, out); 
-	args = rb_ary_new();
-	rb_ary_push(args, wrapped_out);
-	rb_ary_push(args, enumerable);
-	(void) rb_protect(int_cons_encode_sub_elems_wrapped, args, &state);
-	if (state)
-	    return 0;
-    }
-    return 1;
+    /* Optimize for Array */
+    if (rb_obj_is_kind_of(enumerable, rb_cArray))
+	return int_cons_encode_sub_elems_ary(out, enumerable, infinite);
+    else
+	return int_cons_encode_sub_elems_enum(out, enumerable, infinite);
 }
 
 static int
@@ -1037,7 +1088,7 @@ int_asn1_cons_encode_to(VALUE self, krypt_outstream *out, VALUE ary, krypt_asn1_
 	size_t len;
 	krypt_outstream *bos = krypt_outstream_new_bytes();
 
-	if (!int_cons_encode_sub_elems(bos, ary)) {
+	if (!int_cons_encode_sub_elems(bos, ary, header->is_infinite)) {
 	    krypt_outstream_free(bos);
 	    return 0;
 	}
@@ -1056,7 +1107,7 @@ int_asn1_cons_encode_to(VALUE self, krypt_outstream *out, VALUE ary, krypt_asn1_
 	xfree(bytes);
     } else {
 	if (!krypt_asn1_header_encode(out, header)) return 0;
-	if (!int_cons_encode_sub_elems(out, ary)) return 0;
+	if (!int_cons_encode_sub_elems(out, ary, header->is_infinite)) return 0;
     }
     return 1;
 }
