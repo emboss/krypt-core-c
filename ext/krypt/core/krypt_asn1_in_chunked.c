@@ -80,7 +80,6 @@ int_read_new_header(krypt_instream_chunked *in)
     ret = krypt_asn1_next_header(in->inner, &next);
     if (ret == 0) {
 	krypt_error_add("Premature end of value detected");
-	krypt_asn1_header_free(next);
 	return 0;
     }
 

@@ -946,7 +946,15 @@ int_asn1_cons_value_decode(VALUE self, krypt_asn1_data *data, VALUE *out)
 	}
 	rb_ary_push(*out, cur);
     }
+
     if (ret == -1) goto error;
+
+    /* discard EOC if available */
+    if (object->header->is_infinite) {
+	/* must be EOC because krypt_instream_chunked would otherwise indicate EOF */
+	(void) rb_ary_pop(*out);
+    }
+
     /* Delete the cached byte encoding */
     xfree(object->bytes);
     object->bytes = NULL;
