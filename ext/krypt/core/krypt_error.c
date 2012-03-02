@@ -72,47 +72,83 @@ krypt_error_add(const char *format, ...)
     va_end(args);
 }
 
+static int
+int_error_msg_create(char *buf, int len, const char *format, va_list args)
+{
+    int l;
+
+    if ((l = vsnprintf(buf, len, format, args)) < 0) {
+	return -1;
+    }
+
+    while (!int_err_stack_empty()) {
+	int cur_len;
+	char *message = int_err_stack_pop();
+	cur_len = snprintf(buf + l, len, "%s%s", (l ? ": " : ""), message);
+	xfree(message);
+	if (cur_len > 0)
+	    l += cur_len;
+    }
+
+    return l;
+}
+
+
 static VALUE
 int_error_create(VALUE exception_class, const char *format, va_list args)
 {
     char buf[BUFSIZ];
     int len = 0;
 
-    if ((len = vsnprintf(buf, BUFSIZ, format, args)) < 0) {
+    if ((len = int_error_msg_create(buf, BUFSIZ, format, args)) < 0) {
 	return rb_funcall(exception_class, rb_intern("new"), 0);
     }
 
-    while (!int_err_stack_empty()) {
-	int cur_len;
-	char *message = int_err_stack_pop();
-	cur_len = snprintf(buf + len, BUFSIZ, "%s%s", (len ? ": " : ""), message);
-	xfree(message);
-	if (cur_len > 0)
-	    len += cur_len;
-    }
     return rb_exc_new(exception_class, buf, len);
 }
 
-VALUE
-krypt_error_create(VALUE exception_class, const char *format, ...)
+static VALUE
+int_error_enhance(VALUE exception_class, VALUE active_exc, const char *format, va_list args)
 {
-    VALUE exc;
-    va_list args;
+    char buf[BUFSIZ];
+    int len;
+    VALUE orig_msg;
+    long orig_len;
+    const char *active_name = rb_class2name(CLASS_OF(active_exc));
+    size_t active_name_len = strlen(active_name);
 
-    va_start(args, format);
-    exc = int_error_create(exception_class, format, args);
-    va_end(args);
-    return exc;
+    if ((len = int_error_msg_create(buf, BUFSIZ, format, args)) < 0) {
+	return active_exc;
+    }
+
+    orig_msg = rb_funcall(active_exc, rb_intern("message"), 0);
+    StringValueCStr(orig_msg);
+    orig_len = RSTRING_LEN(orig_msg);
+    if (len <= BUFSIZ - ( (int) active_name_len ) - orig_len - 4) {
+	strcat(buf, ": ");
+	strcat(buf, active_name);
+	strcat(buf, ": ");
+	strcat(buf, RSTRING_PTR(orig_msg));
+	len += active_name_len + orig_len + 4;
+    }
+
+    return rb_exc_new(exception_class, buf, len);
 }
 
 void
 krypt_error_raise(VALUE exception_class, const char *format, ...)
 {
     VALUE exc;
+    VALUE active_exc;
     va_list args;
 
     va_start(args, format);
-    exc = int_error_create(exception_class, format, args);
+    active_exc = rb_errinfo();
+    if (NIL_P(active_exc)) {
+	exc = int_error_create(exception_class, format, args);
+    } else {
+	exc = int_error_enhance(exception_class, active_exc, format, args);
+    }
     va_end(args);
     rb_exc_raise(exc);
 }
