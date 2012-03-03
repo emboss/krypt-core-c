@@ -39,6 +39,7 @@ VALUE cKryptASN1UTCTime, cKryptASN1GeneralizedTime;     	/* TIME              */
 VALUE cKryptASN1Sequence, cKryptASN1Set;
 
 ID sKrypt_TC_UNIVERSAL, sKrypt_TC_APPLICATION, sKrypt_TC_CONTEXT_SPECIFIC, sKrypt_TC_PRIVATE;
+ID sKrypt_TC_EXPLICIT, sKrypt_TC_IMPLICIT;
 
 ID sKrypt_IV_TAG, sKrypt_IV_TAG_CLASS, sKrypt_IV_INF_LEN, sKrypt_IV_VALUE, sKrypt_IV_UNUSED_BITS;
 
@@ -85,13 +86,15 @@ static int krypt_asn1_infos_size = (sizeof(krypt_asn1_infos)/sizeof(krypt_asn1_i
 
 struct krypt_asn1_data_st;
 typedef struct krypt_asn1_data_st krypt_asn1_data;
-typedef void (*krypt_asn1_codec_cb)(krypt_asn1_data *);
+typedef void (*krypt_asn1_update_cb)(krypt_asn1_data *);
 
 struct krypt_asn1_data_st {
     krypt_asn1_object *object;
-    krypt_asn1_codec_cb codec_cb;
+    krypt_asn1_update_cb update_cb;
     krypt_asn1_codec *codec;
     unsigned short is_decoded;
+    unsigned short is_explicit;
+    int default_tag;
 }; 
 
 static krypt_asn1_codec *
@@ -115,10 +118,11 @@ int_asn1_data_new(krypt_asn1_object *object)
 
     ret = ALLOC(krypt_asn1_data);
     ret->object = object;
-    ret->codec_cb = NULL;
+    ret->update_cb = NULL;
     ret->codec = int_codec_for(object);
     ret->is_decoded = 1; /* only overwritten by parsed values */
-
+    ret->is_explicit = 0; /* convenience encoding hint */
+    ret->default_tag = -1;
     return ret;
 }
 
@@ -180,8 +184,10 @@ int_handle_class_specifics(VALUE self, krypt_asn1_header *header)
 }
 
 static VALUE
-int_determine_class(krypt_asn1_header *header)
+int_determine_class_and_default_tag(krypt_asn1_data *data)
 {
+    krypt_asn1_header *header = data->object->header;
+
     if (header->tag_class == TAG_CLASS_UNIVERSAL) {
 	if (header->tag > 30) {
 	    krypt_error_add("Universal tag too large: %d", header->tag);
@@ -193,6 +199,7 @@ int_determine_class(krypt_asn1_header *header)
 	    else
 		return cKryptASN1Data;
 	}
+	data->default_tag = header->tag;
 	return *(krypt_asn1_infos[header->tag].klass);
     }
     else {
@@ -218,7 +225,7 @@ krypt_asn1_data_new(krypt_instream *in, krypt_asn1_header *header)
     encoding = krypt_asn1_object_new_value(header, value, value_len);
     data = int_asn1_data_new(encoding);
     data->is_decoded = 0; /* Lazy decoding of value */
-    klass = int_determine_class(header);
+    klass = int_determine_class_and_default_tag(data);
     if (NIL_P(klass)) goto error;
     int_asn1_data_set(klass, obj, data);
 
@@ -284,9 +291,9 @@ do {									\
 
 /** ASN1Data can dynamically change its codec while
  * ASN1Primitive and ASN1Constructive and its
- * sub classes can not */
+ * sub classes can not.  */
 static void
-int_asn1_data_codec_cb(krypt_asn1_data *data)
+int_asn1_data_update_cb(krypt_asn1_data *data)
 {
     if (!data->object->header->is_constructed)
 	data->codec = int_codec_for(data->object);
@@ -303,7 +310,7 @@ int_asn1_data_codec_cb(krypt_asn1_data *data)
  * * +tag_class+: a +Symbol+ representing one of the four valid tag classes
  * +:UNIVERSAL+, +:CONTEXT_SPECIFIC+, +:APPLICATION+ or +:PRIVATE+.
  *
- * Creates a ASN1Data from scratch.
+ * Creates an ASN1Data from scratch.
  */ 
 static VALUE
 krypt_asn1_data_initialize(VALUE self, VALUE value, VALUE vtag, VALUE vtag_class)
@@ -315,6 +322,8 @@ krypt_asn1_data_initialize(VALUE self, VALUE value, VALUE vtag, VALUE vtag_class
     int_validate_tag_and_class(vtag, vtag_class);
     tag = NUM2INT(vtag);
     stag_class = SYM2ID(vtag_class);
+    if (stag_class == sKrypt_TC_EXPLICIT)
+	rb_raise(eKryptASN1Error, "Explicit tagging is only supported for explicit UNIVERSAL sub classes of ASN1Data");
     if (stag_class == sKrypt_TC_UNIVERSAL && tag > 30)
 	rb_raise(eKryptASN1Error, "Tag too large for UNIVERSAL tag class");
     if ((tag_class = krypt_asn1_tag_class_for_id(stag_class)) < 0)
@@ -324,7 +333,7 @@ krypt_asn1_data_initialize(VALUE self, VALUE value, VALUE vtag, VALUE vtag_class
     int_asn1_data_initialize(self, tag, tag_class, is_constructed, 0);
 
     int_asn1_data_get(self, data);
-    data->codec_cb = int_asn1_data_codec_cb;
+    data->update_cb = int_asn1_data_update_cb;
 
     int_asn1_data_set_tag(self, vtag);
     int_asn1_data_set_tag_class(self, vtag_class);
@@ -333,6 +342,8 @@ krypt_asn1_data_initialize(VALUE self, VALUE value, VALUE vtag, VALUE vtag_class
 
     return self;
 }
+
+static VALUE int_asn1_default_initialize(VALUE self, VALUE value, VALUE vtag, int default_tag, VALUE vtag_class);
 
 /* Default helper for all UNIVERSAL values */
 static VALUE
@@ -364,9 +375,13 @@ int_asn1_default_initialize(VALUE self,
 
     int_asn1_data_get(self, data);
 
+    if (stag_class == sKrypt_TC_EXPLICIT)
+	data->is_explicit = 1;
     /* Override default behavior to support tag classes other than UNIVERSAL */
-    if (default_tag <= 30)
+    if (default_tag <= 30) {
 	data->codec = &krypt_asn1_codecs[default_tag];
+	data->default_tag = default_tag;
+    }
 
     int_asn1_data_set_tag(self, vtag);
     int_asn1_data_set_tag_class(self, vtag_class);
@@ -581,8 +596,8 @@ krypt_asn1_data_set_tag(VALUE self, VALUE tag)
 
     header->tag = new_tag;
     int_invalidate_tag(header);
-    if (data->codec_cb)
-	data->codec_cb(data);
+    if (data->update_cb)
+	data->update_cb(data);
     int_asn1_data_set_tag(self, tag);
 
     return tag;
@@ -601,6 +616,35 @@ krypt_asn1_data_get_tag_class(VALUE self)
     return int_asn1_data_get_tag_class(self);
 }
 
+
+static int int_asn1_decode_value(VALUE self);
+
+static int
+int_asn1_handle_explicit_tagging(VALUE self, krypt_asn1_data *data, ID new_tc)
+{
+    int old_explicit;
+    int invalidate_value = 0;
+
+    old_explicit = data->is_explicit;
+    if (new_tc == sKrypt_TC_EXPLICIT && old_explicit == 0) {
+	invalidate_value = 1;
+	data->is_explicit = 1;
+    }
+    if (new_tc != sKrypt_TC_EXPLICIT && old_explicit == 1) {
+	invalidate_value = 1;
+	data->is_explicit = 0;
+    }
+
+    if (invalidate_value) {
+	if (!data->is_decoded) {
+	    if(!int_asn1_decode_value(self))
+		rb_raise(eKryptASN1Error, "Error while decoding value");
+	}
+	int_invalidate_value(data->object);
+    }
+    return 1;
+}
+
 /*
  * call-seq:
  *    asn1.tag_class=(sym) -> Symbol
@@ -614,19 +658,30 @@ krypt_asn1_data_set_tag_class(VALUE self, VALUE tag_class)
     krypt_asn1_data *data;
     krypt_asn1_header *header;
     int new_tag_class;
+    ID new_tc, old_tc;
 
     int_asn1_data_get(self, data);
 
-    header = data->object->header;
-    if ((new_tag_class = krypt_asn1_tag_class_for_id(SYM2ID(tag_class))) < 0)
-        krypt_error_raise(eKryptASN1Error, "Cannot set tag class");
-    if (header->tag_class == new_tag_class)
+    new_tc = SYM2ID(tag_class);
+    old_tc = SYM2ID(int_asn1_data_get_tag_class(self));
+    if (new_tc == old_tc)
 	return tag_class;
+    if (new_tc == sKrypt_TC_EXPLICIT && data->default_tag == -1)
+	rb_raise(eKryptASN1Error, "Cannot explicitly tag value with unknown default tag");
+
+    header = data->object->header;
+    if ((new_tag_class = krypt_asn1_tag_class_for_id(new_tc)) < 0)
+        rb_raise(eKryptASN1Error, "Cannot set tag class");
 
     header->tag_class = new_tag_class;
     int_invalidate_tag(header);
-    if (data->codec_cb)
-	data->codec_cb(data);
+
+    if (data->update_cb)
+	data->update_cb(data);
+
+    if (!int_asn1_handle_explicit_tagging(self, data, new_tc))
+	rb_raise(eKryptASN1Error, "Tagging explicitly failed");
+
     int_asn1_data_set_tag_class(self, tag_class);
 
     return tag_class;
@@ -771,6 +826,43 @@ int_asn1_data_encode_to(VALUE self, krypt_outstream *out, VALUE value, krypt_asn
 }
 
 static int
+int_asn1_make_explicit(VALUE value, int default_tag, VALUE *out)
+{
+    VALUE universal;
+    VALUE klass;
+    VALUE ary;
+    krypt_asn1_data *data;
+
+    if (default_tag == -1) {
+	krypt_error_add("Cannot encode value with explicit tagging");
+	return 0;
+    }
+
+    if (!krypt_asn1_infos[default_tag].klass) {
+	krypt_error_add("Unsupported tag: %d", default_tag);
+	return 0;
+    }
+
+    ary = rb_ary_new();
+
+    klass = *(krypt_asn1_infos[default_tag].klass);
+    universal = rb_obj_alloc(klass);
+    universal = int_asn1_default_initialize(
+	    universal,
+	    value,
+	    INT2NUM(default_tag),
+	    default_tag,
+	    ID2SYM(sKrypt_TC_UNIVERSAL)
+    );
+    int_asn1_data_get(universal, data);
+    int_handle_class_specifics(universal, data->object->header);
+    rb_ary_push(ary, universal);
+
+    *out = ary;
+    return 1;
+}
+
+static int
 int_asn1_encode_to(krypt_outstream *out, krypt_asn1_data *data, VALUE self)
 {
     krypt_asn1_object *object = data->object;
@@ -778,8 +870,11 @@ int_asn1_encode_to(krypt_outstream *out, krypt_asn1_data *data, VALUE self)
     /* TODO: sync */
     if (!object->bytes) {
 	VALUE value;
-
-	value = int_asn1_data_get_value(self);
+	value = krypt_asn1_data_get_value(self);
+	if (data->is_explicit) {
+	    if (!int_asn1_make_explicit(value, data->default_tag, &value)) return 0;
+	    data->object->header->is_constructed = 1; /* explicitly tagged values are always constructed */
+	}
 	return int_asn1_data_encode_to(self, out, value, data);
     }
     else {
@@ -1359,6 +1454,10 @@ krypt_asn1_tag_class_for_id(ID tag_class)
 	return TAG_CLASS_UNIVERSAL;
     else if (tag_class == sKrypt_TC_CONTEXT_SPECIFIC)
 	return TAG_CLASS_CONTEXT_SPECIFIC;
+    else if (tag_class == sKrypt_TC_EXPLICIT)
+	return TAG_CLASS_CONTEXT_SPECIFIC;
+    else if (tag_class == sKrypt_TC_IMPLICIT)
+	return TAG_CLASS_CONTEXT_SPECIFIC;
     else if (tag_class == sKrypt_TC_APPLICATION)
 	return TAG_CLASS_APPLICATION;
     else if (tag_class == sKrypt_TC_PRIVATE)
@@ -1383,6 +1482,8 @@ Init_krypt_asn1(void)
     sKrypt_TC_APPLICATION = rb_intern("APPLICATION");
     sKrypt_TC_CONTEXT_SPECIFIC = rb_intern("CONTEXT_SPECIFIC");
     sKrypt_TC_PRIVATE = rb_intern("PRIVATE");
+    sKrypt_TC_EXPLICIT = rb_intern("EXPLICIT");
+    sKrypt_TC_IMPLICIT = rb_intern("IMPLICIT");
 
     sKrypt_IV_TAG = rb_intern("@tag");
     sKrypt_IV_TAG_CLASS = rb_intern("@tag_class");

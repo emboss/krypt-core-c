@@ -65,6 +65,9 @@ extern ID sKrypt_TC_UNIVERSAL;
 extern ID sKrypt_TC_APPLICATION;
 extern ID sKrypt_TC_CONTEXT_SPECIFIC;
 extern ID sKrypt_TC_PRIVATE;
+/* Not real tag classes, for convenience reasons */
+extern ID sKrypt_TC_EXPLICIT;
+extern ID sKrypt_TC_IMPLICIT;
 
 extern ID sKrypt_IV_TAG, sKrypt_IV_TAG_CLASS, sKrypt_IV_INF_LEN, sKrypt_IV_VALUE, sKrypt_IV_UNUSED_BITS;
 
