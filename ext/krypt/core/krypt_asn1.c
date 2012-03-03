@@ -747,10 +747,19 @@ krypt_asn1_data_set_inf_length(VALUE self, VALUE inf_length)
 static int
 int_asn1_data_value_decode(VALUE self, krypt_asn1_data *data, VALUE *out)
 {
-    if (data->object->header->is_constructed)
-	return int_asn1_cons_value_decode(self, data, out);
-    else
+    if (data->object->header->is_constructed) {
+	int result;
+	krypt_asn1_object *object = data->object;
+
+	result = int_asn1_cons_value_decode(self, data, out);
+	/* Invalidate the cached byte encoding */
+	xfree(object->bytes);
+	object->bytes = NULL;
+	object->bytes_len = 0;
+	return result;
+    } else {
 	return int_asn1_prim_value_decode(self, data, out);
+    }
 }
 
 static int
@@ -1050,12 +1059,7 @@ int_asn1_cons_value_decode(VALUE self, krypt_asn1_data *data, VALUE *out)
 	(void) rb_ary_pop(*out);
     }
 
-    /* Delete the cached byte encoding */
-    xfree(object->bytes);
-    object->bytes = NULL;
-    object->bytes_len = 0;
     krypt_instream_free(in);
-
     return 1;
 
 error: 
