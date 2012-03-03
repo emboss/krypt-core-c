@@ -43,7 +43,7 @@ krypt_instream_new_cache(krypt_instream *original)
 
     in = int_cache_alloc();
     in->inner = original;
-    in->bytes = krypt_outstream_new_bytes();
+    in->bytes = krypt_outstream_new_bytes_size(1024);
     return (krypt_instream *) in;
 }
 
@@ -55,7 +55,7 @@ krypt_instream_cache_get_bytes(krypt_instream *instream, unsigned char **out)
 
     int_safe_cast(in, instream);
     ret = krypt_outstream_bytes_get_bytes_free(in->bytes, out);
-    in->bytes = krypt_outstream_new_bytes();
+    in->bytes = krypt_outstream_new_bytes_size(1024);
     return ret;
 }
 

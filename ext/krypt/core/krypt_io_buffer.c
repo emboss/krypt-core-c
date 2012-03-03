@@ -26,8 +26,7 @@ krypt_byte_buffer *
 krypt_buffer_new_size(size_t size)
 {
     krypt_byte_buffer *ret;
-    ret = ALLOC(krypt_byte_buffer);
-    memset(ret, 0, sizeof(krypt_byte_buffer));
+    ret = krypt_buffer_new();
     ret->init_size = size;
     return ret;
 }
@@ -114,14 +113,12 @@ krypt_buffer_free(krypt_byte_buffer *buffer)
 }
 
 size_t
-krypt_buffer_resize_free(krypt_byte_buffer *buffer, unsigned char **out)
+krypt_buffer_get_bytes_free(krypt_byte_buffer *buffer, unsigned char **out)
 {
     size_t ret;
 
     if (!buffer) return 0;
 
-    if (buffer->data)
-	REALLOC_N(buffer->data, unsigned char, buffer->size);
     *out = buffer->data;
     ret = buffer->size;
     xfree(buffer);

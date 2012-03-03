@@ -173,21 +173,23 @@ krypt_asn1_get_value_stream(krypt_instream *in, krypt_asn1_header *last, int val
 int
 krypt_asn1_header_encode(krypt_outstream *out, krypt_asn1_header *header)
 {
+    unsigned char *buf;
+    size_t hlen;
+
     if (!out) return 0;
     if (!header) return 0;
 
-    if (!header->tag_bytes) {
+    if (!header->tag_bytes)
 	int_compute_tag(header);
-    }
-    if (!header->length_bytes) {
+
+    if (!header->length_bytes)
 	int_compute_length(header);
-    }
 
-    if (krypt_outstream_write(out, header->tag_bytes, header->tag_len) < 0)
-	return 0;
-    if (krypt_outstream_write(out, header->length_bytes, header->length_len) < 0)
-	return 0;
-
+    hlen = header->tag_len + header->length_len;
+    buf = ALLOCA_N(unsigned char, hlen);
+    memcpy(buf, header->tag_bytes, header->tag_len);
+    memcpy(buf + header->tag_len, header->length_bytes, header->length_len);
+    if (krypt_outstream_write(out, buf, hlen) < 0) return 0;
     return 1;
 }
 
@@ -322,7 +324,6 @@ int_parse_primitive_tag(unsigned char b, krypt_asn1_header *out)
     out->tag = b & COMPLEX_TAG_MASK;
     out->is_constructed = (b & CONSTRUCTED_MASK) == CONSTRUCTED_MASK;
     out->tag_class = b & TAG_CLASS_PRIVATE;
-    out->header_length++;
     out->tag_bytes = ALLOC(unsigned char);
     out->tag_bytes[0] = b;
     out->tag_len = 1;
@@ -334,11 +335,6 @@ do {								\
 	krypt_buffer_free((buf));				\
         return 0;						\
     }								\
-    if ((out)->header_length == SIZE_MAX) {			\
-	krypt_buffer_free((buf));				\
-    	return 0;						\
-    }								\
-    (out)->header_length++;					\
 } while (0)
 
 #define int_check_tag(t, buf)					\
@@ -375,7 +371,7 @@ int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *ou
     tag <<= CHAR_BIT_MINUS_ONE;
     tag |= (b & 0x7f);
     out->tag = tag;
-    out->tag_len = krypt_buffer_resize_free(buffer, &(out->tag_bytes));
+    out->tag_len = krypt_buffer_get_bytes_free(buffer, &(out->tag_bytes));
     return 1;
 }
 
@@ -392,8 +388,7 @@ int_parse_length(krypt_instream *in, krypt_asn1_header *out)
     unsigned char b;
 
     int_next_byte(in, b);
-    out->header_length++;
-
+    
     if (b == INFINITE_LENGTH_MASK) {
 	out->is_infinite = 1;
 	out->length = 0;
@@ -429,10 +424,9 @@ int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn
 
     for (i = num_bytes; i > 0; i--) {
 	int_next_byte(in, b);
-	out->header_length++;
 	len <<= CHAR_BIT;
 	len |= b;
-	if (len > KRYPT_ASN1_LENGTH_LIMIT || offset == SIZE_MAX || out->header_length == SIZE_MAX) {
+	if (len > KRYPT_ASN1_LENGTH_LIMIT || offset == SIZE_MAX) {
 	    krypt_error_add("Complex length too long");
 	    return 0;
 	}
@@ -483,7 +477,7 @@ int_consume_stream(krypt_instream *in, unsigned char **out)
     size_t size;
 
     in_buf = ALLOC_N(unsigned char, KRYPT_IO_BUF_SIZE);
-    out_buf = krypt_buffer_new();
+    out_buf = krypt_buffer_new_size(512);
     while ((read = krypt_instream_read(in, in_buf, KRYPT_IO_BUF_SIZE)) >= 0) {
 	if (!krypt_buffer_write(out_buf, in_buf, read)) {
 	    goto error;
@@ -491,7 +485,7 @@ int_consume_stream(krypt_instream *in, unsigned char **out)
     }
     if (read < -1) goto error;
 
-    size = krypt_buffer_resize_free(out_buf, out);
+    size = krypt_buffer_get_bytes_free(out_buf, out);
     if (size > SSIZE_MAX) goto error;
     xfree(in_buf);
     return (ssize_t) size;

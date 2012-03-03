@@ -24,7 +24,7 @@ int_consume_stream(krypt_instream *in, VALUE *vout)
     unsigned char buf[KRYPT_IO_BUF_SIZE];
     ssize_t read;
     
-    out = krypt_outstream_new_bytes();
+    out = krypt_outstream_new_bytes_size(KRYPT_IO_BUF_SIZE);
 
     while ((read = krypt_instream_read(in, buf, KRYPT_IO_BUF_SIZE)) >= 0) {
 	krypt_outstream_write(out, buf, read);

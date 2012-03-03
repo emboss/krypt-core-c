@@ -20,9 +20,9 @@
 typedef struct krypt_byte_buffer_st {
     size_t size;
     size_t limit;
-    unsigned char *data;
     size_t init_size;
     int prealloc; /* whether the buffer was already preallocated */
+    unsigned char *data;
 } krypt_byte_buffer;
  
 #define krypt_buffer_get_data(b)	(b)->data
@@ -34,6 +34,6 @@ ssize_t krypt_buffer_write(krypt_byte_buffer *buffer, unsigned char *b, size_t l
 void krypt_buffer_free_secure(krypt_byte_buffer *buffer);
 void krypt_buffer_free(krypt_byte_buffer *buffer);
 
-size_t krypt_buffer_resize_free(krypt_byte_buffer *buffer, unsigned char **out);
+size_t krypt_buffer_get_bytes_free(krypt_byte_buffer *buffer, unsigned char **out);
 
-#endif /* _KRYPT_IO_H_ */
+#endif /* _KRYPT_IO_BUFFER_H_ */

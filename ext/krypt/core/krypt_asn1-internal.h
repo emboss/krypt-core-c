@@ -53,7 +53,6 @@ typedef struct krypt_asn1_header_st {
     int tag_class;
     int is_constructed;
     int is_infinite;
-    size_t header_length;
     size_t length;
     unsigned char *tag_bytes;
     size_t tag_len;

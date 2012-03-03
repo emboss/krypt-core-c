@@ -68,7 +68,7 @@ krypt_outstream_bytes_get_bytes_free(krypt_outstream *outstream, unsigned char *
     size_t len;
 
     int_safe_cast(out, outstream);
-    len = krypt_buffer_resize_free(out->buffer, bytes);
+    len = krypt_buffer_get_bytes_free(out->buffer, bytes);
     xfree(out);
     return len;
 }

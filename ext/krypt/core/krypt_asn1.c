@@ -525,7 +525,6 @@ do {							\
         xfree((h)->tag_bytes);				\
     (h)->tag_bytes = NULL;				\
     (h)->tag_len = 0;					\
-    (h)->header_length = 0;				\
 } while (0)
 
 #define int_invalidate_length(h)			\
@@ -535,7 +534,6 @@ do {							\
     (h)->length_bytes = NULL;				\
     (h)->length_len = 0;				\
     (h)->length = 0;					\
-    (h)->header_length = 0;				\
 } while (0)
 
 #define int_invalidate_value(o)				\
@@ -845,12 +843,12 @@ int_asn1_data_to_der_cached(krypt_asn1_data *data, VALUE self)
 static VALUE
 int_asn1_data_to_der_non_cached(krypt_asn1_data *data, VALUE self)
 {
+    VALUE string;
     krypt_outstream *out;
     unsigned char *bytes;
     size_t len;
-    VALUE ret;
 
-    out = krypt_outstream_new_bytes_size(1024);
+    out = krypt_outstream_new_bytes_size(2048);
 
     if (!int_asn1_encode_to(out, data, self)) {
 	krypt_outstream_free(out);
@@ -858,9 +856,11 @@ int_asn1_data_to_der_non_cached(krypt_asn1_data *data, VALUE self)
     }
 
     len = krypt_outstream_bytes_get_bytes_free(out, &bytes);
-    ret = rb_str_new((const char *) bytes, len);
+    if (len > LONG_MAX)
+	rb_raise(eKryptASN1Error, "Size of string too large: %ld", len);
+    string = rb_str_new((const char *) bytes, (long) len);
     xfree(bytes);
-    return ret;
+    return string;
 }
 
 /*
@@ -1000,6 +1000,20 @@ int_cons_encode_sub_elems_wrapped(VALUE args)
 }
 
 static int
+int_cons_add_eoc(krypt_outstream *out)
+{
+    krypt_asn1_data *data;
+    VALUE eoc = int_asn1_end_of_contents_new_instance();
+
+    int_asn1_data_get(eoc, data);
+    if (!int_asn1_encode_to(out, data, eoc)) {
+	krypt_error_add("Adding final END OF CONTENTS failed");
+	return 0;
+    }
+    return 1;
+}
+
+static int
 int_cons_encode_sub_elems_enum(krypt_outstream *out, VALUE enumerable, int infinite)
 {
     VALUE args, wrapped_out, wrapped_eoc_p;
@@ -1015,13 +1029,22 @@ int_cons_encode_sub_elems_enum(krypt_outstream *out, VALUE enumerable, int infin
     (void) rb_protect(int_cons_encode_sub_elems_wrapped, args, &state);
     if (state) return 0;
     if (infinite && !eoc_p) { /* add EOC if it was missing */
-	krypt_asn1_data *data;
-	VALUE eoc = int_asn1_end_of_contents_new_instance();
-	int_asn1_data_get(eoc, data);
-	if (!int_asn1_encode_to(out, data, eoc)) {
-	    krypt_error_add("Adding final END OF CONTENTS failed");
-	    return 0;
-	}
+	return int_cons_add_eoc(out);
+    }
+    return 1;
+}
+
+static int
+int_cons_add_eoc_ary(krypt_outstream *out, VALUE ary, long i)
+{
+    krypt_asn1_data *data;
+    krypt_asn1_header *header;
+    VALUE last = rb_ary_entry(ary, i - 1);
+
+    int_asn1_data_get(last, data);
+    header = data->object->header;
+    if (header->tag != TAGS_END_OF_CONTENTS || header->tag_class != TAG_CLASS_UNIVERSAL) {
+	return int_cons_add_eoc(out);
     }
     return 1;
 }
@@ -1041,19 +1064,9 @@ int_cons_encode_sub_elems_ary(krypt_outstream *out, VALUE ary, int infinite)
 	if (!int_asn1_encode_to(out, data, cur))
 	    return 0;
     }
-    if (infinite) { /* add closing EOC if it was missing */
-	krypt_asn1_data *data;
-	krypt_asn1_header *header;
-	VALUE last = rb_ary_entry(ary, i - 1);
 
-	int_asn1_data_get(last, data);
-	header = data->object->header;
-	if (header->tag != TAGS_END_OF_CONTENTS || header->tag_class != TAG_CLASS_UNIVERSAL) {
-	    VALUE eoc = int_asn1_end_of_contents_new_instance();
-	    int_asn1_data_get(eoc, data);
-	    if (!int_asn1_encode_to(out, data, eoc))
-		return 0;
-	}
+    if (infinite) { /* add closing EOC if it was missing */
+	if (!int_cons_add_eoc_ary(out, ary, i)) return 0;
     }
     return 1;
 }
@@ -1066,11 +1079,44 @@ int_cons_encode_sub_elems(krypt_outstream *out, VALUE enumerable, int infinite)
 	return 1;
 
     /* Optimize for Array */
-    if (rb_obj_is_kind_of(enumerable, rb_cArray))
+    if (TYPE(enumerable) == T_ARRAY)
 	return int_cons_encode_sub_elems_ary(out, enumerable, infinite);
     else
 	return int_cons_encode_sub_elems_enum(out, enumerable, infinite);
 }
+
+static size_t
+int_asn1_cons_update_length(VALUE ary, krypt_asn1_header *header, unsigned char **out)
+{
+    krypt_outstream *bos = krypt_outstream_new_bytes_size(1024);
+
+    if (!int_cons_encode_sub_elems(bos, ary, header->is_infinite)) {
+	krypt_outstream_free(bos);
+	return 0;
+    }
+    return krypt_outstream_bytes_get_bytes_free(bos, out);
+}
+
+static int
+int_asn1_cons_encode_update(krypt_outstream *out, VALUE ary, krypt_asn1_header *header)
+{
+    size_t len;
+    unsigned char *bytes;
+
+    len = int_asn1_cons_update_length(ary, header, &bytes);
+    header->length = len;
+    if (!krypt_asn1_header_encode(out, header)) goto error;
+    if (header->length > 0) {
+	if (krypt_outstream_write(out, bytes, len) < 0) goto error;
+    }
+
+    xfree(bytes);
+    return 1;
+error:
+    xfree(bytes);
+    return 0;
+}
+
 
 static int
 int_asn1_cons_encode_to(VALUE self, krypt_outstream *out, VALUE ary, krypt_asn1_data *data)
@@ -1091,33 +1137,12 @@ int_asn1_cons_encode_to(VALUE self, krypt_outstream *out, VALUE ary, krypt_asn1_
      * value, we don't need to compute the length first, we can simply start
      * encoding */ 
     if (header->length_bytes == NULL && !header->is_infinite) {
-	/* compute and update length */
-	unsigned char *bytes;
-	size_t len;
-	krypt_outstream *bos = krypt_outstream_new_bytes();
-
-	if (!int_cons_encode_sub_elems(bos, ary, header->is_infinite)) {
-	    krypt_outstream_free(bos);
-	    return 0;
-	}
-	len = krypt_outstream_bytes_get_bytes_free(bos, &bytes);
-	header->length = len;
-	if (!krypt_asn1_header_encode(out, header)) {
-	    xfree(bytes);
-	    return 0;
-	}
-	if (header->length > 0) {
-	    if (!krypt_outstream_write(out, bytes, header->length)) {
-		xfree(bytes);
-		return 0;
-	    }
-	}
-	xfree(bytes);
+	return int_asn1_cons_encode_update(out, ary, header);
     } else {
 	if (!krypt_asn1_header_encode(out, header)) return 0;
 	if (!int_cons_encode_sub_elems(out, ary, header->is_infinite)) return 0;
+	return 1;
     }
-    return 1;
 }
 
 /* End ASN1Constructive methods */

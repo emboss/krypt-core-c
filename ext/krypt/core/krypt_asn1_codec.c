@@ -553,7 +553,7 @@ int_encode_object_id(unsigned char *str, size_t len, unsigned char **out, size_t
     }
     if (cur < -1) goto error;
 
-    *outlen = krypt_buffer_resize_free(buffer, out);
+    *outlen = krypt_buffer_get_bytes_free(buffer, out);
     return 1;
 
 error:
@@ -653,7 +653,7 @@ int_decode_object_id(unsigned char *bytes, size_t len, VALUE *out)
     }
     if (cur < -1) goto error;
 
-    retlen = krypt_buffer_resize_free(buffer, &retbytes);
+    retlen = krypt_buffer_get_bytes_free(buffer, &retbytes);
     *out = rb_str_new((const char *)retbytes, retlen);
     xfree(retbytes);
     return 1;

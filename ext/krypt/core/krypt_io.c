@@ -195,8 +195,9 @@ krypt_instream_mark(krypt_instream *in)
 void
 krypt_instream_free(krypt_instream *in)
 {
-    int_check_stream_has(in, free);
-    in->methods->free(in);
+    int_check_stream(in);
+    if (in->methods->free)
+	in->methods->free(in);
     xfree(in);
 }
 
@@ -294,8 +295,9 @@ krypt_outstream_mark(krypt_outstream *out)
 void
 krypt_outstream_free(krypt_outstream *out)
 {
-    int_check_stream_has(out, free);
-    out->methods->free(out);
+    int_check_stream(out);
+    if (out->methods->free)
+	out->methods->free(out);
     xfree(out);
 }
 

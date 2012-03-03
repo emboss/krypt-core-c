@@ -32,6 +32,7 @@ extern VALUE sKrypt_ID_SEEK_CUR, sKrypt_ID_SEEK_SET, sKrypt_ID_SEEK_END;
 #define KRYPT_OUTSTREAM_TYPE_FD         10
 #define KRYPT_OUTSTREAM_TYPE_BYTES      11
 #define KRYPT_OUTSTREAM_TYPE_IO_GENERIC 12
+#define KRYPT_OUTSTREAM_TYPE_STRING     13
 
 typedef struct krypt_instream_interface_st krypt_instream_interface;
 typedef struct krypt_outstream_interface_st krypt_outstream_interface;
@@ -116,6 +117,7 @@ void krypt_outstream_mark(krypt_outstream *in);
 void krypt_outstream_free(krypt_outstream *out);
 
 size_t krypt_outstream_bytes_get_bytes_free(krypt_outstream *outstream, unsigned char **bytes);
+VALUE krypt_outstream_string_build(krypt_outstream *outstream);
 
 krypt_outstream *krypt_outstream_new_fd(int fd);
 krypt_outstream *krypt_outstream_new_fd_io(VALUE io);
@@ -124,6 +126,8 @@ krypt_outstream *krypt_outstream_new_bytes_size(size_t size);
 krypt_outstream *krypt_outstream_new_bytes_prealloc(unsigned char *b, size_t len);
 krypt_outstream *krypt_outstream_new_io_generic(VALUE io);
 krypt_outstream *krypt_outstream_new_value(VALUE value);
+krypt_outstream *krypt_outstream_new_string(void);
+krypt_outstream *krypt_outstream_new_string_size(size_t size);
 
 #endif /* _KRYPT_IO_H_ */
 
