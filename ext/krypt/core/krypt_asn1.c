@@ -870,7 +870,7 @@ int_asn1_encode_to(krypt_outstream *out, krypt_asn1_data *data, VALUE self)
     /* TODO: sync */
     if (!object->bytes) {
 	VALUE value;
-	value = krypt_asn1_data_get_value(self);
+	value = int_asn1_data_get_value(self);
 	if (data->is_explicit) {
 	    if (!int_asn1_make_explicit(value, data->default_tag, &value)) return 0;
 	    data->object->header->is_constructed = 1; /* explicitly tagged values are always constructed */
@@ -1180,8 +1180,8 @@ int_cons_encode_sub_elems(krypt_outstream *out, VALUE enumerable, int infinite)
 	return int_cons_encode_sub_elems_enum(out, enumerable, infinite);
 }
 
-static size_t
-int_asn1_cons_update_length(VALUE ary, krypt_asn1_header *header, unsigned char **out)
+static int
+int_asn1_cons_update_length(VALUE ary, krypt_asn1_header *header, unsigned char **out, size_t *outlen)
 {
     krypt_outstream *bos = krypt_outstream_new_bytes_size(1024);
 
@@ -1189,16 +1189,17 @@ int_asn1_cons_update_length(VALUE ary, krypt_asn1_header *header, unsigned char 
 	krypt_outstream_free(bos);
 	return 0;
     }
-    return krypt_outstream_bytes_get_bytes_free(bos, out);
+    *outlen = krypt_outstream_bytes_get_bytes_free(bos, out);
+    return 1;
 }
 
 static int
 int_asn1_cons_encode_update(krypt_outstream *out, VALUE ary, krypt_asn1_header *header)
 {
     size_t len;
-    unsigned char *bytes;
+    unsigned char *bytes = NULL;
 
-    len = int_asn1_cons_update_length(ary, header, &bytes);
+    if (!int_asn1_cons_update_length(ary, header, &bytes, &len)) goto error;
     header->length = len;
     if (!krypt_asn1_header_encode(out, header)) goto error;
     if (header->length > 0) {
@@ -1208,7 +1209,7 @@ int_asn1_cons_encode_update(krypt_outstream *out, VALUE ary, krypt_asn1_header *
     xfree(bytes);
     return 1;
 error:
-    xfree(bytes);
+    if (bytes) xfree(bytes);
     return 0;
 }
 
