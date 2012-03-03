@@ -42,6 +42,9 @@ extern VALUE eKryptError;
 extern ID sKrypt_ID_TO_DER;
 extern ID sKrypt_ID_TO_PEM;
 extern ID sKrypt_ID_EACH;
+extern ID sKrypt_ID_EQUALS;
+extern ID sKrypt_ID_SORT_BANG;
+extern ID sKrypt_ID_SORT;
 
 /** krypt-provider interface */
 #include "krypt_provider.h"

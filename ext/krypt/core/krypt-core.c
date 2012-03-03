@@ -18,6 +18,9 @@ VALUE eKryptError;
 ID sKrypt_ID_TO_DER;
 ID sKrypt_ID_TO_PEM;
 ID sKrypt_ID_EACH;
+ID sKrypt_ID_EQUALS;
+ID sKrypt_ID_SORT_BANG;
+ID sKrypt_ID_SORT;
 
 krypt_provider *krypt_default_provider;
 
@@ -84,6 +87,9 @@ Init_kryptcore(void)
     sKrypt_ID_TO_DER = rb_intern("to_der");
     sKrypt_ID_TO_PEM = rb_intern("to_pem");
     sKrypt_ID_EACH = rb_intern("each");
+    sKrypt_ID_EQUALS = rb_intern("==");
+    sKrypt_ID_SORT_BANG = rb_intern("sort!");
+    sKrypt_ID_SORT = rb_intern("sort");
 
     /* Initialize the default provider */
     krypt_default_provider = krypt_provider_get_default();

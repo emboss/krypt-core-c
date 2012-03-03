@@ -165,7 +165,6 @@ do { 								\
 #define int_asn1_data_is_decoded(o)			(((o)->flags & ASN1DATA_DECODED) == ASN1DATA_DECODED)
 #define int_asn1_data_is_explicit(o)			(((o)->flags & ASN1DATA_EXPLICIT) == ASN1DATA_EXPLICIT)
 #define int_asn1_data_is_modified(o)			(((o)->flags & ASN1DATA_MODIFIED) == ASN1DATA_MODIFIED)
-#define int_asn1_data_set_modified(o)			((o)->flags |= ASN1DATA_MODIFIED)
 #define int_asn1_data_set_decoded(o, b)		\
 do {						\
     if (b) {					\
@@ -180,6 +179,14 @@ do {						\
 	(o)->flags |= ASN1DATA_EXPLICIT;	\
     } else {					\
 	(o)->flags &= ~ASN1DATA_EXPLICIT;	\
+    }						\
+} while (0)
+#define int_asn1_data_set_modified(o, b)	\
+do {						\
+    if (b) {					\
+	(o)->flags |= ASN1DATA_MODIFIED;	\
+    } else {					\
+	(o)->flags &= ~ASN1DATA_MODIFIED;	\
     }						\
 } while (0)
 
@@ -363,6 +370,8 @@ krypt_asn1_data_initialize(VALUE self, VALUE value, VALUE vtag, VALUE vtag_class
     int_asn1_data_set_infinite_length(self, Qfalse);
     int_asn1_data_set_value(self, value);
 
+    int_asn1_data_set_modified(data, 1); /* newly created is modified by default */
+
     return self;
 }
 
@@ -411,6 +420,8 @@ int_asn1_default_initialize(VALUE self,
     int_asn1_data_set_tag_class(self, vtag_class);
     int_asn1_data_set_infinite_length(self, Qfalse);
     int_asn1_data_set_value(self, value);
+
+    int_asn1_data_set_modified(data, 1); /* newly created is modified by default */
 
     return self;
 }
@@ -623,7 +634,7 @@ krypt_asn1_data_set_tag(VALUE self, VALUE tag)
     if (data->update_cb)
 	data->update_cb(data);
 
-    int_asn1_data_set_modified(data);
+    int_asn1_data_set_modified(data, 1);
     int_asn1_data_set_tag(self, tag);
 
     return tag;
@@ -708,7 +719,7 @@ krypt_asn1_data_set_tag_class(VALUE self, VALUE tag_class)
     if (!int_asn1_handle_explicit_tagging(self, data, new_tc))
 	rb_raise(eKryptASN1Error, "Tagging explicitly failed");
 
-    int_asn1_data_set_modified(data);
+    int_asn1_data_set_modified(data, 1);
     int_asn1_data_set_tag_class(self, tag_class);
 
     return tag_class;
@@ -767,7 +778,7 @@ krypt_asn1_data_set_inf_length(VALUE self, VALUE inf_length)
     header->is_infinite = new_inf;
     int_invalidate_length(header);
     
-    int_asn1_data_set_modified(data);
+    int_asn1_data_set_modified(data, 1);
     int_asn1_data_set_infinite_length(self, new_inf ? Qtrue : Qfalse);
 
     return inf_length;
@@ -851,7 +862,7 @@ krypt_asn1_data_set_value(VALUE self, VALUE value)
 	data->codec = int_codec_for(data->object);
     }
 
-    int_asn1_data_set_modified(data);
+    int_asn1_data_set_modified(data, 1);
 
     return value;
 }
@@ -859,10 +870,14 @@ krypt_asn1_data_set_value(VALUE self, VALUE value)
 static int 
 int_asn1_data_encode_to(VALUE self, krypt_outstream *out, VALUE value, krypt_asn1_data *data)
 {
+    int ret;
+
     if (data->object->header->is_constructed)
-	return int_asn1_cons_encode_to(self, out, value, data);
+	ret = int_asn1_cons_encode_to(self, out, value, data);
     else
-	return int_asn1_prim_encode_to(self, out, value, data);
+	ret = int_asn1_prim_encode_to(self, out, value, data);
+    int_asn1_data_set_modified(data, 0); /* once encoded, modified status is reset */
+    return ret;
 }
 
 static int
@@ -1022,6 +1037,102 @@ krypt_asn1_data_to_der(VALUE self)
 	return int_asn1_data_to_der_non_cached(data, self);
 }
 
+/*
+ * call-seq:
+ *    a == b -> true | false 
+ *
+ * Equality of two ASN1Data is determined by equality of their DER encoding.
+ */
+static VALUE
+krypt_asn1_data_equals(VALUE self, VALUE other)
+{
+    VALUE der1, der2;
+
+    if (!rb_obj_is_kind_of(other, cKryptASN1Data)) return Qfalse;
+
+    der1 = krypt_asn1_data_to_der(self);
+    der2 = krypt_asn1_data_to_der(other);
+    return rb_funcall(der1, sKrypt_ID_EQUALS, 1, der2);
+}
+
+/*
+ * call-seq:
+ *    a <=> b -> -1 | 0 | +1 
+ *
+ * Compares two instances of ASN1Data by comparing the bytes of their encoding.
+ * The order applied is SET order, i.e. a < b iff tag of a < tag of b. If tags
+ * are equal, SET OF order is applied, a lexicographical byte order. Element
+ * order is decided based on the first byte where two elements differ, the
+ * lower byte indicates the lower element.
+ *
+ * If two elements differ in length, but are equal up to the last byte of the
+ * smaller element, the smaller element is the lower one.
+ *
+ * == Example
+ *
+ * Given the following SET of values
+ *
+ *   [ 
+ *     Krypt::ASN1::OctetString.new("a"),
+ *     Krypt::ASN1::Null.new,
+ *     Krypt::ASN1::Boolean.new(true),
+ *     Krypt::ASN1::Integer.new(1)       
+ *   ]
+ *
+ *   the implied SET order is
+ *
+ *   [ 
+ *     Krypt::ASN1::Boolean.new(true),
+ *     Krypt::ASN1::Integer.new(1)       
+ *     Krypt::ASN1::OctetString.new("a"),
+ *     Krypt::ASN1::Null.new,
+ *   ]
+ * 
+ * Given the following byte representations of OCTET STRINGS,
+ * 
+ *   [ "\x04\x06\aaabaa", "\x04\x01b", "\x04\x06aaabba", "\x04\x04aaab" ] 
+ *
+ * the SET OF order implied is
+ *
+ *   [ "\x04\x01b", "\x04\x04aaab", "\x04\x06aaabaa", "\x04\x06aaabba" ] 
+ */
+static VALUE
+krypt_asn1_data_cmp(VALUE a, VALUE b, VALUE args)
+{
+    krypt_asn1_data *a_data, *b_data;
+    VALUE der1, der2;
+    long len1, len2, min, i;
+    unsigned char *s1, *s2;
+
+    int_asn1_data_get(a, a_data);
+    int_asn1_data_get(b, b_data);
+
+    if (a_data->object->header->tag == TAGS_END_OF_CONTENTS)
+	return INT2NUM(1);
+    if (b_data->object->header->tag == TAGS_END_OF_CONTENTS)
+	return INT2NUM(-1);
+    if (a_data->object->header->tag < b_data->object->header->tag)
+	return INT2NUM(-1);
+    if (a_data->object->header->tag > b_data->object->header->tag)
+	return INT2NUM(1);
+
+    der1 = krypt_asn1_data_to_der(a);
+    der2 = krypt_asn1_data_to_der(b);
+    len1 = RSTRING_LEN(der1);
+    len2 = RSTRING_LEN(der2);
+    s1 = (unsigned char *) RSTRING_PTR(der1);
+    s2 = (unsigned char *) RSTRING_PTR(der2);
+
+    min = len1 < len2 ? len1 : len2;
+
+    for (i=0; i<min; ++i) {
+	if (s1[i] != s2[i])
+	    return s1[i] < s2[i] ? INT2NUM(-1) : INT2NUM(1);
+    }
+
+    if (len1 == len2) return INT2NUM(0);
+    return len1 < len2 ? INT2NUM(-1) : INT2NUM(1);
+}
 /* End ASN1Data methods */
 
 /* ASN1Constructive methods */
@@ -1201,26 +1312,62 @@ int_cons_encode_sub_elems_ary(krypt_outstream *out, VALUE ary, int infinite)
     return 1;
 }
 
-
-static int
-int_cons_encode_sub_elems(krypt_outstream *out, VALUE enumerable, int infinite) 
+static VALUE
+int_cons_sort_to_ary(VALUE cur, VALUE ary)
 {
-    if (NIL_P(enumerable))
-	return 1;
+    rb_ary_push(ary, cur);
+    return Qnil;
+}
 
-    /* Optimize for Array */
-    if (TYPE(enumerable) == T_ARRAY)
-	return int_cons_encode_sub_elems_ary(out, enumerable, infinite);
-    else
-	return int_cons_encode_sub_elems_enum(out, enumerable, infinite);
+static VALUE
+int_cons_sort_set(VALUE enumerable)
+{
+    VALUE tmp_ary;
+
+    if (rb_respond_to(enumerable, sKrypt_ID_SORT_BANG)) {
+	(void) rb_funcall(enumerable, sKrypt_ID_SORT_BANG, 0);
+	return enumerable;
+    }
+    if (rb_respond_to(enumerable, sKrypt_ID_SORT)) {
+	VALUE copy = rb_funcall(enumerable, sKrypt_ID_SORT, 0);
+	return copy;
+    }
+
+    tmp_ary = rb_ary_new();
+    (void) rb_iterate(rb_each, enumerable, int_cons_sort_to_ary, tmp_ary);
+    (void) rb_funcall(tmp_ary, sKrypt_ID_SORT_BANG, 0);
+    return tmp_ary;
 }
 
 static int
-int_asn1_cons_update_length(VALUE ary, krypt_asn1_header *header, unsigned char **out, size_t *outlen)
+int_cons_encode_sub_elems(krypt_outstream *out, VALUE enumerable, krypt_asn1_data *data) 
+{
+    krypt_asn1_header *header;
+
+    if (NIL_P(enumerable))
+	return 1;
+
+    header = data->object->header;
+    if (header->tag == TAGS_SET &&
+	header->tag_class == TAG_CLASS_UNIVERSAL &&
+       	int_asn1_data_is_modified(data)) {
+	/* We need to apply proper SET (OF) encoding when creating a new SET */
+	enumerable = int_cons_sort_set(enumerable);
+    }
+
+    /* Optimize for Array */
+    if (TYPE(enumerable) == T_ARRAY)
+	return int_cons_encode_sub_elems_ary(out, enumerable, header->is_infinite);
+    else
+	return int_cons_encode_sub_elems_enum(out, enumerable, header->is_infinite);
+}
+
+static int
+int_asn1_cons_update_length(VALUE ary, krypt_asn1_data *data, unsigned char **out, size_t *outlen)
 {
     krypt_outstream *bos = krypt_outstream_new_bytes_size(1024);
 
-    if (!int_cons_encode_sub_elems(bos, ary, header->is_infinite)) {
+    if (!int_cons_encode_sub_elems(bos, ary, data)) {
 	krypt_outstream_free(bos);
 	return 0;
     }
@@ -1229,12 +1376,13 @@ int_asn1_cons_update_length(VALUE ary, krypt_asn1_header *header, unsigned char 
 }
 
 static int
-int_asn1_cons_encode_update(krypt_outstream *out, VALUE ary, krypt_asn1_header *header)
+int_asn1_cons_encode_update(krypt_outstream *out, VALUE ary, krypt_asn1_data *data)
 {
     size_t len;
     unsigned char *bytes = NULL;
+    krypt_asn1_header *header = data->object->header;
 
-    if (!int_asn1_cons_update_length(ary, header, &bytes, &len)) goto error;
+    if (!int_asn1_cons_update_length(ary, data, &bytes, &len)) goto error;
     header->length = len;
     if (!krypt_asn1_header_encode(out, header)) goto error;
     if (header->length > 0) {
@@ -1268,10 +1416,10 @@ int_asn1_cons_encode_to(VALUE self, krypt_outstream *out, VALUE ary, krypt_asn1_
      * value, we don't need to compute the length first, we can simply start
      * encoding */ 
     if (header->length_bytes == NULL && !header->is_infinite) {
-	return int_asn1_cons_encode_update(out, ary, header);
+	return int_asn1_cons_encode_update(out, ary, data);
     } else {
 	if (!krypt_asn1_header_encode(out, header)) return 0;
-	if (!int_cons_encode_sub_elems(out, ary, header->is_infinite)) return 0;
+	if (!int_cons_encode_sub_elems(out, ary, data)) return 0;
 	return 1;
     }
 }
@@ -1376,22 +1524,22 @@ int_asn1_fallback_decode(krypt_instream *in, krypt_instream *cache)
 
 /**
  * call-seq:
- *    ASN1.decode(der) -> ASN1Data
+ *    ASN1.decode(src) -> ASN1Data
  *
- * * +io+: May either be a +String+ containing a DER-encoded value, an
+ * * +src+: May either be a +String+ containing a DER-/PEM-encoded value, an
  *         IO-like object supporting IO#read and IO#seek or any arbitrary
- *         object that supports a +to_der+ method transforming it into a
- *         DER-/BER-encoded +String+.
+ *         object that supports either a +to_der+ or a +to_pem+ method
+ *         transforming it into a DER-/BER-encoded or PEM-encoded +String+.
  *
- * Decodes a DER-encoded ASN.1 object and returns an instance (or a subclass)
- * of ASN1Data.
+ * Decodes arbitrary DER- or PEM-encoded ASN.1 objects and returns an instance
+ * (or a subclass) of ASN1Data.
  *
  * == Examples
  *   io = File.open("my.der", "rb")
  *   asn1 = Krypt::ASN1.decode(io)
  *   io.close
  *
- *   str = #some DER-encoded string
+ *   str = #some PEM-encoded string
  *   asn1 = Krypt::ASN1.decode(str)
  *
  *   tagged = Krypt::ASN1::Integer.new(1, 0, :CONTEXT_SPECIFIC)
@@ -1423,6 +1571,19 @@ krypt_asn1_decode(VALUE self, VALUE obj)
     return ret;
 }
 
+/**
+ * call-seq:
+ *    ASN1.decode_der(der) -> ASN1Data
+ *
+ * * +der+: May either be a +String+ containing a DER-encoded value, an
+ *         IO-like object supporting IO#read and IO#seek or any arbitrary
+ *         object that supports a +to_der+ method transforming it into a
+ *         DER-/BER-encoded +String+.
+ *
+ * Decodes a DER-encoded ASN.1 object and returns an instance (or a subclass)
+ * of ASN1Data. Can be used in the same way as +ASN1Data#decode+, except that
+ * +decode_der+ explicitly assumes a DER-encoded source.
+ */
 static VALUE
 krypt_asn1_decode_der(VALUE self, VALUE obj)
 {
@@ -1435,6 +1596,19 @@ krypt_asn1_decode_der(VALUE self, VALUE obj)
     return ret;
 }
 
+/**
+ * call-seq:
+ *    ASN1.decode_pem(pem) -> ASN1Data
+ *
+ * * +pem+: May either be a +String+ containing a PEM-encoded value, an
+ *         IO-like object supporting IO#read and IO#seek or any arbitrary
+ *         object that supports a +to_pem+ method transforming it into a
+ *         PEM-encoded +String+.
+ *
+ * Decodes a PEM-encoded ASN.1 object and returns an instance (or a subclass)
+ * of ASN1Data. Can be used in the same way as +ASN1Data#decode+, except that
+ * +decode_pem+ explicitly assumes a PEM-encoded source.
+ */
 static VALUE
 krypt_asn1_decode_pem(VALUE self, VALUE obj)
 {
@@ -1780,6 +1954,8 @@ Init_krypt_asn1(void)
     rb_define_method(cKryptASN1Data, "value=", krypt_asn1_data_set_value, 1);
     rb_define_method(cKryptASN1Data, "to_der", krypt_asn1_data_to_der, 0);
     rb_define_method(cKryptASN1Data, "encode_to", krypt_asn1_data_encode_to, 1);
+    rb_define_method(cKryptASN1Data, "==", krypt_asn1_data_equals, 1);
+    rb_define_method(cKryptASN1Data, "<=>", krypt_asn1_data_cmp, 1);
 
     /* Document-class: Krypt::ASN1::Primitive
      *
