@@ -84,9 +84,9 @@ static krypt_asn1_info krypt_asn1_infos[] = {
 
 static int krypt_asn1_infos_size = (sizeof(krypt_asn1_infos)/sizeof(krypt_asn1_infos[0]));
 
-#define ASN1DATA_DECODED  1
-#define ASN1DATA_EXPLICIT 2
-#define ASN1DATA_MODIFIED 4
+#define ASN1DATA_DECODED  (1 << 0)
+#define ASN1DATA_EXPLICIT (1 << 1)
+#define ASN1DATA_MODIFIED (1 << 2)
 
 struct krypt_asn1_data_st;
 typedef struct krypt_asn1_data_st krypt_asn1_data;

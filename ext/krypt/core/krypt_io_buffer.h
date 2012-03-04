@@ -15,7 +15,7 @@
 
 #include <ruby.h>
 
-#define KRYPT_BYTE_BUFFER_GROWTH_FACTOR 1.5
+#define KRYPT_BYTE_BUFFER_GROWTH_FACTOR 2
 
 typedef struct krypt_byte_buffer_st {
     size_t size;
