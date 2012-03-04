@@ -1123,17 +1123,20 @@ static VALUE
 krypt_asn1_data_cmp(VALUE a, VALUE b, VALUE args)
 {
     krypt_asn1_data *a_data, *b_data;
+    krypt_asn1_header *h1, *h2;
 
     int_asn1_data_get(a, a_data);
     int_asn1_data_get(b, b_data);
+    h1 = a_data->object->header;
+    h2 = b_data->object->header;
 
-    if (a_data->object->header->tag == TAGS_END_OF_CONTENTS)
+    if (h1->tag == TAGS_END_OF_CONTENTS && h1->tag_class == TAG_CLASS_UNIVERSAL)
 	return INT2NUM(1);
-    if (b_data->object->header->tag == TAGS_END_OF_CONTENTS)
+    if (h2->tag == TAGS_END_OF_CONTENTS && h2->tag_class == TAG_CLASS_UNIVERSAL)
 	return INT2NUM(-1);
-    if (a_data->object->header->tag < b_data->object->header->tag)
+    if (h1->tag < h2->tag)
 	return INT2NUM(-1);
-    if (a_data->object->header->tag > b_data->object->header->tag)
+    if (h1->tag > h2->tag)
 	return INT2NUM(1);
 
     return int_asn1_data_cmp_set_of(krypt_asn1_data_to_der(a), krypt_asn1_data_to_der(b));

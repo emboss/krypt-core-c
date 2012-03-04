@@ -21,6 +21,12 @@ int_asn1_encode_default(VALUE self, VALUE value, unsigned char **out, size_t *le
     size_t l;
     unsigned char *ret;
 
+    if (NIL_P(value)) {
+	*out = NULL;
+	*len = 0;
+	return 1;
+    }
+
     StringValue(value);
     l = RSTRING_LEN(value);
     ret = ALLOC_N(unsigned char, l);
@@ -43,6 +49,8 @@ int_asn1_decode_default(VALUE self, unsigned char *bytes, size_t len, VALUE *out
 static int
 int_asn1_validate_default(VALUE self, VALUE value)
 {
+    if (NIL_P(value)) return 1;
+
     if (TYPE(value) != T_STRING) {
 	krypt_error_add("ASN.1 type must be a String");
 	return 0;
@@ -232,6 +240,16 @@ int_asn1_decode_bit_string(VALUE self, unsigned char *bytes, size_t len, VALUE *
 }
 
 static int
+int_asn1_validate_bit_string(VALUE self, VALUE value)
+{
+    if (NIL_P(value)) {
+	krypt_error_add("BIT STRING value cannot be empty");
+	return 0;
+    }
+    return int_asn1_validate_default(self, value);
+}
+
+static int
 int_asn1_encode_null(VALUE self, VALUE value, unsigned char **out, size_t *len)
 {
     *out = NULL;
@@ -299,6 +317,12 @@ static int
 int_asn1_encode_utf8_string(VALUE self, VALUE value, unsigned char **out, size_t *len)
 {
     rb_encoding *src_encoding;
+
+    if (NIL_P(value)) {
+	*out = NULL;
+	*len = 0;
+	return 1;
+    }
 
     src_encoding = rb_enc_get(value);
     if (rb_enc_asciicompat(src_encoding)) {
@@ -397,7 +421,7 @@ krypt_asn1_codec krypt_asn1_codecs[] = {
     { int_asn1_encode_eoc,		int_asn1_decode_eoc             , int_asn1_validate_eoc 	},
     { int_asn1_encode_boolean,		int_asn1_decode_boolean         , int_asn1_validate_boolean 	},
     { int_asn1_encode_integer,		int_asn1_decode_integer         , int_asn1_validate_integer 	},
-    { int_asn1_encode_bit_string,	int_asn1_decode_bit_string      , int_asn1_validate_default	},
+    { int_asn1_encode_bit_string,	int_asn1_decode_bit_string      , int_asn1_validate_bit_string	},
     { int_asn1_encode_default,		int_asn1_decode_default    	, int_asn1_validate_default 	},
     { int_asn1_encode_null,		int_asn1_decode_null	        , int_asn1_validate_null 	},
     { int_asn1_encode_object_id,	int_asn1_decode_object_id       , int_asn1_validate_object_id 	},
