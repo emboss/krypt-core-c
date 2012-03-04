@@ -1055,6 +1055,29 @@ krypt_asn1_data_equals(VALUE self, VALUE other)
     return rb_funcall(der1, sKrypt_ID_EQUALS, 1, der2);
 }
 
+static VALUE
+int_asn1_data_cmp_set_of(VALUE a, VALUE b)
+{
+    long len1, len2, min, i;
+    unsigned char *s1, *s2;
+
+
+    len1 = RSTRING_LEN(a);
+    len2 = RSTRING_LEN(b);
+    s1 = (unsigned char *) RSTRING_PTR(a);
+    s2 = (unsigned char *) RSTRING_PTR(b);
+
+    min = len1 < len2 ? len1 : len2;
+
+    for (i=0; i<min; ++i) {
+	if (s1[i] != s2[i])
+	    return s1[i] < s2[i] ? INT2NUM(-1) : INT2NUM(1);
+    }
+
+    if (len1 == len2) return INT2NUM(0);
+    return len1 < len2 ? INT2NUM(-1) : INT2NUM(1);
+}
+
 /*
  * call-seq:
  *    a <=> b -> -1 | 0 | +1 
@@ -1100,9 +1123,6 @@ static VALUE
 krypt_asn1_data_cmp(VALUE a, VALUE b, VALUE args)
 {
     krypt_asn1_data *a_data, *b_data;
-    VALUE der1, der2;
-    long len1, len2, min, i;
-    unsigned char *s1, *s2;
 
     int_asn1_data_get(a, a_data);
     int_asn1_data_get(b, b_data);
@@ -1116,22 +1136,7 @@ krypt_asn1_data_cmp(VALUE a, VALUE b, VALUE args)
     if (a_data->object->header->tag > b_data->object->header->tag)
 	return INT2NUM(1);
 
-    der1 = krypt_asn1_data_to_der(a);
-    der2 = krypt_asn1_data_to_der(b);
-    len1 = RSTRING_LEN(der1);
-    len2 = RSTRING_LEN(der2);
-    s1 = (unsigned char *) RSTRING_PTR(der1);
-    s2 = (unsigned char *) RSTRING_PTR(der2);
-
-    min = len1 < len2 ? len1 : len2;
-
-    for (i=0; i<min; ++i) {
-	if (s1[i] != s2[i])
-	    return s1[i] < s2[i] ? INT2NUM(-1) : INT2NUM(1);
-    }
-
-    if (len1 == len2) return INT2NUM(0);
-    return len1 < len2 ? INT2NUM(-1) : INT2NUM(1);
+    return int_asn1_data_cmp_set_of(krypt_asn1_data_to_der(a), krypt_asn1_data_to_der(b));
 }
 /* End ASN1Data methods */
 
