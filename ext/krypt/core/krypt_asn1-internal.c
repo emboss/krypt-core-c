@@ -341,6 +341,7 @@ do {								\
 do {								\
     if ((t) > KRYPT_ASN1_TAG_LIMIT) {				\
 	krypt_buffer_free((buf));				\
+	krypt_error_add("Complex tag too large");		\
 	return 0;						\
     }								\
 } while (0)
@@ -411,6 +412,17 @@ int_parse_length(krypt_instream *in, krypt_asn1_header *out)
     return 1;
 }
 
+#define int_check_length(l, buf)				\
+do {								\
+    if ((l) > KRYPT_ASN1_LENGTH_LIMIT) {			\
+	xfree((buf));						\
+	(buf) = NULL;						\
+	krypt_error_add("Complex length too long");		\
+	return 0;						\
+    }								\
+} while (0)
+
+
 static int
 int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn1_header *out)
 {
@@ -423,22 +435,15 @@ int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn
 	return 0;
     }
     num_bytes = b & 0x7f;
-    if (num_bytes + 1 > sizeof(size_t)) {
-       krypt_error_add("Definite length value too long");
-       return 0;
-    }
 
     out->length_bytes = ALLOC_N(unsigned char, num_bytes + 1);
     out->length_bytes[offset++] = b;
 
     for (i = num_bytes; i > 0; i--) {
+	int_check_length(len, out->length_bytes);
 	int_next_byte(in, b);
 	len <<= CHAR_BIT;
 	len |= b;
-	if (len > KRYPT_ASN1_LENGTH_LIMIT || offset == SIZE_MAX) {
-	    krypt_error_add("Complex length too long");
-	    return 0;
-	}
 	out->length_bytes[offset++] = b;
     }
 
