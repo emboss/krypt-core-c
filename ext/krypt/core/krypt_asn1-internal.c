@@ -358,6 +358,11 @@ int_parse_complex_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *ou
 
     int_next_byte(in, b);
 
+    if (b == INFINITE_LENGTH_MASK) {
+	krypt_error_add("Bits 7 to 1 of the first subsequent octet shall not be 0 for complex tag encoding");
+	return 0;
+    }
+
     while ((b & INFINITE_LENGTH_MASK) == INFINITE_LENGTH_MASK) {
 	int_check_tag(tag, buffer);
 	int_buffer_add_byte(buffer, b, out);
@@ -413,6 +418,10 @@ int_parse_complex_definite_length(unsigned char b, krypt_instream *in, krypt_asn
     size_t offset = 0;
     size_t i, num_bytes;
 
+    if (b == 0xff) {
+	krypt_error_add("Initial octet of complex definite length shall not be 0xFF");
+	return 0;
+    }
     num_bytes = b & 0x7f;
     if (num_bytes + 1 > sizeof(size_t)) {
        krypt_error_add("Definite length value too long");
