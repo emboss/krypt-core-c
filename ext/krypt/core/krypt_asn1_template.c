@@ -145,19 +145,14 @@ int_error_raise(VALUE definition)
 {
     VALUE codec;
     VALUE name;
-    VALUE tmp;
     const char *ccodec;
     const char *cname;
 
     codec = int_hash_get_codec(definition);
     name = int_hash_get_name(definition);
-    tmp = rb_sym_to_s(codec);
-    StringValueCStr(tmp);
-    ccodec = RSTRING_PTR(tmp);
+    ccodec = rb_id2name(codec);
     if (name != Qnil) {
-	tmp = rb_sym_to_s(name);
-	StringValueCStr(tmp);
-	cname = RSTRING_PTR(tmp);
+	cname = rb_id2name(name);
 	cname++; /* skip the leading '@' */
     } else {
 	cname = "none";
@@ -199,64 +194,20 @@ krypt_asn1_template_parse_der(VALUE self, VALUE der)
 }
 
 static VALUE
-krypt_asn1_template_getter(VALUE self)
+krypt_asn1_template_get_callback(VALUE self, VALUE ivname)
 {
-    ID callee;
-    char *getter_name;
-    const char *name;
-    size_t len;
-
-    callee = SYM2ID(rb_funcall(rb_mKernel, sKrypt_ID_METHOD, 0));
-    name = rb_id2name(callee);
-    len = strlen(name);
-    getter_name = ALLOCA_N(char, len + 2);
-    getter_name[0] = '@';
-    memcpy(getter_name + 1, name, len);
-    getter_name[len + 1] = '\0';
-    return rb_iv_get(self, getter_name);
+    return rb_ivar_get(self, SYM2ID(ivname));
 }
 
 static VALUE
-krypt_asn1_template_setter(VALUE self, VALUE value)
+krypt_asn1_template_set_callback(VALUE self, VALUE ivname, VALUE value)
 {
-    ID callee;
-    char *setter_name;
-    const char *name;
-    size_t len;
-
-    callee = SYM2ID(rb_funcall(rb_mKernel, sKrypt_ID_METHOD, 0));
-    name = rb_id2name(callee);
-    len = strlen(name);
-    setter_name = ALLOCA_N(char, len + 1);
-    setter_name[0] = '@';
-    memcpy(setter_name + 1, name, len - 1);
-    setter_name[len] = '\0';
-    return rb_iv_set(self, setter_name, value);
-}
-
-static VALUE
-krypt_asn1_template_attr_accessor(VALUE self, VALUE name)
-{
-    const char *getter_name;
-    char *setter_name;
-    long len;
-
-    getter_name = rb_id2name(SYM2ID(name));
-    len = strlen(getter_name);
-    setter_name = ALLOCA_N(char, len + 2);
-    memcpy(setter_name, getter_name, len);
-    setter_name[len] = '=';
-    setter_name[len + 1] = '\0';
-    rb_define_method(self, getter_name, krypt_asn1_template_getter, 0);
-    rb_define_method(self, setter_name, krypt_asn1_template_setter, 1);
-    return Qnil;
+    return rb_ivar_set(self, SYM2ID(ivname), value);
 }
 
 void
 Init_krypt_asn1_template(void)
 {
-    VALUE mAccessor;
-
     sKrypt_ID_CODEC = rb_intern("codec");
     sKrypt_ID_DEFAULT = rb_intern("default");
     sKrypt_ID_NAME = rb_intern("name");
@@ -284,7 +235,7 @@ Init_krypt_asn1_template(void)
     sKrypt_ID_METHOD = rb_intern("__method__");
 
     mKryptASN1Template = rb_define_module_under(mKryptASN1, "Template");
-    mAccessor = rb_define_module_under(mKryptASN1Template, "Accessor");
-    rb_define_method(mAccessor, "asn1_attr_accessor", krypt_asn1_template_attr_accessor, 1);
+    rb_define_method(mKryptASN1Template, "get_callback", krypt_asn1_template_get_callback, 1);
+    rb_define_method(mKryptASN1Template, "set_callback", krypt_asn1_template_set_callback, 2);
 }
 
