@@ -57,6 +57,7 @@ extern krypt_provider *krypt_default_provider;
 #include "krypt_missing.h"
 #include "krypt_io.h"
 #include "krypt_asn1.h"
+#include "krypt_asn1_template.h"
 #include "krypt_digest.h"
 
 VALUE krypt_to_der_if_possible(VALUE obj);

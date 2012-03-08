@@ -66,6 +66,19 @@ typedef struct krypt_asn1_object_st {
     size_t bytes_len;
 } krypt_asn1_object;
 
+typedef int (*krypt_asn1_decoder)(VALUE self, unsigned char *bytes, size_t len, VALUE *out);
+typedef int (*krypt_asn1_encoder)(VALUE self, VALUE value, unsigned char **out, size_t *len);
+typedef int (*krypt_asn1_validator)(VALUE, VALUE);
+
+typedef struct krypt_asn1_codec_st {
+    krypt_asn1_encoder encoder;
+    krypt_asn1_decoder decoder;
+    krypt_asn1_validator validator;
+} krypt_asn1_codec;
+
+extern krypt_asn1_codec KRYPT_DEFAULT_CODEC;
+extern krypt_asn1_codec krypt_asn1_codecs[];
+
 krypt_asn1_header *krypt_asn1_header_new(void);
 void krypt_asn1_header_free(krypt_asn1_header *header);
 krypt_asn1_object *krypt_asn1_object_new(krypt_asn1_header *header);

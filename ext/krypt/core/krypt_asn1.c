@@ -2114,6 +2114,7 @@ Init_krypt_asn1(void)
     rb_define_method(cKryptASN1BitString, "unused_bits=", krypt_asn1_bit_string_set_unused_bits, 1);
    
     Init_krypt_asn1_parser();
+    Init_krypt_asn1_template();
     Init_krypt_instream_adapter();
     Init_krypt_pem();
 }

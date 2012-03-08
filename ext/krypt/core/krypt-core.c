@@ -15,12 +15,10 @@
 VALUE mKrypt;
 VALUE eKryptError;
 
-ID sKrypt_ID_TO_DER;
-ID sKrypt_ID_TO_PEM;
+ID sKrypt_ID_TO_DER, sKrypt_ID_TO_PEM;
 ID sKrypt_ID_EACH;
 ID sKrypt_ID_EQUALS;
-ID sKrypt_ID_SORT_BANG;
-ID sKrypt_ID_SORT;
+ID sKrypt_ID_SORT_BANG, sKrypt_ID_SORT;
 
 krypt_provider *krypt_default_provider;
 

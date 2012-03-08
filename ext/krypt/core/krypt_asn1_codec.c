@@ -11,6 +11,7 @@
 */
 
 #include "krypt-core.h"
+#include "krypt_asn1-internal.h"
 #include <time.h>
 
 #define CHAR_BIT_MINUS_ONE     (CHAR_BIT - 1)
