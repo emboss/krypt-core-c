@@ -22,7 +22,7 @@ ID sKrypt_ID_PRIMITIVE, sKrypt_ID_SEQUENCE, sKrypt_ID_SET, sKrypt_ID_TEMPLATE,
 
 ID sKrypt_IV_VALUE, sKrypt_IV_DEFINITION, sKrypt_IV_OPTIONS;
 
-ID sKrypt_ID_MERGE, sKrypt_ID_METHOD;
+ID sKrypt_ID_MERGE;
 
 VALUE mKryptASN1Template;
 
@@ -232,7 +232,6 @@ Init_krypt_asn1_template(void)
     sKrypt_IV_OPTIONS = rb_intern("@options");
 
     sKrypt_ID_MERGE = rb_intern("merge");
-    sKrypt_ID_METHOD = rb_intern("__method__");
 
     mKryptASN1Template = rb_define_module_under(mKryptASN1, "Template");
     rb_define_method(mKryptASN1Template, "get_callback", krypt_asn1_template_get_callback, 1);

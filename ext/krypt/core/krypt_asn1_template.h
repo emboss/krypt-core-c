@@ -22,7 +22,7 @@ extern ID sKrypt_ID_PRIMITIVE, sKrypt_ID_SEQUENCE, sKrypt_ID_SET, sKrypt_ID_TEMP
 
 extern ID sKrypt_IV_VALUE, sKrypt_IV_DEFINITION, sKrypt_IV_OPTIONS;
 
-extern ID sKrypt_ID_MERGE, sKrypt_ID_METHOD;
+extern ID sKrypt_ID_MERGE;
 
 extern VALUE mKryptASN1Template;
 
