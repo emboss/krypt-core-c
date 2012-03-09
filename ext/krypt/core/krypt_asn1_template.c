@@ -516,7 +516,7 @@ int_asn1_template_parse(VALUE klass, krypt_instream *in)
     return ret;
 }
 
-VALUE
+static VALUE
 krypt_asn1_template_parse_der(VALUE self, VALUE der)
 {
     VALUE ret;
@@ -526,6 +526,15 @@ krypt_asn1_template_parse_der(VALUE self, VALUE der)
     if (NIL_P(ret))
 	krypt_error_raise(eKryptASN1Error, "Parsing the value failed"); 
     return ret;
+}
+
+static VALUE
+krypt_asn1_template_value_to_s(VALUE self)
+{
+    krypt_asn1_template *template;
+
+    int_template_get(self, template);
+    return rb_funcall(template->value, rb_intern("to_s"), 0);
 }
 
 void
@@ -564,6 +573,7 @@ Init_krypt_asn1_template(void)
     rb_define_method(mKryptASN1Template, "set_callback", krypt_asn1_template_set_callback, 2);
 
     cKryptASN1TemplateValue = rb_define_class_under(mKryptASN1Template, "Value", rb_cObject);
+    rb_define_method(cKryptASN1TemplateValue, "to_s", krypt_asn1_template_value_to_s, 0);
 
     mParser = rb_define_module_under(mKryptASN1Template, "Parser");
     rb_define_method(mParser, "parse_der", krypt_asn1_template_parse_der, 1);
