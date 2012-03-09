@@ -13,6 +13,11 @@
 #if !defined(_KRYPT_ASN1_TEMPLATE_H_)
 #define _KRYPT_ASN1_TEMPLATE_H_
 
+extern ID sKrypt_ID_OPTIONS, sKrypt_ID_NAME, sKrypt_ID_TYPE,
+          sKrypt_ID_CODEC, sKrypt_ID_LAYOUT, sKrypt_ID_MIN_SIZE;
+
+extern ID sKrypt_ID_DEFAULT,  sKrypt_ID_OPTIONAL, sKrypt_ID_TAG, sKrypt_ID_TAGGING;
+ 
 extern ID sKrypt_ID_DEFAULT, sKrypt_ID_NAME, sKrypt_ID_TYPE,
 	  sKrypt_ID_OPTIONAL, sKrypt_ID_TAG, sKrypt_ID_TAGGING,
    	  sKrypt_ID_LAYOUT, sKrypt_ID_MIN_SIZE, sKrypt_ID_CODEC;
