@@ -128,6 +128,13 @@ OPTIONS_GETTER(tag, DEF_TAG)
 OPTIONS_GETTER(tagging, DEF_TAGGING)
 OPTIONS_GETTER(default_value, DEF_DEFAULT)
 
+static int 
+is_optional(krypt_asn1_definition *def)
+{
+    VALUE x = int_definition_get_optional(def);
+    return RTEST(x);
+}
+
 static krypt_asn1_template *
 int_template_new(krypt_asn1_object *object, VALUE definition, int parsed)
 {
@@ -349,10 +356,9 @@ int_template_parse_primitive(VALUE self, krypt_asn1_template *template)
     tag = int_definition_get_tag(&def);
     tagging = int_definition_get_tagging(&def);
 
-    if (!int_match_tag_and_class(header, tag, tagging, default_tag))
-	return 0;
-    if (header->is_constructed) {
-	krypt_error_add("Constructive bit set");
+    if (!int_match_tag_and_class(header, tag, tagging, default_tag)) {
+	if (is_optional(&def)) return -1;
+	krypt_error_add("Mandatory value %s is missing", rb_id2name(name));
 	return 0;
     }
     
@@ -392,16 +398,21 @@ int_template_parse_cons(VALUE self, krypt_asn1_template *template, int default_t
     if (!int_next_template(in, &cur_template)) goto error;
 
     for (i=0; i < layout_size; ++i) {
+	int result;
 	VALUE cur_def = rb_ary_entry(layout, i);
 
 	krypt_error_clear();
 	cur_template->definition = cur_def;
-	if (int_template_parse(self, cur_template)) {
-	    template_consumed = 1;
-	    num_parsed++;
-	    if (i < layout_size - 1) {
-		if (!int_next_template(in, &cur_template)) goto error; 
-	    }
+	if ((result = int_template_parse(self, cur_template)) != 0) {
+	    if (result == 1) {
+		template_consumed = 1;
+		num_parsed++;
+		if (i < layout_size - 1) {
+		    if (!int_next_template(in, &cur_template)) goto error; 
+		}
+	    } /* else -> didn't match */
+	} else {
+	    goto error;
 	}
     }
 
@@ -496,6 +507,10 @@ int_template_decode_primitive(VALUE tvalue, krypt_asn1_template *template)
     if (header->is_infinite)
 	return int_template_decode_primitive_inf(tvalue,template);
 
+    if (header->is_constructed) {
+	krypt_error_add("Constructive bit set");
+	return 0;
+    }
     if (!krypt_asn1_codecs[default_tag].decoder) {
         krypt_error_add("No codec available for default tag %d", default_tag);
         return 0;
