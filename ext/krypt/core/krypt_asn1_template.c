@@ -504,12 +504,15 @@ int_template_parse(VALUE self, krypt_asn1_template *template)
 	    if (!int_template_parse_template(self, template)) {
 		return int_error_add(definition);
 	    }
+	    /* No further decoding needed */
+	    int_template_set_decoded(template, 1);
 	    /* Do not set parsed flag in order to have constructed value parsed */
 	    return 1;
 	} else if (codec == sKrypt_ID_SEQUENCE || codec == sKrypt_ID_SET) {
 	    int tag = codec == sKrypt_ID_SET ? TAGS_SET : TAGS_SEQUENCE;
 	    if (!int_template_parse_cons(self, template, tag))
 		return int_error_add(definition);
+	    int_template_set_decoded(template, 1); /* No further decoding step needed */
 	} else if (codec == sKrypt_ID_SEQUENCE_OF || codec == sKrypt_ID_SET_OF) {
 
 	} else if (codec == sKrypt_ID_ANY) {
@@ -578,10 +581,6 @@ int_template_decode(VALUE tvalue, krypt_asn1_template *template)
 	    if (!int_template_decode_primitive(tvalue, template)) {
 		return int_error_add(definition);
 	    }
-	} else if (codec == sKrypt_ID_TEMPLATE) {
-	    /* do nothing */
-	} else if (codec == sKrypt_ID_SEQUENCE || codec == sKrypt_ID_SET) {
-	    /* do nothing */
 	} else if (codec == sKrypt_ID_SEQUENCE_OF || codec == sKrypt_ID_SET_OF) {
 
 	} else if (codec == sKrypt_ID_ANY) {
