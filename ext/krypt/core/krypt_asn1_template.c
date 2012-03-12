@@ -131,7 +131,7 @@ is_optional(krypt_asn1_definition *def)
     int optional = RTEST(x);
     if (optional) return 1;
     x = int_definition_get_default_value(def);
-    return NIL_P(x);
+    return !NIL_P(x);
 }
 
 static int 
@@ -264,42 +264,52 @@ int_error_add(VALUE definition)
 }
 
 static int
-int_match_tag(krypt_asn1_header *header, VALUE tag, int default_tag)
+int_expected_tag(VALUE tag, int default_tag)
 {
-    int expected_tag;
-
-    if (!NIL_P(tag)) 
-	expected_tag = NUM2INT(tag);
+    if (NIL_P(tag)) 
+	return default_tag;
     else
-	expected_tag = default_tag;
-
-    if (header->tag != expected_tag) {
-	krypt_error_add("Tag mismatch. Expected: %d Got: %d", expected_tag, header->tag);
-	return 0;
-    }
-    return 1;
+        return NUM2INT(tag);
 }
 
 static int
-int_match_class(krypt_asn1_header *header, VALUE tagclass)
+int_expected_tag_class(VALUE tag_class)
+{
+    if (NIL_P(tag_class))
+	return TAG_CLASS_UNIVERSAL;
+    else
+	return krypt_asn1_tag_class_for_id(SYM2ID(tag_class));
+}
+
+static int
+int_match_tag(krypt_asn1_header *header, VALUE tag, int default_tag)
+{
+    return header->tag == int_expected_tag(tag, default_tag);
+}
+
+static int
+int_match_class(krypt_asn1_header *header, VALUE tag_class)
 {
     int expected_tc;
+    
+    if ((expected_tc = int_expected_tag_class(tag_class)) == -1) return 0;
+    return (header->tag_class == expected_tc);
+}
 
-    if (NIL_P(tagclass)) {
-	expected_tc = TAG_CLASS_UNIVERSAL;
-    }
-    else {
-	if ((expected_tc = krypt_asn1_tag_class_for_id(SYM2ID(tagclass))) == -1)
-	    return 0;
-    }
-
-    if (header->tag_class != expected_tc) {
-	ID expected = krypt_asn1_tag_class_for_int(expected_tc);
+static int
+int_tag_and_class_mismatch(krypt_asn1_header *header, VALUE tag, VALUE tagging, int default_tag)
+{
+    int expected_tag = int_expected_tag(tag, default_tag);
+    int expected_tag_class = int_expected_tag_class(tagging);
+    
+    if (header->tag != expected_tag)
+	krypt_error_add("Tag mismatch. Expected: %d Got: %d", expected_tag, header->tag);
+    if (header->tag_class != expected_tag_class) {
+        ID expected = krypt_asn1_tag_class_for_int(expected_tag_class);
 	ID got = krypt_asn1_tag_class_for_int(header->tag_class);
 	krypt_error_add("Tag class mismatch. Expected: %s Got: %s", rb_id2name(expected), rb_id2name(got));
-	return 0;
     }
-    return 1;
+    return 0;
 }
 
 static int
@@ -373,7 +383,7 @@ int_template_parse_primitive(VALUE self, krypt_asn1_template *template)
     if (!int_match_tag_and_class(header, tag, tagging, default_tag)) {
 	if (!is_optional(&def)) { 
 	    krypt_error_add("Mandatory value %s is missing", rb_id2name(name));
-	    return 0;
+	    return int_tag_and_class_mismatch(header, tag, tagging, default_tag);
 	}
 	if (!has_default(&def)) return -1;
     }
@@ -411,7 +421,7 @@ int_template_parse_cons(VALUE self, krypt_asn1_template *template, int default_t
     if (!int_match_tag_and_class(header, tag, tagging, default_tag)) {
 	if (!is_optional(&def)) {
 	    krypt_error_add("Mandatory sequence value not found");
-	    return 0;
+            return int_tag_and_class_mismatch(header, tag, tagging, default_tag);
 	}
 	if (has_default(&def))
 	    return 1;
@@ -611,7 +621,7 @@ int_get_value(VALUE tvalue, krypt_asn1_template *template, VALUE *out)
     } else if (codec == sKrypt_ID_SEQUENCE || codec == sKrypt_ID_SET) {
 	*out = tvalue;
     } else if (codec == sKrypt_ID_SEQUENCE_OF || codec == sKrypt_ID_SET_OF) {
-	*out = tvalue;
+	*out = template->value;
     } else if (codec == sKrypt_ID_ANY) {
 	*out = template->value;
     } else if (codec == sKrypt_ID_CHOICE) {
