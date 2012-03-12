@@ -558,6 +558,19 @@ int_template_decode_primitive_inf(VALUE tvalue, krypt_asn1_template *template)
     rb_raise(rb_eNotImpError, "Not implemented yet");
 }
 
+static krypt_asn1_header *
+int_unpack_explicit_primitive(krypt_asn1_object *object, unsigned char **pp, size_t *len)
+{
+    int header_len;
+    krypt_asn1_header *header;
+
+    if(!(header = int_parse_explicit_header(object))) return NULL;
+    header_len = header->tag_len + header->length_len;
+    *pp = object->bytes + header_len;
+    *len = object->bytes_len - header_len;
+    return header;
+}
+
 static int
 int_template_decode_primitive(VALUE tvalue, krypt_asn1_template *template)
 {
@@ -578,12 +591,7 @@ int_template_decode_primitive(VALUE tvalue, krypt_asn1_template *template)
     tagging = int_definition_get_tagging(&def);
 
     if (!NIL_P(tagging) && SYM2ID(tagging) == sKrypt_TC_EXPLICIT) {
-	int header_len;
-
-	if(!(header = int_parse_explicit_header(object))) return 0;
-	header_len = header->tag_len + header->length_len;
-	p = object->bytes + header_len;
-	len = object->bytes_len - header_len;
+	if(!(header = int_unpack_explicit_primitive(object, &p, &len))) return 0;
 	free_header = 1;
     } else {
 	p = object->bytes;
