@@ -332,6 +332,19 @@ int_parse_explicit_header(krypt_asn1_object *object)
     return header;
 }
 
+static krypt_asn1_header *
+int_unpack_explicit(krypt_asn1_object *object, unsigned char **pp, size_t *len)
+{
+    int header_len;
+    krypt_asn1_header *header;
+
+    if(!(header = int_parse_explicit_header(object))) return NULL;
+    header_len = header->tag_len + header->length_len;
+    *pp = object->bytes + header_len;
+    *len = object->bytes_len - header_len;
+    return header;
+}
+
 static int
 int_next_template(krypt_instream *in, krypt_asn1_template **out)
 {
@@ -415,7 +428,9 @@ int_template_parse_cons(VALUE self, krypt_asn1_template *template, int default_t
     krypt_asn1_object *object = template->object;
     krypt_asn1_header *header = object->header;
     krypt_asn1_template *cur_template = NULL;
-    int template_consumed = 0;
+    int template_consumed = 0, free_header = 0;
+    unsigned char *p;
+    size_t len;
 
     int_definition_init(&def, template->definition, template->options);
     get_or_raise(layout, int_definition_get_layout(&def), "'layout' missing in ASN.1 definition");
@@ -441,9 +456,15 @@ int_template_parse_cons(VALUE self, krypt_asn1_template *template, int default_t
     	    return -1;
     }
 
-    /* TODO: unpack implicit/explicit */
-    
-    in = krypt_instream_new_bytes(object->bytes, object->bytes_len);
+    if (!NIL_P(tagging) && SYM2ID(tagging) == sKrypt_TC_EXPLICIT) {
+	if(!(header = int_unpack_explicit(object, &p, &len))) return 0;
+	free_header = 1;
+    } else {
+	p = object->bytes;
+	len = object->bytes_len;
+    }
+
+    in = krypt_instream_new_bytes(p, len);
     if (!int_next_template(in, &cur_template)) goto error;
 
     for (i=0; i < layout_size; ++i) {
@@ -478,6 +499,7 @@ int_template_parse_cons(VALUE self, krypt_asn1_template *template, int default_t
     }
 
     krypt_instream_free(in);
+    if (free_header) krypt_asn1_header_free(header);
     /* Invalidate the cached byte encoding */
     xfree(object->bytes);
     object->bytes = NULL;
@@ -487,6 +509,7 @@ int_template_parse_cons(VALUE self, krypt_asn1_template *template, int default_t
 error:
     krypt_instream_free(in);
     if (cur_template && !template_consumed) int_template_free(cur_template);
+    if (free_header) krypt_asn1_header_free(header);
     return 0;
 } 
 
@@ -558,19 +581,6 @@ int_template_decode_primitive_inf(VALUE tvalue, krypt_asn1_template *template)
     rb_raise(rb_eNotImpError, "Not implemented yet");
 }
 
-static krypt_asn1_header *
-int_unpack_explicit_primitive(krypt_asn1_object *object, unsigned char **pp, size_t *len)
-{
-    int header_len;
-    krypt_asn1_header *header;
-
-    if(!(header = int_parse_explicit_header(object))) return NULL;
-    header_len = header->tag_len + header->length_len;
-    *pp = object->bytes + header_len;
-    *len = object->bytes_len - header_len;
-    return header;
-}
-
 static int
 int_template_decode_primitive(VALUE tvalue, krypt_asn1_template *template)
 {
@@ -591,7 +601,7 @@ int_template_decode_primitive(VALUE tvalue, krypt_asn1_template *template)
     tagging = int_definition_get_tagging(&def);
 
     if (!NIL_P(tagging) && SYM2ID(tagging) == sKrypt_TC_EXPLICIT) {
-	if(!(header = int_unpack_explicit_primitive(object, &p, &len))) return 0;
+	if(!(header = int_unpack_explicit(object, &p, &len))) return 0;
 	free_header = 1;
     } else {
 	p = object->bytes;
