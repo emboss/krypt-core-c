@@ -41,8 +41,6 @@ typedef struct krypt_asn1_template_st {
 } krypt_asn1_template;
 
 #define int_get_definition(o) rb_ivar_get((o), sKrypt_IV_DEFINITION)
-#define int_get_options(o) rb_ivar_get((o), sKrypt_IV_OPTIONS)
-#define int_set_options(o, v) rb_ivar_set((o), sKrypt_IV_OPTIONS, (v))
 
 #define int_hash_get_codec(d) rb_hash_aref((d), ID2SYM(sKrypt_ID_CODEC))
 #define int_hash_get_options(o) rb_hash_aref((o), ID2SYM(sKrypt_ID_OPTIONS))
@@ -149,7 +147,7 @@ int_template_new(krypt_asn1_object *object, VALUE definition, int parsed)
     ret->object = object;
     ret->definition = definition;
     if (!NIL_P(definition))
-	ret->options = int_get_options(definition);
+	ret->options = int_hash_get_options(definition);
     ret->value = Qnil;
     ret->flags = parsed ? 0 : TEMPLATE_DECODED | TEMPLATE_PARSED;
     return ret;
@@ -320,6 +318,20 @@ int_match_tag_and_class(krypt_asn1_header *header, VALUE tag, VALUE tagging, int
     return 1;
 }
 
+static krypt_asn1_header *
+int_parse_explicit_header(krypt_asn1_object *object)
+{
+    krypt_asn1_header *header;
+    krypt_instream *in = krypt_instream_new_bytes(object->bytes, object->bytes_len);
+
+    if (krypt_asn1_next_header(in, &header) != 1) {
+	krypt_error_add("Could not unpack explicitly tagged value");
+	return NULL;
+    }
+    krypt_instream_free(in);
+    return header;
+}
+
 static int
 int_next_template(krypt_instream *in, krypt_asn1_template **out)
 {
@@ -382,7 +394,7 @@ int_template_parse_primitive(VALUE self, krypt_asn1_template *template)
 
     if (!int_match_tag_and_class(header, tag, tagging, default_tag)) {
 	if (!is_optional(&def)) { 
-	    krypt_error_add("Mandatory value %s is missing", rb_id2name(name));
+	    krypt_error_add("Mandatory value %s is missing", rb_id2name(SYM2ID(name)));
 	    return int_tag_and_class_mismatch(header, tag, tagging, default_tag);
 	}
 	if (!has_default(&def)) return -1;
@@ -428,6 +440,8 @@ int_template_parse_cons(VALUE self, krypt_asn1_template *template, int default_t
 	else
     	    return -1;
     }
+
+    /* TODO: unpack implicit/explicit */
     
     in = krypt_instream_new_bytes(object->bytes, object->bytes_len);
     if (!int_next_template(in, &cur_template)) goto error;
@@ -438,7 +452,7 @@ int_template_parse_cons(VALUE self, krypt_asn1_template *template, int default_t
 
 	krypt_error_clear();
 	cur_template->definition = cur_def;
-	cur_template->options = int_get_options(cur_def);
+	cur_template->options = int_hash_get_options(cur_def);
 	if ((result = int_template_parse(self, cur_template)) != 0) {
 	    if (result == 1) {
 		template_consumed = 1;
@@ -482,7 +496,7 @@ int_template_parse_template(VALUE self, krypt_asn1_template *template)
     krypt_asn1_definition def;
     VALUE instance, type, name, options, type_def;
 
-    options = int_get_options(template->definition);
+    options = int_hash_get_options(template->definition);
     int_definition_init(&def, template->definition, options);
     get_or_raise(type, int_definition_get_type(&def), "'type' missing in ASN.1 definition");
     get_or_raise(name, int_definition_get_name(&def), "'name' missing in ASN.1 definition");
@@ -503,8 +517,6 @@ int_template_parse(VALUE self, krypt_asn1_template *template)
     if (!int_template_is_parsed(template)) {
 	VALUE definition = template->definition;
 	ID codec = SYM2ID(int_hash_get_codec(definition));
-
-	/* TODO: unpack implicit/explicit */
 
 	if (codec == sKrypt_ID_PRIMITIVE) {
 	    if (!int_template_parse_primitive(self, template)) {
@@ -549,35 +561,56 @@ int_template_decode_primitive_inf(VALUE tvalue, krypt_asn1_template *template)
 static int
 int_template_decode_primitive(VALUE tvalue, krypt_asn1_template *template)
 {
-    VALUE value, vtype;
+    VALUE value, vtype, tagging;
     krypt_asn1_definition def;
     krypt_asn1_object *object = template->object;
     krypt_asn1_header *header = object->header;
-    int default_tag;
-
-    int_definition_init(&def, template->definition, template->options);
-    get_or_raise(vtype, int_definition_get_type(&def), "'type' missing in ASN.1 definition");
-    default_tag = NUM2INT(vtype);
-
+    int default_tag, free_header = 0;
+    unsigned char *p;
+    size_t len;
 
     if (header->is_infinite)
 	return int_template_decode_primitive_inf(tvalue,template);
 
+    int_definition_init(&def, template->definition, template->options);
+    get_or_raise(vtype, int_definition_get_type(&def), "'type' missing in ASN.1 definition");
+    default_tag = NUM2INT(vtype);
+    tagging = int_definition_get_tagging(&def);
+
+    if (!NIL_P(tagging) && SYM2ID(tagging) == sKrypt_TC_EXPLICIT) {
+	int header_len;
+
+	if(!(header = int_parse_explicit_header(object))) return 0;
+	header_len = header->tag_len + header->length_len;
+	p = object->bytes + header_len;
+	len = object->bytes_len - header_len;
+	free_header = 1;
+    } else {
+	p = object->bytes;
+	len = object->bytes_len;
+    }
+
     if (header->is_constructed) {
 	krypt_error_add("Constructive bit set");
-	return 0;
+	goto error;
     }
     if (!krypt_asn1_codecs[default_tag].decoder) {
         krypt_error_add("No codec available for default tag %d", default_tag);
-        return 0;
+	goto error;
     }
     
-    if (!krypt_asn1_codecs[default_tag].decoder(tvalue, object->bytes, object->bytes_len, &value)) {
+    if (!krypt_asn1_codecs[default_tag].decoder(tvalue, p, len, &value)) {
 	krypt_error_add("Error while decoding value");
-	return 0;
+	goto error;
     }
+
+    if (free_header) krypt_asn1_header_free(header);
     template->value = value;
     return 1;
+
+error:
+    if (free_header) krypt_asn1_header_free(header);
+    return 0;
 }
 
 static int
