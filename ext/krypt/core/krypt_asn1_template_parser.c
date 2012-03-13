@@ -528,15 +528,21 @@ int_parse_template(VALUE self, krypt_asn1_template *template, krypt_asn1_definit
 }
 
 static int
-int_match_seq_of(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
+int_match_cons_of(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def, int default_tag)
 {
     return 0;
 }
 
 static int
+int_match_seq_of(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
+{
+    return int_match_cons_of(self, template, def, TAGS_SEQUENCE);
+}
+
+static int
 int_match_set_of(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
 {
-    return 0;
+    return int_match_cons_of(self, template, def, TAGS_SET);
 }
 
 static int
