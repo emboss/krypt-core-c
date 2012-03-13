@@ -489,8 +489,21 @@ error:
 static int
 int_match_template(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
 {
-    /* TODO */
-    return 1;
+    ID codec;
+    VALUE type, type_def;
+    krypt_asn1_definition new_def;
+    krypt_asn1_template_ctx *ctx;
+
+    get_or_raise(type, krypt_definition_get_type(def), "'type' missing in ASN.1 definition");
+    if (NIL_P((type_def = krypt_definition_get(type)))) {
+	krypt_error_add("Type %s has no ASN.1 definition", rb_class2name(type));
+	return 0;
+    }
+
+    krypt_definition_init(&new_def, type_def, template->options);
+    codec = SYM2ID(krypt_hash_get_codec(type_def));
+    ctx = int_get_ctx_for_codec(codec);
+    return ctx->match(self, template, &new_def);
 }
 
 static int
