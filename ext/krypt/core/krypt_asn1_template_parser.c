@@ -247,6 +247,22 @@ int_template_parse_eoc(krypt_instream *in)
 }
     
 static int
+int_ensure_stream_is_consumed(krypt_instream *in)
+{
+    unsigned char b;
+    int result;
+
+    result = krypt_instream_read(in, &b, 1);
+    if (result == 1) {
+	krypt_error_add("Data left that could not be parsed");
+	return 0;
+    } else if (result != -1) {
+       return 0;
+    }
+    return 1;
+}
+
+static int
 int_set_default_value(VALUE self, krypt_asn1_definition *def)
 {
     VALUE name, obj, def_value; 
@@ -417,8 +433,7 @@ int_rest_is_optional(VALUE self, VALUE layout, long index)
 	if (!krypt_definition_is_optional(&def)) {
 	    VALUE name = krypt_definition_get_name(&def);
 	    if (!NIL_P(name)) {
-		StringValueCStr(name);
-		krypt_error_add("Mandatory value %s not found", RSTRING_PTR(name));
+		krypt_error_add("Mandatory value %s not found", rb_id2name(SYM2ID(name)));
 	    } else {
 		krypt_error_add("Mandatory value not found");
 	    }
@@ -504,6 +519,7 @@ int_parse_cons(VALUE self, krypt_asn1_template *template, krypt_asn1_definition 
 	    goto error;
 	}
     }
+    if (!int_ensure_stream_is_consumed(in)) goto error;
 
     krypt_asn1_template_set_parsed(template, 1);
     krypt_asn1_template_set_decoded(template, 1); /* No further decoding step needed */
