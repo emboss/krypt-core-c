@@ -214,17 +214,17 @@ int_next_template(krypt_instream *in, krypt_asn1_template **out)
     int result;
 
     result = krypt_asn1_next_header(in, &next);
-    if (result == 0) {
-	krypt_error_add("Error while trying to read next value");
-	return 0;
-    }       
+    if (result == 0) return 0;
+
     if (result == -1) {
-	krypt_error_add("End of stream detected although more values were expected");
-       	return 0;
+	krypt_error_add("Error while trying to read next value");
+	return -1;
     }
-    if (NIL_P(next_template = krypt_asn1_template_new_from_stream(in, next, Qnil))) {
+
+    if (!(next_template = krypt_asn1_template_new_from_stream(in, next, Qnil))) {
+	krypt_error_add("Error while trying to read next value");
 	krypt_asn1_header_free(next);
-	return 0;
+	return -1;
     }
     *out = next_template;
     return 1;
@@ -246,6 +246,21 @@ int_template_parse_eoc(krypt_instream *in)
     return ret;
 }
     
+static int
+int_set_default_value(VALUE self, krypt_asn1_definition *def)
+{
+    VALUE name, obj, def_value; 
+    krypt_asn1_template *def_template;
+
+    get_or_raise(name, krypt_definition_get_name(def), "'name' is missing in primitive ASN.1 definition");
+    /* set the default value, no more decoding needed */
+    def_value = krypt_definition_get_default_value(def);
+    def_template = krypt_asn1_template_new_from_default(def->definition, def_value); 
+    krypt_asn1_template_set(cKryptASN1TemplateValue, obj, def_template);
+    rb_ivar_set(self, SYM2ID(name), obj);
+    return 1;
+}
+
 static int
 int_match_prim(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
 {
@@ -271,17 +286,8 @@ int_match_prim(VALUE self, krypt_asn1_template *template, krypt_asn1_definition 
 	return int_tag_and_class_mismatch(header, tag, tagging, default_tag, str);
     }
 
-    /* TODO put this in a separate method, to be reused. */
     if (krypt_definition_has_default(def)) {
-	VALUE name, obj, def_value; 
-	krypt_asn1_template *def_template;
-
-	get_or_raise(name, krypt_definition_get_name(def), "'name' is missing in primitive ASN.1 definition");
-	/* set the default value, no more decoding needed */
-	def_value = krypt_definition_get_default_value(def);
-	def_template = krypt_asn1_template_new_from_default(def->definition, def_value); 
-	krypt_asn1_template_set(cKryptASN1TemplateValue, obj, def_template);
-	rb_ivar_set(self, SYM2ID(name), obj);
+	if (!int_set_default_value(self, def)) return 0;
 	return -2;
     }
 
@@ -398,6 +404,34 @@ int_match_set(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *
 }
 
 static int
+int_rest_is_optional(VALUE self, VALUE layout, long index)
+{
+    long i, size;
+
+    size = RARRAY_LEN(layout);
+    for (i=index; i < size; ++i) {
+	krypt_asn1_definition def;
+	VALUE cur_def = rb_ary_entry(layout, i);
+
+	krypt_definition_init(&def, cur_def, krypt_hash_get_options(cur_def));
+	if (!krypt_definition_is_optional(&def)) {
+	    VALUE name = krypt_definition_get_name(&def);
+	    if (!NIL_P(name)) {
+		StringValueCStr(name);
+		krypt_error_add("Mandatory value %s not found", RSTRING_PTR(name));
+	    } else {
+		krypt_error_add("Mandatory value not found");
+	    }
+	    return 0;
+	}
+	if (krypt_definition_has_default(&def)) {
+	    if (!int_set_default_value(self, &def)) return 0;
+	}
+    }
+    return 1;
+}
+
+static int
 int_parse_cons(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
 {
     krypt_instream *in;
@@ -425,7 +459,7 @@ int_parse_cons(VALUE self, krypt_asn1_template *template, krypt_asn1_definition 
     }
 
     in = krypt_instream_new_bytes(p, len);
-    if (!int_next_template(in, &cur_template)) goto error;
+    if (int_next_template(in, &cur_template) != 1) goto error;
 
     for (i=0; i < layout_size; ++i) {
 	ID codec;
@@ -447,12 +481,14 @@ int_parse_cons(VALUE self, krypt_asn1_template *template, krypt_asn1_definition 
 		template_consumed = 1;
 		num_parsed++;
 		if (i < layout_size - 1) {
-		    if (!int_next_template(in, &cur_template)) goto error; 
+		    int has_more = int_next_template(in, &cur_template); 
+		    if (has_more == -1) goto error;
+		    if (has_more == 0) {
+		       	if (!int_rest_is_optional(self, layout, i+1)) goto error;
+			break; /* EOF reached */
+		    }
 		}
-	    } else if (result == -2) { /* a default value was set */
-		num_parsed++;
-	    }
-	    /* else -> didn't match */
+	    } /* else -> didn't match or default value was set */
 	} else {
 	    goto error;
 	}
@@ -631,6 +667,10 @@ krypt_asn1_template_get_parse_decode(VALUE self, ID ivname, VALUE *out)
     if (!int_parse_decode(self, template, ctx)) return 0;
 
     value = rb_ivar_get(self, ivname);
+    if (NIL_P(value)) {
+	*out = Qnil;
+	return 1;
+    }
     krypt_asn1_template_get(value, value_template);
     definition = value_template->definition;
     codec = SYM2ID(krypt_hash_get_codec(definition));
