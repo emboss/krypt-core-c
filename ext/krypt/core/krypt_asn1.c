@@ -279,10 +279,7 @@ error:
 static VALUE
 krypt_asn1_data_alloc(VALUE klass)
 {
-    VALUE obj;
-
-    obj = Data_Wrap_Struct(klass, 0, int_asn1_data_free, 0);
-    return obj;
+    return Data_Wrap_Struct(klass, 0, int_asn1_data_free, 0);
 }
 
 /* Generic helper for initialization */

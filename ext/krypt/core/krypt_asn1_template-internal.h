@@ -32,18 +32,19 @@ VALUE cKryptASN1TemplateValue;
 #define KRYPT_TEMPLATE_MODIFIED (1 << 2)
 
 typedef struct krypt_asn1_template_st {
+    int flags;
     krypt_asn1_object *object;
     VALUE definition;
     VALUE options;
     VALUE value;
-    int flags;
 } krypt_asn1_template;
 
-krypt_asn1_template * krypt_asn1_template_new(krypt_asn1_object *object, VALUE definition);
-krypt_asn1_template * krypt_asn1_template_new_from_stream(krypt_instream *in, krypt_asn1_header *header, VALUE definition);
-krypt_asn1_template * krypt_asn1_template_new_from_default(VALUE definition, VALUE default_value);
-void krypt_asn1_template_mark(krypt_asn1_template *template);
-void krypt_asn1_template_free(krypt_asn1_template *template);
+krypt_asn1_template *krypt_asn1_template_new(krypt_asn1_object *object, VALUE definition, VALUE options);
+krypt_asn1_template *krypt_asn1_template_new_from_stream(krypt_instream *in, krypt_asn1_header *header, VALUE definition, VALUE options);
+krypt_asn1_template *krypt_asn1_template_new_value(VALUE value);
+
+void krypt_asn1_template_mark(krypt_asn1_template *t);
+void krypt_asn1_template_free(krypt_asn1_template *t);
 
 #define krypt_asn1_template_set(klass, obj, t)	 							\
 do { 							    						\
@@ -61,23 +62,29 @@ do { 									\
     } 									\
 } while (0)
 
+#define krypt_asn1_template_get_definition(o)		((o)->definition)
+#define krypt_asn1_template_set_definition(o, v)	((o)->definition = (v))
+#define krypt_asn1_template_get_options(o)		((o)->options)
+#define krypt_asn1_template_set_options(o, v)		((o)->options = (v))
+#define krypt_asn1_template_get_object(o)		((o)->object)
+#define krypt_asn1_template_set_object(o, v)		((o)->object = (v))
 #define krypt_asn1_template_get_value(o)		((o)->value)
 #define krypt_asn1_template_set_value(o, v)		((o)->value = (v))
 #define krypt_asn1_template_is_parsed(o)		(((o)->flags & KRYPT_TEMPLATE_PARSED) == KRYPT_TEMPLATE_PARSED)
 #define krypt_asn1_template_is_decoded(o)		(((o)->flags & KRYPT_TEMPLATE_DECODED) == KRYPT_TEMPLATE_DECODED)
 #define krypt_asn1_template_is_modified(o)		(((o)->flags & KRYPT_TEMPLATE_MODIFIED) == KRYPT_TEMPLATE_MODIFIED)
-#define krypt_asn1_template_set_parsed(o, b)		\
+#define krypt_asn1_template_set_parsed(o, b)	\
 do {						\
     if (b) {					\
-	(o)->flags |= KRYPT_TEMPLATE_PARSED;		\
+	(o)->flags |= KRYPT_TEMPLATE_PARSED;	\
     } else {					\
-	(o)->flags &= ~KRYPT_TEMPLATE_PARSED;		\
+	(o)->flags &= ~KRYPT_TEMPLATE_PARSED;	\
     }						\
 } while (0)
 #define krypt_asn1_template_set_decoded(o, b)	\
 do {						\
     if (b) {					\
-	(o)->flags |= KRYPT_TEMPLATE_DECODED;		\
+	(o)->flags |= KRYPT_TEMPLATE_DECODED;	\
     } else {					\
 	(o)->flags &= ~KRYPT_TEMPLATE_DECODED;	\
     }						\
@@ -91,18 +98,18 @@ do {						\
     }						\
 } while (0)
 
-#define krypt_definition_get(o) rb_ivar_get((o), sKrypt_IV_DEFINITION)
+#define krypt_definition_get(o) 	rb_ivar_get((o), sKrypt_IV_DEFINITION)
 
-#define krypt_hash_get_codec(d) rb_hash_aref((d), ID2SYM(sKrypt_ID_CODEC))
-#define krypt_hash_get_options(o) rb_hash_aref((o), ID2SYM(sKrypt_ID_OPTIONS))
+#define krypt_hash_get_codec(d) 	rb_hash_aref((d), ID2SYM(sKrypt_ID_CODEC))
+#define krypt_hash_get_options(o) 	rb_hash_aref((o), ID2SYM(sKrypt_ID_OPTIONS))
 #define krypt_hash_get_default_value(o) rb_hash_aref((o), ID2SYM(sKrypt_ID_DEFAULT))
-#define krypt_hash_get_name(d) rb_hash_aref((d), ID2SYM(sKrypt_ID_NAME))
-#define krypt_hash_get_type(d) rb_hash_aref((d), ID2SYM(sKrypt_ID_TYPE))
-#define krypt_hash_get_optional(d) rb_hash_aref((d), ID2SYM(sKrypt_ID_OPTIONAL))
-#define krypt_hash_get_tag(d) rb_hash_aref((d), ID2SYM(sKrypt_ID_TAG))
-#define krypt_hash_get_tagging(d) rb_hash_aref((d), ID2SYM(sKrypt_ID_TAGGING))
-#define krypt_hash_get_layout(d) rb_hash_aref((d), ID2SYM(sKrypt_ID_LAYOUT))
-#define krypt_hash_get_min_size(d) rb_hash_aref((d), ID2SYM(sKrypt_ID_MIN_SIZE))
+#define krypt_hash_get_name(d) 		rb_hash_aref((d), ID2SYM(sKrypt_ID_NAME))
+#define krypt_hash_get_type(d) 		rb_hash_aref((d), ID2SYM(sKrypt_ID_TYPE))
+#define krypt_hash_get_optional(d) 	rb_hash_aref((d), ID2SYM(sKrypt_ID_OPTIONAL))
+#define krypt_hash_get_tag(d) 		rb_hash_aref((d), ID2SYM(sKrypt_ID_TAG))
+#define krypt_hash_get_tagging(d) 	rb_hash_aref((d), ID2SYM(sKrypt_ID_TAGGING))
+#define krypt_hash_get_layout(d) 	rb_hash_aref((d), ID2SYM(sKrypt_ID_LAYOUT))
+#define krypt_hash_get_min_size(d) 	rb_hash_aref((d), ID2SYM(sKrypt_ID_MIN_SIZE))
 
 typedef struct krypt_asn1_definition_st {
     VALUE definition;
@@ -120,13 +127,6 @@ typedef struct krypt_asn1_definition_st {
 #define KRYPT_DEFINITION_TAGGING 6
 #define KRYPT_DEFINITION_DEFAULT 7
 
-typedef struct krypt_asn1_template_ctx_st {
-    int (*match)(VALUE recv, krypt_asn1_template *template, krypt_asn1_definition *def);
-    int (*parse)(VALUE recv, krypt_asn1_template *template, krypt_asn1_definition *def);
-    int (*decode)(VALUE recv, krypt_asn1_template *template, krypt_asn1_definition *def);
-    VALUE (*get_value)(VALUE recv, krypt_asn1_template *template);
-} krypt_asn1_template_ctx;
-
 void krypt_definition_init(krypt_asn1_definition *def, VALUE definition, VALUE options);
 
 #define get_or_raise(dest, v, msg)	\
@@ -139,6 +139,11 @@ do {					\
     (dest) = value;			\
 } while (0)
 
+#define krypt_definition_get_definition(def)		((def)->definition)
+#define krypt_definition_set_definition(def, d)		((def)->definition = (d))
+#define krypt_definition_get_options(def)		((def)->options)
+#define krypt_definition_set_options(def, o)		((def)->options = (o))
+
 VALUE krypt_definition_get_name(krypt_asn1_definition *def);
 VALUE krypt_definition_get_type(krypt_asn1_definition *def);
 VALUE krypt_definition_get_layout(krypt_asn1_definition *def);
@@ -149,6 +154,16 @@ VALUE krypt_definition_get_tagging(krypt_asn1_definition *def);
 VALUE krypt_definition_get_default_value(krypt_asn1_definition *def);
 int krypt_definition_is_optional(krypt_asn1_definition *def);
 int krypt_definition_has_default(krypt_asn1_definition *def);
+
+typedef struct krypt_asn1_template_ctx_st {
+    int (*match)(VALUE recv, krypt_asn1_template *t, krypt_asn1_definition *def);
+    int (*parse)(VALUE recv, krypt_asn1_template *t, krypt_asn1_definition *def);
+    int (*decode)(VALUE recv, krypt_asn1_template *t, krypt_asn1_definition *def);
+    VALUE (*get_value)(VALUE recv, ID ivname);
+    VALUE (*set_value)(VALUE recv, ID ivname, VALUE value);
+} krypt_asn1_template_ctx;
+
+krypt_asn1_template_ctx * krypt_asn1_template_get_ctx_for_codec(ID codec);
 
 int krypt_asn1_template_error_add(VALUE definition);
 int krypt_asn1_template_get_parse_decode(VALUE self, ID ivname, VALUE *out);

@@ -14,90 +14,79 @@
 #include "krypt_asn1-internal.h"
 #include "krypt_asn1_template-internal.h"
 
-static int int_match_prim(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def);
-static int int_parse_prim(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def);
-static int int_decode_prim(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def);
+static int int_match_prim(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
+static int int_parse_prim(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
+static int int_decode_prim(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
 
-static int int_match_sequence(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def);
-static int int_match_set(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def);
-static int int_parse_cons(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def);
+static int int_match_sequence(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
+static int int_match_set(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
+static int int_parse_cons(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
 
-static int int_match_template(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def);
-static int int_parse_template(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def);
+static int int_match_template(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
+static int int_parse_template(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
 
-static int int_match_seq_of(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def);
-static int int_match_set_of(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def);
-static int int_parse_cons_of(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def);
+static int int_match_seq_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
+static int int_match_set_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
+static int int_parse_cons_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
 
-static int int_match_any(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def);
-static int int_parse_any(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def);
-static int int_decode_any(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def);
+static int int_match_any(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
+static int int_parse_any(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
+static int int_decode_any(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
 
-static int int_match_choice(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def);
-static int int_parse_choice(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def);
-static int int_decode_choice(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def);
-
-static VALUE int_get_value_as_self(VALUE self, krypt_asn1_template *template);
-static VALUE int_get_value_from_template(VALUE self, krypt_asn1_template *template);
+static int int_match_choice(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
+static int int_parse_choice(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
+static int int_decode_choice(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
 
 static krypt_asn1_template_ctx krypt_template_primitive_ctx= {
     int_match_prim,
     int_parse_prim,
-    int_decode_prim,
-    int_get_value_from_template /* shouldn't happen by design, SEQUENCE OR SET are never directly assigned */
+    int_decode_prim
 };
 
 static krypt_asn1_template_ctx krypt_template_sequence_ctx= {
     int_match_sequence,
     int_parse_cons,
-    NULL,
-    int_get_value_as_self
+    NULL
 };
 
 static krypt_asn1_template_ctx krypt_template_set_ctx= {
     int_match_set,
     int_parse_cons,
-    NULL,
-    int_get_value_as_self
+    NULL
 };
 
 static krypt_asn1_template_ctx krypt_template_template_ctx= {
     int_match_template,
     int_parse_template,
-    NULL,
-    int_get_value_as_self
+    NULL
 };
 
 static krypt_asn1_template_ctx krypt_template_seq_of_ctx= {
     int_match_seq_of,
     int_parse_cons_of,
-    NULL,
-    int_get_value_from_template
+    NULL
 };
 
 static krypt_asn1_template_ctx krypt_template_set_of_ctx= {
     int_match_set_of,
     int_parse_cons_of,
-    NULL,
-    int_get_value_from_template
+    NULL
 };
 
 static krypt_asn1_template_ctx krypt_template_any_ctx= {
     int_match_any,
     int_parse_any,
-    int_decode_any,
-    int_get_value_from_template
+    int_decode_any
 };
 
 static krypt_asn1_template_ctx krypt_template_choice_ctx= {
     int_match_choice,
     int_parse_choice,
-    int_decode_choice,
-    int_get_value_from_template
+    int_decode_choice
 };
 
-static krypt_asn1_template_ctx *
-int_get_ctx_for_codec(ID codec) {
+krypt_asn1_template_ctx *
+krypt_asn1_template_get_ctx_for_codec(ID codec) {
     if (codec == sKrypt_ID_PRIMITIVE)
 	return &krypt_template_primitive_ctx;
     else if (codec == sKrypt_ID_SEQUENCE)
@@ -210,8 +199,11 @@ static int
 int_next_template(krypt_instream *in, krypt_asn1_template **out)
 {
     krypt_asn1_header *next;
-    krypt_asn1_template *next_template;
+    krypt_asn1_object *next_object = NULL;
+    krypt_asn1_template *ret;
     int result;
+    ssize_t value_len;
+    unsigned char *value;
 
     result = krypt_asn1_next_header(in, &next);
     if (result == 0) return 0;
@@ -221,17 +213,29 @@ int_next_template(krypt_instream *in, krypt_asn1_template **out)
 	return -1;
     }
 
-    if (!(next_template = krypt_asn1_template_new_from_stream(in, next, Qnil))) {
+    if ((value_len = krypt_asn1_get_value(in, next, &value)) == -1) {
+	krypt_asn1_header_free(next);
+	krypt_error_add("Error while trying to read next value");
+	return -1;
+    }
+    
+    if (!(next_object = krypt_asn1_object_new_value(next, value, value_len))) {
 	krypt_error_add("Error while trying to read next value");
 	krypt_asn1_header_free(next);
 	return -1;
     }
-    *out = next_template;
+    if (!(ret = krypt_asn1_template_new(next_object, Qnil, Qnil))) {
+	krypt_error_add("Error while trying to read next value");
+	krypt_asn1_header_free(next);
+	return -1;
+    }
+
+    *out = ret;
     return 1;
 }
 
 static int
-int_template_parse_eoc(krypt_instream *in)
+int_parse_eoc(krypt_instream *in)
 {
     krypt_asn1_header *next;
     int result = krypt_asn1_next_header(in, &next);
@@ -266,22 +270,22 @@ static int
 int_set_default_value(VALUE self, krypt_asn1_definition *def)
 {
     VALUE name, obj, def_value; 
-    krypt_asn1_template *def_template;
+    krypt_asn1_template *template;
 
     get_or_raise(name, krypt_definition_get_name(def), "'name' is missing in primitive ASN.1 definition");
     /* set the default value, no more decoding needed */
     def_value = krypt_definition_get_default_value(def);
-    def_template = krypt_asn1_template_new_from_default(def->definition, def_value); 
-    krypt_asn1_template_set(cKryptASN1TemplateValue, obj, def_template);
+    template = krypt_asn1_template_new_value(def_value); 
+    krypt_asn1_template_set(cKryptASN1TemplateValue, obj, template);
     rb_ivar_set(self, SYM2ID(name), obj);
     return 1;
 }
 
 static int
-int_match_prim(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
+int_match_prim(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
     VALUE tag, tagging, vdef_tag;
-    krypt_asn1_header *header = template->object->header;
+    krypt_asn1_header *header = t->object->header;
     int default_tag;
 
     get_or_raise(vdef_tag, krypt_definition_get_type(def), "'type is missing in ASN.1 definition");
@@ -311,52 +315,55 @@ int_match_prim(VALUE self, krypt_asn1_template *template, krypt_asn1_definition 
 }
 
 static int
-int_parse_prim(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
+int_parse_prim(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
     VALUE name, obj;
 
     get_or_raise(name, krypt_definition_get_name(def), "'name' is missing in primitive ASN.1 definition");
 
-    krypt_asn1_template_set(cKryptASN1TemplateValue, obj, template);
+    krypt_asn1_template_set(cKryptASN1TemplateValue, obj, t);
     rb_ivar_set(self, SYM2ID(name), obj);
-    krypt_asn1_template_set_parsed(template, 1);
+    krypt_asn1_template_set_parsed(t, 1);
     return 1;
 }
 
 static int
-int_decode_prim_inf(VALUE tvalue, krypt_asn1_template *template)
+int_decode_prim_inf(VALUE tvalue, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
     rb_raise(rb_eNotImpError, "Not implemented yet");
 }
 
 static int
-int_decode_prim(VALUE tvalue, krypt_asn1_template *template, krypt_asn1_definition *def)
+int_decode_prim(VALUE tvalue, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
     VALUE value, vtype, tagging;
-    krypt_asn1_object *object = template->object;
+    krypt_asn1_object *object = t->object;
     krypt_asn1_header *header = object->header;
     int free_header = 0, default_tag;
     unsigned char *p;
     size_t len;
 
     if (header->is_infinite)
-	return int_decode_prim_inf(tvalue,template);
+	return int_decode_prim_inf(tvalue, t, def);
 
     get_or_raise(vtype, krypt_definition_get_type(def), "'type' missing in ASN.1 definition");
     tagging = krypt_definition_get_tagging(def);
     default_tag = NUM2INT(vtype);
 
     if (!NIL_P(tagging) && SYM2ID(tagging) == sKrypt_TC_EXPLICIT) {
+	if (!header->is_constructed) {
+	    krypt_error_add("Constructive bit not set for explicitly tagged value");
+	    goto error;
+	}
 	if(!(header = int_unpack_explicit(object, &p, &len))) return 0;
 	free_header = 1;
     } else {
+	if (header->is_constructed) {
+	    krypt_error_add("Constructive bit set");
+	    goto error;
+	}
 	p = object->bytes;
 	len = object->bytes_len;
-    }
-
-    if (header->is_constructed) {
-	krypt_error_add("Constructive bit set");
-	goto error;
     }
 
     if (!krypt_asn1_codecs[default_tag].decoder) {
@@ -369,8 +376,8 @@ int_decode_prim(VALUE tvalue, krypt_asn1_template *template, krypt_asn1_definiti
     }
 
     if (free_header) krypt_asn1_header_free(header);
-    template->value = value;
-    krypt_asn1_template_set_decoded(template, 1);
+    krypt_asn1_template_set_value(t, value);
+    krypt_asn1_template_set_decoded(t, 1);
     return 1;
 
 error: {
@@ -385,38 +392,37 @@ error: {
 }
 
 static int
-int_match_cons(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def, int default_tag)
+int_match_cons(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def, int default_tag)
 {
-    krypt_asn1_header *header = template->object->header;
+    krypt_asn1_header *header = t->object->header;
     VALUE tag = krypt_definition_get_tag(def);
     VALUE tagging = krypt_definition_get_tagging(def);
 
-    if (!header->is_constructed) {
-	if (krypt_definition_is_optional(def)) return -1;
+    if (header->is_constructed && 
+	int_match_tag_and_class(header, tag, tagging, default_tag)) return 1;
+
+    if (!header->is_constructed && !krypt_definition_is_optional(def)) {
 	krypt_error_add("Constructive bit not set");
 	return 0;
     }
-
-    if (int_match_tag_and_class(header, tag, tagging, default_tag)) return 1;
 
     if (!krypt_definition_is_optional(def)) {
 	krypt_error_add("Mandatory sequence value not found");
 	return int_tag_and_class_mismatch(header, tag, tagging, default_tag, "Constructive");
     }
-
     return -1;
 }
 
 static int
-int_match_sequence(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
+int_match_sequence(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
-    return int_match_cons(self, template, def, TAGS_SEQUENCE);
+    return int_match_cons(self, t, def, TAGS_SEQUENCE);
 }
 
 static int
-int_match_set(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
+int_match_set(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
-    return int_match_cons(self, template, def, TAGS_SET);
+    return int_match_cons(self, t, def, TAGS_SET);
 }
 
 static int
@@ -447,12 +453,12 @@ int_rest_is_optional(VALUE self, VALUE layout, long index)
 }
 
 static int
-int_parse_cons(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
+int_parse_cons(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
     krypt_instream *in;
     VALUE layout, vmin_size, tagging;
     long num_parsed = 0, layout_size, min_size, i;
-    krypt_asn1_object *object = template->object;
+    krypt_asn1_object *object = t->object;
     krypt_asn1_header *header = object->header;
     krypt_asn1_template *cur_template = NULL;
     int template_consumed = 0, free_header = 0;
@@ -484,11 +490,11 @@ int_parse_cons(VALUE self, krypt_asn1_template *template, krypt_asn1_definition 
 	VALUE cur_def = rb_ary_entry(layout, i);
 
 	krypt_error_clear();
-	cur_template->definition = cur_def;
-	cur_template->options = krypt_hash_get_options(cur_def);
-	krypt_definition_init(&def, cur_def, cur_template->options);
+	krypt_asn1_template_set_definition(cur_template, cur_def);
+	krypt_asn1_template_set_options(cur_template, krypt_hash_get_options(cur_def));
+	krypt_definition_init(&def, cur_def, krypt_asn1_template_get_options(cur_template));
 	codec = SYM2ID(krypt_hash_get_codec(cur_def));
-	ctx = int_get_ctx_for_codec(codec);
+	ctx = krypt_asn1_template_get_ctx_for_codec(codec);
 
 	if ((result = ctx->match(self, cur_template, &def)) != 0) {
 	    if (result == 1) {
@@ -514,15 +520,15 @@ int_parse_cons(VALUE self, krypt_asn1_template *template, krypt_asn1_definition 
 	goto error;
     }
     if (header->is_infinite) {
-	if(!int_template_parse_eoc(in)) {
+	if(!int_parse_eoc(in)) {
 	    krypt_error_add("No closing END OF CONTENTS found for constructive value");
 	    goto error;
 	}
     }
     if (!int_ensure_stream_is_consumed(in)) goto error;
 
-    krypt_asn1_template_set_parsed(template, 1);
-    krypt_asn1_template_set_decoded(template, 1); /* No further decoding step needed */
+    krypt_asn1_template_set_parsed(t, 1);
+    krypt_asn1_template_set_decoded(t, 1); /* No further decoding step needed */
     krypt_instream_free(in);
     if (free_header) krypt_asn1_header_free(header);
     /* Invalidate the cached byte encoding */
@@ -539,29 +545,37 @@ error:
 } 
 
 static int
-int_match_template(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
+int_match_template(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
     ID codec;
     VALUE type, type_def;
     krypt_asn1_definition new_def;
     krypt_asn1_template_ctx *ctx;
-
+    int match;
+    
     get_or_raise(type, krypt_definition_get_type(def), "'type' missing in ASN.1 definition");
     if (NIL_P((type_def = krypt_definition_get(type)))) {
 	krypt_error_add("Type %s has no ASN.1 definition", rb_class2name(type));
 	return 0;
     }
-
-    krypt_definition_init(&new_def, type_def, template->options);
+    krypt_definition_init(&new_def, type_def, krypt_definition_get_options(def));
     codec = SYM2ID(krypt_hash_get_codec(type_def));
-    ctx = int_get_ctx_for_codec(codec);
-    return ctx->match(self, template, &new_def);
+    ctx = krypt_asn1_template_get_ctx_for_codec(codec);
+    match = ctx->match(self, t, &new_def);
+    if (match == -1) {
+	if (krypt_definition_has_default(def)) {
+	    if (!int_set_default_value(self, def)) return 0;
+	    return -2;
+	}   
+    }
+    return match;
 }
 
 static int
-int_parse_template(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
+int_parse_template(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
-    VALUE instance, type, name, type_def;
+    VALUE obj, instance, type, name, type_def, old_def;
+    krypt_asn1_template *value_template;
 
     get_or_raise(type, krypt_definition_get_type(def), "'type' missing in ASN.1 definition");
     get_or_raise(name, krypt_definition_get_name(def), "'name' missing in ASN.1 definition");
@@ -569,118 +583,117 @@ int_parse_template(VALUE self, krypt_asn1_template *template, krypt_asn1_definit
 	krypt_error_add("Type %s has no ASN.1 definition", rb_class2name(type));
 	return 0;
     }
-    template->definition = type_def;
+
+    old_def = krypt_asn1_template_get_definition(t);
+    
+    krypt_asn1_template_set_definition(t, type_def);
     instance = rb_obj_alloc(type);
-    krypt_asn1_template_set(type, instance, template);
-    rb_ivar_set(self, SYM2ID(name), instance);
+    krypt_asn1_template_set(type, instance, t);
+    value_template = krypt_asn1_template_new_value(instance);
+    krypt_asn1_template_set(cKryptASN1TemplateValue, obj, value_template);
+    krypt_asn1_template_set_definition(value_template, old_def);
+    krypt_asn1_template_set_options(value_template, krypt_asn1_template_get_options(t));
+    rb_ivar_set(self, SYM2ID(name), obj);
     /* No further decoding needed */
-    krypt_asn1_template_set_decoded(template, 1);
     /* Do not set parsed flag in order to have constructed value parsed */
+    krypt_asn1_template_set_parsed(t, 0);
+    krypt_asn1_template_set_decoded(t, 1);
     return 1;
 }
 
 static int
-int_match_cons_of(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def, int default_tag)
+int_match_cons_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def, int default_tag)
 {
     return 0;
 }
 
 static int
-int_match_seq_of(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
+int_match_seq_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
-    return int_match_cons_of(self, template, def, TAGS_SEQUENCE);
+    return int_match_cons_of(self, t, def, TAGS_SEQUENCE);
 }
 
 static int
-int_match_set_of(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
+int_match_set_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
-    return int_match_cons_of(self, template, def, TAGS_SET);
+    return int_match_cons_of(self, t, def, TAGS_SET);
 }
 
 static int
-int_parse_cons_of(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
+int_parse_cons_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
     return 0;
 }
 
 static int
-int_match_any(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
+int_match_any(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
     return 0;
 }
 
 static int
-int_parse_any(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
+int_parse_any(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
     return 0;
 }
 
 static int
-int_decode_any(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
+int_decode_any(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
     return 0;
 }
 
 static int
-int_match_choice(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
+int_match_choice(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
     return 0;
 }
 
 static int
-int_parse_choice(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
+int_parse_choice(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
     return 0;
 }
 
 static int
-int_decode_choice(VALUE self, krypt_asn1_template *template, krypt_asn1_definition *def)
+int_decode_choice(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
     return 0;
 }
 
-static VALUE
-int_get_value_as_self(VALUE self, krypt_asn1_template *template)
-{
-    return self;
-}
-
-static VALUE
-int_get_value_from_template(VALUE self, krypt_asn1_template *template)
-{
-    return template->value;
-}
-
 static int
-int_parse_decode(VALUE self, krypt_asn1_template *template, krypt_asn1_template_ctx *ctx)
+int_parse_decode(VALUE self, krypt_asn1_template *template)
 {
+    ID codec;
+    VALUE definition;
     krypt_asn1_definition def;
+    krypt_asn1_template_ctx *ctx;
 
-    krypt_definition_init(&def, template->definition, template->options);
-    if (!krypt_asn1_template_is_parsed(template)) {
-	if (!ctx->match(self, template, &def)) return 0;
-	if (!ctx->parse(self, template, &def)) return 0;
-    }
-    if (!krypt_asn1_template_is_decoded(template)) {
+    definition = krypt_asn1_template_get_definition(template);
+    krypt_definition_init(&def, definition, krypt_asn1_template_get_options(template));
+    codec = SYM2ID(krypt_hash_get_codec(definition));
+    ctx = krypt_asn1_template_get_ctx_for_codec(codec);
+    if (!ctx->match(self, template, &def)) return 0;
+    if (!krypt_asn1_template_is_parsed(template))
+        if (!ctx->parse(self, template, &def)) return 0;
+    if (!krypt_asn1_template_is_decoded(template))
 	if (ctx->decode && !ctx->decode(self, template, &def)) return 0;
-    }
+    
+    
     return 1;
 }
 
 int
 krypt_asn1_template_get_parse_decode(VALUE self, ID ivname, VALUE *out)
 {
-    ID codec;
-    VALUE value, definition;
-    krypt_asn1_template *template;
-    krypt_asn1_template_ctx *ctx;
-    krypt_asn1_template *value_template;
+    VALUE value;
+    krypt_asn1_template *template, *value_template;
 
     krypt_asn1_template_get(self, template);
-    definition = template->definition;
-    codec = SYM2ID(krypt_hash_get_codec(definition));
-    ctx = int_get_ctx_for_codec(codec);
-    if (!int_parse_decode(self, template, ctx)) return 0;
+
+    if (!(krypt_asn1_template_is_parsed(template) && krypt_asn1_template_is_decoded(template))) {
+	if (!int_parse_decode(self, template)) return 0;
+    }
 
     value = rb_ivar_get(self, ivname);
     if (NIL_P(value)) {
@@ -688,11 +701,12 @@ krypt_asn1_template_get_parse_decode(VALUE self, ID ivname, VALUE *out)
 	return 1;
     }
     krypt_asn1_template_get(value, value_template);
-    definition = value_template->definition;
-    codec = SYM2ID(krypt_hash_get_codec(definition));
-    ctx = int_get_ctx_for_codec(codec);
-    if (!int_parse_decode(value, value_template, ctx)) return 0;
-    *out = ctx->get_value(value, value_template);
+    
+    if (!(krypt_asn1_template_is_parsed(value_template) && krypt_asn1_template_is_decoded(value_template))) {
+	if (!int_parse_decode(value, value_template)) return 0;
+    }
+
+    *out = krypt_asn1_template_get_value(value_template);
     return 1;
 }
 
@@ -702,20 +716,12 @@ int_rb_template_new_initial(VALUE klass, krypt_instream *in, krypt_asn1_header *
     VALUE obj;
     VALUE definition;
     krypt_asn1_template *template;
-    krypt_asn1_object *encoding;
-    unsigned char *value = NULL;
-    ssize_t value_len;
 
-    if ((value_len = krypt_asn1_get_value(in, header, &value)) == -1)
-	return Qnil;
-    
-    encoding = krypt_asn1_object_new_value(header, value, value_len);
     if (NIL_P((definition = krypt_definition_get(klass)))) {
-        krypt_error_add("Type has no ASN.1 definition");
+        krypt_error_add("%s has no ASN.1 definition", rb_class2name(klass));
         return Qnil;
     }
-    
-    template = krypt_asn1_template_new(encoding, definition);
+    template = krypt_asn1_template_new_from_stream(in, header, definition, krypt_hash_get_options(definition));
     krypt_asn1_template_set(klass, obj, template);
 
     return obj;

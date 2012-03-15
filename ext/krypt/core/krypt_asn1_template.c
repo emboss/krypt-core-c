@@ -89,21 +89,20 @@ krypt_definition_has_default(krypt_asn1_definition *def)
 }
 
 krypt_asn1_template *
-krypt_asn1_template_new(krypt_asn1_object *object, VALUE definition)
+krypt_asn1_template_new(krypt_asn1_object *object, VALUE definition, VALUE options)
 {
     krypt_asn1_template *ret;
 
     ret = ALLOC(krypt_asn1_template);
     ret->object = object;
     ret->definition = definition;
-    ret->options = NIL_P(definition) ? Qnil : krypt_hash_get_options(definition);
-    ret->value = Qnil;
+    ret->options = options;
     ret->flags = 0;
     return ret;
 }
 
 krypt_asn1_template *
-krypt_asn1_template_new_from_stream(krypt_instream *in, krypt_asn1_header *header, VALUE definition)
+krypt_asn1_template_new_from_stream(krypt_instream *in, krypt_asn1_header *header, VALUE definition, VALUE options)
 {
     krypt_asn1_object *encoding;
     unsigned char *value = NULL;
@@ -113,26 +112,28 @@ krypt_asn1_template_new_from_stream(krypt_instream *in, krypt_asn1_header *heade
 	return NULL;
     
     encoding = krypt_asn1_object_new_value(header, value, value_len);
-    return krypt_asn1_template_new(encoding, definition);
+    return krypt_asn1_template_new(encoding, definition, options);
 }
 
 krypt_asn1_template *
-krypt_asn1_template_new_from_default(VALUE definition, VALUE default_value)
+krypt_asn1_template_new_value(VALUE value)
 {
-    krypt_asn1_template *ret = krypt_asn1_template_new(NULL, definition);
+    krypt_asn1_template *ret;
+
+    ret = krypt_asn1_template_new(NULL, Qnil, Qnil);
+    ret->value = value;
     ret->flags = KRYPT_TEMPLATE_PARSED | KRYPT_TEMPLATE_DECODED;
-    ret->value = default_value;
     return ret;
 }
 
-void
-krypt_asn1_template_mark(krypt_asn1_template *template)
+krypt_asn1_template *
+krypt_asn1_template_new_object(krypt_asn1_object *object)
 {
-    if (!template) return;
-    if (!NIL_P(template->value))
-	rb_gc_mark(template->value);
-    /* the definition needs not be marked, it's referenced by the class object
-     * and therefore will not be GC'ed */
+    krypt_asn1_template *ret;
+
+    ret = krypt_asn1_template_new(object, Qnil, Qnil);
+    ret->object = object;
+    return ret;
 }
 
 void
@@ -142,6 +143,14 @@ krypt_asn1_template_free(krypt_asn1_template *template)
     if (template->object)
 	krypt_asn1_object_free(template->object);
     xfree(template);
+}
+
+void
+krypt_asn1_template_mark(krypt_asn1_template *template)
+{
+    if (!template) return;
+    if (!NIL_P(template->value))
+	rb_gc_mark(template->value);
 }
 
 static void
@@ -172,6 +181,50 @@ krypt_asn1_template_error_add(VALUE definition)
     return 0;
 }
 
+static VALUE
+krypt_asn1_template_initialize(VALUE self)
+{
+    krypt_asn1_template *template;
+    VALUE definition, klass;
+
+    if (DATA_PTR(self))
+	rb_raise(eKryptASN1Error, "Template already initialized");
+    klass = CLASS_OF(self);
+    if (NIL_P((definition = krypt_definition_get(klass)))) {
+        krypt_error_add("%s has no ASN.1 definition", rb_class2name(klass));
+        return Qnil;
+    }
+    template = krypt_asn1_template_new(NULL, definition, krypt_hash_get_options(definition));
+    krypt_asn1_template_set_parsed(template, 1);
+    krypt_asn1_template_set_decoded(template, 1);
+    DATA_PTR(self) = template;
+
+    if (rb_block_given_p()) {
+	VALUE blk = rb_block_proc();
+	if (rb_proc_arity(blk) == 1) {
+	    VALUE args = rb_ary_new();
+	    rb_ary_push (args, self);
+	    rb_proc_call(blk, args);
+	} else {
+	    rb_raise(rb_eArgError, "Wrong number of block arguments. Expected: 1 Got: %d", rb_proc_arity(blk));
+	}
+    }
+    return self;
+}
+
+static VALUE
+krypt_asn1_template_alloc(VALUE klass)
+{
+    return Data_Wrap_Struct(klass, krypt_asn1_template_mark, krypt_asn1_template_free, 0);
+}
+
+static VALUE
+krypt_asn1_template_mod_included_callback(VALUE self, VALUE klass)
+{
+    rb_define_alloc_func(klass, krypt_asn1_template_alloc);
+    return Qnil;
+}
+
 VALUE
 krypt_asn1_template_get_callback(VALUE self, VALUE ivname)
 {
@@ -183,13 +236,28 @@ krypt_asn1_template_get_callback(VALUE self, VALUE ivname)
 }
 
 VALUE
-krypt_asn1_template_set_callback(VALUE self, VALUE ivname, VALUE value)
+krypt_asn1_template_set_callback(VALUE self, VALUE name, VALUE value)
 {
-    krypt_asn1_template *template;
+    ID ivname;
+    VALUE container;
+    krypt_asn1_template *template, *value_template;
 
+    ivname = SYM2ID(name);
+    container = rb_ivar_get(self, ivname);
     krypt_asn1_template_get(self, template);
+
+    if (NIL_P(container)) {
+	VALUE obj;
+	value_template = krypt_asn1_template_new_value(value);
+	krypt_asn1_template_set(cKryptASN1TemplateValue, obj, value_template);
+	rb_ivar_set(self, ivname, obj); 
+    } else {
+	krypt_asn1_template_get(container, value_template);
+    }
+
     krypt_asn1_template_set_modified(template, 1);
-    return rb_ivar_set(self, SYM2ID(ivname), value);
+    krypt_asn1_template_set_value(value_template, value);
+    return value;
 }
 
 static VALUE
@@ -198,6 +266,8 @@ krypt_asn1_template_value_to_s(VALUE self)
     krypt_asn1_template *template;
 
     krypt_asn1_template_get(self, template);
+    if (NIL_P(template->value))
+	return rb_str_new2("");
     return rb_funcall(template->value, rb_intern("to_s"), 0);
 }
 
@@ -231,6 +301,8 @@ Init_krypt_asn1_template(void)
     sKrypt_ID_MERGE = rb_intern("merge");
 
     mKryptASN1Template = rb_define_module_under(mKryptASN1, "Template");
+    rb_define_module_function(mKryptASN1Template, "mod_included_callback", krypt_asn1_template_mod_included_callback, 1);
+    rb_define_method(mKryptASN1Template, "initialize", krypt_asn1_template_initialize, 0);
     rb_define_method(mKryptASN1Template, "get_callback", krypt_asn1_template_get_callback, 1);
     rb_define_method(mKryptASN1Template, "set_callback", krypt_asn1_template_set_callback, 2);
 
