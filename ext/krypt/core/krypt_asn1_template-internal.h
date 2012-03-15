@@ -167,6 +167,7 @@ krypt_asn1_template_ctx * krypt_asn1_template_get_ctx_for_codec(ID codec);
 
 int krypt_asn1_template_error_add(VALUE definition);
 int krypt_asn1_template_get_parse_decode(VALUE self, ID ivname, VALUE *out);
+int krypt_asn1_template_encode(VALUE templ, VALUE *out);
 
 void Init_krypt_asn1_template_parser(void);
 

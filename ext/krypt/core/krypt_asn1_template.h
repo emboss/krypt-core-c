@@ -31,6 +31,9 @@ extern ID sKrypt_ID_MERGE;
 
 extern VALUE mKryptASN1Template;
 
+VALUE krypt_asn1_template_parse_der(VALUE klass, VALUE der);
+VALUE krypt_asn1_template_to_der(VALUE templ);
+
 void Init_krypt_asn1_template(void);
 
 #endif /*_KRYPT_ASN1_TEMPLATE_H_ */

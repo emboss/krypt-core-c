@@ -254,6 +254,22 @@ krypt_asn1_template_set_callback(VALUE self, VALUE name, VALUE value)
     return value;
 }
 
+/*
+ * call-seq:
+ *    asn1.to_der -> DER-/BER-encoded String
+ *
+ * Behaves the same way that Krypt::ASN1#to_der does.
+ */
+VALUE
+krypt_asn1_template_to_der(VALUE template)
+{
+    VALUE ret;
+
+    if (!krypt_asn1_template_encode(template, &ret))
+	krypt_error_raise(eKryptASN1Error, "Error while encoding value");
+    return ret;
+}
+
 static VALUE
 krypt_asn1_template_value_to_s(VALUE self)
 {
@@ -299,6 +315,7 @@ Init_krypt_asn1_template(void)
     rb_define_method(mKryptASN1Template, "initialize", krypt_asn1_template_initialize, 0);
     rb_define_method(mKryptASN1Template, "get_callback", krypt_asn1_template_get_callback, 1);
     rb_define_method(mKryptASN1Template, "set_callback", krypt_asn1_template_set_callback, 2);
+    rb_define_method(mKryptASN1Template, "to_der", krypt_asn1_template_to_der, 0);
 
     cKryptASN1TemplateValue = rb_define_class_under(mKryptASN1Template, "Value", rb_cObject);
     rb_define_method(cKryptASN1TemplateValue, "to_s", krypt_asn1_template_value_to_s, 0);

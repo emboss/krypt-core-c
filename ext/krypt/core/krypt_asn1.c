@@ -965,19 +965,18 @@ krypt_asn1_data_encode_to(VALUE self, VALUE io)
 }
 
 static VALUE
-int_asn1_data_to_der_cached(krypt_asn1_data *data, VALUE self)
+int_asn1_data_to_der_cached(krypt_asn1_object *object)
 {
     krypt_outstream *out;
     VALUE ret;
     unsigned char *bytes;
     size_t len;
-    krypt_asn1_object *object = data->object;
 
     len = object->header->tag_len + object->header->length_len + object->bytes_len;
     bytes = ALLOCA_N(unsigned char, len);
     out = krypt_outstream_new_bytes_prealloc(bytes, len);
 
-    if (!int_asn1_encode_to(out, data, self)) {
+    if (!krypt_asn1_object_encode(out, object)) {
 	krypt_outstream_free(out);
 	krypt_error_raise(eKryptASN1Error, "Error while encoding value");
     }
@@ -1029,7 +1028,7 @@ krypt_asn1_data_to_der(VALUE self)
     object = data->object;
 
     if (object->bytes && object->header->tag_bytes && object->header->length_bytes)
-	return int_asn1_data_to_der_cached(data, self);
+	return int_asn1_data_to_der_cached(data->object);
     else
 	return int_asn1_data_to_der_non_cached(data, self);
 }

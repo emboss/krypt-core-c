@@ -749,12 +749,12 @@ int_asn1_template_parse(VALUE klass, krypt_instream *in)
     return ret;
 }
 
-static VALUE
-krypt_asn1_template_parse_der(VALUE self, VALUE der)
+VALUE
+krypt_asn1_template_parse_der(VALUE klass, VALUE der)
 {
     VALUE ret;
     krypt_instream *in = krypt_instream_new_value_der(der);
-    ret = int_asn1_template_parse(self, in);
+    ret = int_asn1_template_parse(klass, in);
     krypt_instream_free(in);
     if (NIL_P(ret))
 	krypt_error_raise(eKryptASN1Error, "Parsing the value failed"); 
