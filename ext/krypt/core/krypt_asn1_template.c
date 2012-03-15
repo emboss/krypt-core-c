@@ -200,7 +200,8 @@ krypt_asn1_template_initialize(VALUE self)
     DATA_PTR(self) = template;
 
     if (rb_block_given_p()) {
-	rb_yield(self);
+	VALUE blk = rb_block_proc();
+	rb_funcall(blk, rb_intern("call"), 1, self);
     }
     return self;
 }
