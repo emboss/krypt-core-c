@@ -721,7 +721,10 @@ int_rb_template_new_initial(VALUE klass, krypt_instream *in, krypt_asn1_header *
         krypt_error_add("%s has no ASN.1 definition", rb_class2name(klass));
         return Qnil;
     }
-    template = krypt_asn1_template_new_from_stream(in, header, definition, krypt_hash_get_options(definition));
+    if (!(template = krypt_asn1_template_new_from_stream(in, header, definition, krypt_hash_get_options(definition)))) {
+        krypt_error_add("Error while reading data");
+        return Qnil;
+    }
     krypt_asn1_template_set(klass, obj, template);
 
     return obj;
