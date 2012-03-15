@@ -97,6 +97,7 @@ krypt_asn1_template_new(krypt_asn1_object *object, VALUE definition, VALUE optio
     ret->object = object;
     ret->definition = definition;
     ret->options = options;
+    ret->value = Qnil;
     ret->flags = 0;
     return ret;
 }
