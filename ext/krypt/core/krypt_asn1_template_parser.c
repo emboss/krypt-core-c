@@ -267,6 +267,23 @@ int_ensure_stream_is_consumed(krypt_instream *in)
 }
 
 static int
+int_try_match_cons(krypt_asn1_template *t, krypt_asn1_definition *def, int default_tag)
+{
+    krypt_asn1_header *header = t->object->header;
+    VALUE tag = krypt_definition_get_tag(def);
+    VALUE tagging = krypt_definition_get_tagging(def);
+
+    if (header->is_constructed && 
+	int_match_tag_and_class(header, tag, tagging, default_tag)) return 1;
+
+    if (!header->is_constructed && !krypt_definition_is_optional(def)) {
+	krypt_error_add("Constructive bit not set");
+	return 0;
+    }
+    return -1;
+}
+
+static int
 int_set_default_value(VALUE self, krypt_asn1_definition *def)
 {
     VALUE name, obj, def_value; 
@@ -282,18 +299,11 @@ int_set_default_value(VALUE self, krypt_asn1_definition *def)
 }
 
 static int
-int_match_prim(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
+int_check_optional_or_default(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def, int default_tag)
 {
-    VALUE tag, tagging, vdef_tag;
     krypt_asn1_header *header = t->object->header;
-    int default_tag;
-
-    get_or_raise(vdef_tag, krypt_definition_get_type(def), "'type is missing in ASN.1 definition");
-    default_tag = NUM2INT(vdef_tag);
-    tag = krypt_definition_get_tag(def);
-    tagging = krypt_definition_get_tagging(def);
-
-    if (int_match_tag_and_class(header, tag, tagging, default_tag)) return 1;
+    VALUE tag = krypt_definition_get_tag(def);
+    VALUE tagging = krypt_definition_get_tagging(def);
 
     if (!krypt_definition_is_optional(def)) { 
 	const char *str;
@@ -312,6 +322,23 @@ int_match_prim(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
     }
 
     return -1;
+}
+
+static int
+int_match_prim(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
+{
+    VALUE tag, tagging, vdef_tag;
+    krypt_asn1_header *header = t->object->header;
+    int default_tag;
+
+    get_or_raise(vdef_tag, krypt_definition_get_type(def), "'type is missing in ASN.1 definition");
+    default_tag = NUM2INT(vdef_tag);
+    tag = krypt_definition_get_tag(def);
+    tagging = krypt_definition_get_tagging(def);
+
+    if (int_match_tag_and_class(header, tag, tagging, default_tag)) return 1;
+
+    return int_check_optional_or_default(self, t, def, default_tag);
 }
 
 static int
@@ -394,21 +421,15 @@ error: {
 static int
 int_match_cons(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def, int default_tag)
 {
-    krypt_asn1_header *header = t->object->header;
-    VALUE tag = krypt_definition_get_tag(def);
-    VALUE tagging = krypt_definition_get_tagging(def);
+    int match = int_try_match_cons(t, def, default_tag);
 
-    if (header->is_constructed && 
-	int_match_tag_and_class(header, tag, tagging, default_tag)) return 1;
-
-    if (!header->is_constructed && !krypt_definition_is_optional(def)) {
-	krypt_error_add("Constructive bit not set");
-	return 0;
-    }
+    if (match == 1 || match == 0) return match;
 
     if (!krypt_definition_is_optional(def)) {
+	VALUE tag = krypt_definition_get_tag(def);
+	VALUE tagging = krypt_definition_get_tagging(def);
 	krypt_error_add("Mandatory sequence value not found");
-	return int_tag_and_class_mismatch(header, tag, tagging, default_tag, "Constructive");
+	return int_tag_and_class_mismatch(t->object->header, tag, tagging, default_tag, "Constructive");
     }
     return -1;
 }
@@ -604,7 +625,10 @@ int_parse_template(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *de
 static int
 int_match_cons_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def, int default_tag)
 {
-    return 0;
+    int match = int_try_match_cons(t, def, default_tag);
+
+    if (match == 1 || match == 0) return match;
+    return int_check_optional_or_default(self, t, def, default_tag);
 }
 
 static int
