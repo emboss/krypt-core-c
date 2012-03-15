@@ -200,12 +200,7 @@ krypt_asn1_template_initialize(VALUE self)
     DATA_PTR(self) = template;
 
     if (rb_block_given_p()) {
-	VALUE blk = rb_block_proc();
-	if (rb_proc_arity(blk) == 1) {
-	    rb_yield(self);
-	} else {
-	    rb_raise(rb_eArgError, "Wrong number of block arguments. Expected: 1 Got: %d", rb_proc_arity(blk));
-	}
+	rb_yield(self);
     }
     return self;
 }
