@@ -202,9 +202,7 @@ krypt_asn1_template_initialize(VALUE self)
     if (rb_block_given_p()) {
 	VALUE blk = rb_block_proc();
 	if (rb_proc_arity(blk) == 1) {
-	    VALUE args = rb_ary_new();
-	    rb_ary_push (args, self);
-	    rb_proc_call(blk, args);
+	    rb_yield(self);
 	} else {
 	    rb_raise(rb_eArgError, "Wrong number of block arguments. Expected: 1 Got: %d", rb_proc_arity(blk));
 	}
