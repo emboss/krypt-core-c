@@ -683,7 +683,7 @@ static int
 int_decode_cons_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
     krypt_instream *in;
-    VALUE type, tagging, name, val_ary;
+    VALUE type, tagging, name, val_ary, mod_p;
     unsigned char *p;
     size_t len;
     int free_header = 0;
@@ -704,7 +704,8 @@ int_decode_cons_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *de
 
     in = krypt_instream_new_bytes(p, len);
 
-    if (rb_mod_include_p(type, mKryptASN1Template)) {
+    mod_p = rb_funcall(type, rb_intern("include?"), 1, mKryptASN1Template);
+    if (RTEST(mod_p)) {
 	if (!int_decode_cons_of_templates(in, type, &val_ary)) return 0;
     }
     else {
