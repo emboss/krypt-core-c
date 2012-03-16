@@ -23,18 +23,15 @@ end
 puts "-PAUSE: Attach debugger-"
 gets
 
-B = Class.new do
-  include Krypt::ASN1::Template::Sequence 
-  asn1_integer :a
-end
-
 A = Class.new do
   include Krypt::ASN1::Template::Sequence 
-  asn1_sequence_of :a, B
+  asn1_any :a
+  asn1_boolean :b
 end
 
-der = "\x30\x0C\x30\x0A\x30\x03\x02\x01\x01\x30\x03\x02\x01\x01"
+der = "\x30\x0B\x30\x06\x02\x01\x01\x02\x01\x01\x01\x01\xFF"
 asn1 = A.parse_der der
 
 p asn1.a
+p asn1.b
 

@@ -30,7 +30,6 @@ static int int_match_set_of(VALUE self, krypt_asn1_template *t, krypt_asn1_defin
 static int int_decode_cons_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
 
 static int int_match_any(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
-static int int_parse_any(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
 static int int_decode_any(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
 
 static int int_match_choice(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
@@ -77,7 +76,7 @@ static krypt_asn1_template_ctx krypt_template_set_of_ctx= {
 
 static krypt_asn1_template_ctx krypt_template_any_ctx= {
     int_match_any,
-    int_parse_any,
+    int_parse_assign,
     int_decode_any
 };
 
@@ -744,19 +743,72 @@ error:
 static int
 int_match_any(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
-    return 0;
-}
+    if (krypt_definition_is_optional(def)) {
+	VALUE name;
+	VALUE tagging;
+	krypt_asn1_header *header;
+	int pseudo_default;
+	VALUE tag = krypt_definition_get_tag(def);
 
-static int
-int_parse_any(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
-{
-    return 0;
+	get_or_raise(name, krypt_definition_get_name(def), "'name' is missing in ASN.1 definition");
+	if (NIL_P(tag)) {
+	    krypt_error_add("Cannot unambiguously assign ANY value %s", rb_id2name(SYM2ID(name)));
+	    return 0;
+	}
+	tagging = krypt_definition_get_tagging(def);
+	header = t->object->header;
+	pseudo_default = NUM2INT(tag);
+	if (!int_match_tag_and_class(header, tag, tagging, pseudo_default)) {
+	    if (krypt_definition_has_default(def)) {
+		if (!int_set_default_value(self, def)) return 0;
+		return -2;
+	    }
+	    return int_tag_and_class_mismatch(header, tag, tagging, pseudo_default, rb_id2name(SYM2ID(name)));
+	}
+    }
+    return 1;
 }
 
 static int
 int_decode_any(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
+    VALUE value, tagging;
+    krypt_instream *in, *seq_a, *seq_b, *seq_c;
+    krypt_asn1_object *object = t->object;
+    krypt_asn1_header *header = object->header;
+    int free_header = 0;
+    unsigned char *p;
+    size_t len;
+
+    tagging = krypt_definition_get_tagging(def);
+
+    if (!NIL_P(tagging) && SYM2ID(tagging) == sKrypt_TC_EXPLICIT) {
+	if(!(header = int_unpack_explicit(object, &p, &len))) return 0;
+	free_header = 1;
+    } else {
+	p = object->bytes;
+	len = object->bytes_len;
+    }
+
+    seq_a = krypt_instream_new_bytes(header->tag_bytes, header->tag_len);
+    seq_b = krypt_instream_new_bytes(header->length_bytes, header->length_len);
+    seq_c = krypt_instream_new_bytes(p, len);
+    in = krypt_instream_new_seq_n(3, seq_a, seq_b, seq_c);
+    if (krypt_asn1_decode_stream(in, &value) != 1) goto error;
+
+    krypt_instream_free(in);
+    if (free_header) krypt_asn1_header_free(header);
+    krypt_asn1_template_set_value(t, value);
+    krypt_asn1_template_set_decoded(t, 1);
+    return 1;
+
+error: {
+    VALUE name = krypt_definition_get_name(def);
+    krypt_instream_free(in);
+    krypt_error_add("Error while decoding value %s", rb_id2name(SYM2ID(name)));
+    if (free_header) krypt_asn1_header_free(header);
     return 0;
+       }
 }
 
 static int
