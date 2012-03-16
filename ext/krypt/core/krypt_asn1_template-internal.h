@@ -13,19 +13,19 @@
 #if !defined(_KRYPT_ASN1_TEMPLATE_INTERNAL_H_)
 #define _KRYPT_ASN1_TEMPLATE_INTERNAL_H_
 
-ID sKrypt_ID_OPTIONS, sKrypt_ID_NAME, sKrypt_ID_TYPE,
-   sKrypt_ID_CODEC, sKrypt_ID_LAYOUT, sKrypt_ID_MIN_SIZE;
+extern ID sKrypt_ID_OPTIONS, sKrypt_ID_NAME, sKrypt_ID_TYPE,
+	  sKrypt_ID_CODEC, sKrypt_ID_LAYOUT, sKrypt_ID_MIN_SIZE;
 
-ID sKrypt_ID_DEFAULT,  sKrypt_ID_OPTIONAL, sKrypt_ID_TAG, sKrypt_ID_TAGGING;
+extern ID sKrypt_ID_DEFAULT,  sKrypt_ID_OPTIONAL, sKrypt_ID_TAG, sKrypt_ID_TAGGING;
    
-ID sKrypt_ID_PRIMITIVE, sKrypt_ID_SEQUENCE, sKrypt_ID_SET, sKrypt_ID_TEMPLATE,
-   sKrypt_ID_SEQUENCE_OF, sKrypt_ID_SET_OF, sKrypt_ID_CHOICE, sKrypt_ID_ANY;
+extern ID sKrypt_ID_PRIMITIVE, sKrypt_ID_SEQUENCE, sKrypt_ID_SET, sKrypt_ID_TEMPLATE,
+          sKrypt_ID_SEQUENCE_OF, sKrypt_ID_SET_OF, sKrypt_ID_CHOICE, sKrypt_ID_ANY;
 
-ID sKrypt_IV_VALUE, sKrypt_IV_DEFINITION, sKrypt_IV_OPTIONS;
+extern ID sKrypt_IV_VALUE, sKrypt_IV_TYPE, sKrypt_IV_DEFINITION, sKrypt_IV_OPTIONS;
 
-ID sKrypt_ID_MERGE;
+extern ID sKrypt_ID_MERGE;
 
-VALUE cKryptASN1TemplateValue;
+extern VALUE cKryptASN1TemplateValue;
 
 #define KRYPT_TEMPLATE_PARSED   (1 << 0)
 #define KRYPT_TEMPLATE_DECODED  (1 << 1)
@@ -37,6 +37,7 @@ typedef struct krypt_asn1_template_st {
     VALUE definition;
     VALUE options;
     VALUE value;
+    long matched_layout; /* this information is only used by CHOICEs */
 } krypt_asn1_template;
 
 krypt_asn1_template *krypt_asn1_template_new(krypt_asn1_object *object, VALUE definition, VALUE options);
@@ -70,6 +71,8 @@ do { 									\
 #define krypt_asn1_template_set_object(o, v)		((o)->object = (v))
 #define krypt_asn1_template_get_value(o)		((o)->value)
 #define krypt_asn1_template_set_value(o, v)		((o)->value = (v))
+#define krypt_asn1_template_get_matched_layout(o)	((o)->matched_layout)
+#define krypt_asn1_template_set_matched_layout(o, v)	((o)->matched_layout = (v))
 #define krypt_asn1_template_is_parsed(o)		(((o)->flags & KRYPT_TEMPLATE_PARSED) == KRYPT_TEMPLATE_PARSED)
 #define krypt_asn1_template_is_decoded(o)		(((o)->flags & KRYPT_TEMPLATE_DECODED) == KRYPT_TEMPLATE_DECODED)
 #define krypt_asn1_template_is_modified(o)		(((o)->flags & KRYPT_TEMPLATE_MODIFIED) == KRYPT_TEMPLATE_MODIFIED)
@@ -116,6 +119,7 @@ typedef struct krypt_asn1_definition_st {
     VALUE options;
     VALUE values[8];
     unsigned short value_read[8];
+    long matched_layout; /* this information is only used by CHOICEs */
 } krypt_asn1_definition;
 
 #define KRYPT_DEFINITION_NAME 0
@@ -143,6 +147,8 @@ do {					\
 #define krypt_definition_set_definition(def, d)		((def)->definition = (d))
 #define krypt_definition_get_options(def)		((def)->options)
 #define krypt_definition_set_options(def, o)		((def)->options = (o))
+#define krypt_definition_get_matched_layout(def)	((def)->matched_layout)
+#define krypt_definition_set_matched_layout(def, i)	((def)->matched_layout = (i))
 
 VALUE krypt_definition_get_name(krypt_asn1_definition *def);
 VALUE krypt_definition_get_type(krypt_asn1_definition *def);
