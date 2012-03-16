@@ -1484,24 +1484,23 @@ krypt_asn1_bit_string_get_unused_bits(VALUE self)
 
 /* End ASN1Primitive methods */
 
-static VALUE 
-int_asn1_decode(krypt_instream *in)
+int 
+krypt_asn1_decode_stream(krypt_instream *in, VALUE *out)
 {
     krypt_asn1_header *header;
     VALUE ret;
     int result;
 
     result = krypt_asn1_next_header(in, &header);
-    if (result == 0 || result == -1) {
-	return Qnil;
-    }
+    if (result == 0 || result == -1) return result;
 
     ret = krypt_asn1_data_new(in, header);
     if (NIL_P(ret)) {
 	krypt_asn1_header_free(header);
-	return Qnil;
+	return 0;
     }
-    return ret;
+    *out = ret;
+    return 1;
 }
 
 static VALUE
@@ -1512,16 +1511,17 @@ int_asn1_fallback_decode(krypt_instream *in, krypt_instream *cache)
     size_t la_size;
     krypt_instream *bytes;
     krypt_instream *retry;
+    int result;
 
     la_size = krypt_instream_cache_get_bytes(cache, &lookahead);
     krypt_instream_cache_free_wrapper(cache); /* do not use krypt_instream_free, would free in too */
     bytes = krypt_instream_new_bytes(lookahead, la_size);
     retry = krypt_instream_new_seq(bytes, in); /*chain cached bytes and original stream */
-    ret = int_asn1_decode(retry);
+    result = krypt_asn1_decode_stream(retry, &ret);
     if (lookahead)
 	xfree(lookahead);
     krypt_instream_free(retry);
-    if (NIL_P(ret)) 
+    if (result != 1) 
 	krypt_error_raise(eKryptASN1Error, "Error while DER-decoding value");
     return ret;
 }
@@ -1561,13 +1561,14 @@ krypt_asn1_decode(VALUE self, VALUE obj)
     krypt_instream *cache;
     krypt_instream *pem;
     VALUE ret;
+    int result;
 
     /* Try PEM first, if it fails, try as DER */
     in = krypt_instream_new_value_der(obj);
     cache = krypt_instream_new_cache(in);
     pem = krypt_instream_new_pem(cache);
-    ret = int_asn1_decode(pem);
-    if (NIL_P(ret)) {
+    result = krypt_asn1_decode_stream(pem, &ret);
+    if (result != 1) {
 	krypt_instream_pem_free_wrapper(pem);
 	return int_asn1_fallback_decode(in, cache);
     }
@@ -1592,10 +1593,12 @@ static VALUE
 krypt_asn1_decode_der(VALUE self, VALUE obj)
 {
     VALUE ret;
+    int result;
+
     krypt_instream *in = krypt_instream_new_value_der(obj);
-    ret = int_asn1_decode(in);
+    result = krypt_asn1_decode_stream(in, &ret);
     krypt_instream_free(in);
-    if (NIL_P(ret))
+    if (result != 1)
 	krypt_error_raise(eKryptASN1Error, "Error while DER-decoding value");
     return ret;
 }
@@ -1617,11 +1620,13 @@ static VALUE
 krypt_asn1_decode_pem(VALUE self, VALUE obj)
 {
     VALUE ret;
+    int result;
+    
     krypt_instream *pem;
     pem = krypt_instream_new_pem(krypt_instream_new_value_pem(obj));
-    ret = int_asn1_decode(pem);
+    result = krypt_asn1_decode_stream(pem, &ret);
     krypt_instream_free(pem);
-    if (NIL_P(ret))
+    if (result != 1)
 	krypt_error_raise(eKryptASN1Error, "Error while PEM-decoding value");
     return ret;
 }
