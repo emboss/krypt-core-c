@@ -136,10 +136,14 @@ int_match_ctx_skip_header(struct krypt_asn1_template_match_ctx *ctx)
 {
     krypt_asn1_header *next;
     krypt_instream *in = krypt_instream_new_bytes(ctx->t->object->bytes, ctx->t->object->bytes_len);
-    if (krypt_asn1_next_header(in, &next) != 1)
+    if (krypt_asn1_next_header(in, &next) != 1) {
+	krypt_instream_free(in);
 	return 0;
+    }
     ctx->header = next;
     ctx->free_header = 1;
+    krypt_instream_free(in);
+
     return 1;
 }
 
@@ -224,22 +228,35 @@ int_parse_explicit_header(krypt_asn1_object *object)
 }
 
 static krypt_asn1_header *
-int_unpack_explicit(krypt_asn1_object *object, unsigned char **pp, size_t *len)
+int_unpack_explicit(VALUE tagging, krypt_asn1_object *object, unsigned char **pp, size_t *len, int *free_header)
 {
-    int header_len;
-    krypt_asn1_header *header;
+    
+    if (NIL_P(tagging) || SYM2ID(tagging) != sKrypt_TC_EXPLICIT) {
+	*pp = object->bytes;
+	*len = object->bytes_len;
+	*free_header = 0;
+	return object->header;
+    } else {
+	int header_len;
+	krypt_asn1_header *header;
 
-    if(!(header = int_parse_explicit_header(object))) return NULL;
-    header_len = header->tag_len + header->length_len;
-    *pp = object->bytes + header_len;
-    *len = object->bytes_len - header_len;
-    return header;
+	if (!object->header->is_constructed) {
+	    krypt_error_add("Constructive bit not set for explicitly tagged value");
+	    return NULL;
+	}
+	if(!(header = int_parse_explicit_header(object))) return NULL;
+	header_len = header->tag_len + header->length_len;
+	*pp = object->bytes + header_len;
+	*len = object->bytes_len - header_len;
+	*free_header = 1;
+	return header;
+    }
 }
 
 static int
 int_next_template(krypt_instream *in, krypt_asn1_template **out)
 {
-    krypt_asn1_header *next;
+    krypt_asn1_header *next = NULL;
     krypt_asn1_object *next_object = NULL;
     krypt_asn1_template *ret;
     int result;
@@ -249,30 +266,19 @@ int_next_template(krypt_instream *in, krypt_asn1_template **out)
     result = krypt_asn1_next_header(in, &next);
     if (result == 0) return 0;
 
-    if (result == -1) {
-	krypt_error_add("Error while trying to read next value");
-	return -1;
-    }
-
-    if ((value_len = krypt_asn1_get_value(in, next, &value)) == -1) {
-	krypt_asn1_header_free(next);
-	krypt_error_add("Error while trying to read next value");
-	return -1;
-    }
-    
-    if (!(next_object = krypt_asn1_object_new_value(next, value, value_len))) {
-	krypt_error_add("Error while trying to read next value");
-	krypt_asn1_header_free(next);
-	return -1;
-    }
-    if (!(ret = krypt_asn1_template_new(next_object, Qnil, Qnil))) {
-	krypt_error_add("Error while trying to read next value");
-	krypt_asn1_header_free(next);
-	return -1;
-    }
+    if (result == -1) goto error;
+    if ((value_len = krypt_asn1_get_value(in, next, &value)) == -1) goto error;
+    if (!(next_object = krypt_asn1_object_new_value(next, value, value_len))) goto error;
+    if (!(ret = krypt_asn1_template_new(next_object, Qnil, Qnil))) goto error;
 
     *out = ret;
     return 1;
+
+error:
+    if (next_object) krypt_asn1_object_free(next_object);
+    else if (next) krypt_asn1_header_free(next);
+    krypt_error_add("Error while trying to read next value");
+    return -1;
 }
 
 static int
@@ -427,20 +433,10 @@ int_decode_prim(VALUE tvalue, krypt_asn1_template *t, krypt_asn1_definition *def
     tagging = krypt_definition_get_tagging(def);
     default_tag = NUM2INT(vtype);
 
-    if (!NIL_P(tagging) && SYM2ID(tagging) == sKrypt_TC_EXPLICIT) {
-	if (!header->is_constructed) {
-	    krypt_error_add("Constructive bit not set for explicitly tagged value");
-	    goto error;
-	}
-	if(!(header = int_unpack_explicit(object, &p, &len))) return 0;
-	free_header = 1;
-    } else {
-	if (header->is_constructed) {
-	    krypt_error_add("Constructive bit set");
-	    goto error;
-	}
-	p = object->bytes;
-	len = object->bytes_len;
+    if (!(header = int_unpack_explicit(tagging, object, &p, &len, &free_header))) return 0;
+    if (header->is_constructed) {
+	krypt_error_add("Constructed bit set");
+	goto error;
     }
 
     if (!krypt_asn1_codecs[default_tag].decoder) {
@@ -476,7 +472,7 @@ int_match_cons(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1
 	VALUE tag = krypt_definition_get_tag(def);
 	VALUE tagging = krypt_definition_get_tagging(def);
 	krypt_error_add("Mandatory sequence value not found");
-	return int_tag_and_class_mismatch(ctx->header, tag, tagging, default_tag, "Constructive");
+	return int_tag_and_class_mismatch(ctx->header, tag, tagging, default_tag, "Constructed");
     }
     return -1;
 }
@@ -535,12 +531,10 @@ int_parse_cons(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
     tagging = krypt_definition_get_tagging(def);
     layout_size = RARRAY_LEN(layout);
 
-    if (!NIL_P(tagging) && SYM2ID(tagging) == sKrypt_TC_EXPLICIT) {
-	if(!(header = int_unpack_explicit(object, &p, &len))) return 0;
-	free_header = 1;
-    } else {
-	p = object->bytes;
-	len = object->bytes_len;
+    if(!(header = int_unpack_explicit(tagging, object, &p, &len, &free_header))) return 0;
+    if (!header->is_constructed) {
+	krypt_error_add("Constructed bit not set");
+	return 0;
     }
 
     in = krypt_instream_new_bytes(p, len);
@@ -746,12 +740,10 @@ int_decode_cons_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *de
     name = int_determine_name(krypt_definition_get_name(def));
     tagging = krypt_definition_get_tagging(def);
 
-    if (!NIL_P(tagging) && SYM2ID(tagging) == sKrypt_TC_EXPLICIT) {
-	if (!(header = int_unpack_explicit(object, &p, &len))) return 0;
-	free_header = 1;
-    } else {
-	p = object->bytes;
-	len = object->bytes_len;
+    if (!(header = int_unpack_explicit(tagging, object, &p, &len, &free_header))) return 0;
+    if (!header->is_constructed) {
+	krypt_error_add("Constructed bit not set");
+	return 0;
     }
 
     in = krypt_instream_new_bytes(p, len);
@@ -835,13 +827,7 @@ int_decode_any(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 
     tagging = krypt_definition_get_tagging(def);
 
-    if (!NIL_P(tagging) && SYM2ID(tagging) == sKrypt_TC_EXPLICIT) {
-	if(!(header = int_unpack_explicit(object, &p, &len))) return 0;
-	free_header = 1;
-    } else {
-	p = object->bytes;
-	len = object->bytes_len;
-    }
+    if(!(header = int_unpack_explicit(tagging, object, &p, &len, &free_header))) return 0;
 
     seq_a = krypt_instream_new_bytes(header->tag_bytes, header->tag_len);
     seq_b = krypt_instream_new_bytes(header->length_bytes, header->length_len);
@@ -936,6 +922,35 @@ int_match_choice(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_as
 }
 
 static int
+int_skip_explicit_choice_header(VALUE tagging, krypt_asn1_template *t)
+{
+    krypt_instream *in;
+    krypt_asn1_header *next = NULL;
+    krypt_asn1_object *next_object = NULL;
+    int result;
+    ssize_t value_len;
+    unsigned char *value;
+
+    if (NIL_P(tagging))
+	return 1;
+
+    in = krypt_instream_new_bytes(t->object->bytes, t->object->bytes_len);
+    result = krypt_asn1_next_header(in, &next);
+    if (result != 1) goto error;
+    if ((value_len = krypt_asn1_get_value(in, next, &value)) == -1) goto error;
+    if (!(next_object = krypt_asn1_object_new_value(next, value, value_len))) goto error;
+    krypt_asn1_object_free(t->object);
+    t->object = next_object;
+    return 1;
+
+error:
+    if (next_object) krypt_asn1_object_free(next_object);
+    else if (next) krypt_asn1_header_free(next);
+    krypt_error_add("Error while trying to read next value");
+    return 0;
+}
+
+static int
 int_parse_choice(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
     ID codec;
@@ -948,10 +963,12 @@ int_parse_choice(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
     get_or_raise(layout, krypt_definition_get_layout(def), "'layout' missing in ASN.1 definition");
     if (!(int_enforce_explicit_tagging(def, &tagging))) return 0;
     matched_def = rb_ary_entry(layout, matched_index);
-    matched_opts = NIL_P(tagging) ? krypt_hash_get_options(matched_def) : krypt_definition_get_options(def);
+    matched_opts = krypt_hash_get_options(matched_def);
     krypt_definition_init(&inner_def, matched_def, matched_opts);
     get_or_raise(type, krypt_definition_get_type(&inner_def), "'type' missing in inner choice definition");
     old_def = krypt_asn1_template_get_definition(t);
+
+    if (!int_skip_explicit_choice_header(tagging, t)) return 0;
     
     /* replace the template with the data by a dummy template
        that just contains the choice definition and memorizes
