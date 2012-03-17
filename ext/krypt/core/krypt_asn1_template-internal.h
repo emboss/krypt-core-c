@@ -161,16 +161,6 @@ VALUE krypt_definition_get_default_value(krypt_asn1_definition *def);
 int krypt_definition_is_optional(krypt_asn1_definition *def);
 int krypt_definition_has_default(krypt_asn1_definition *def);
 
-typedef struct krypt_asn1_template_ctx_st {
-    int (*match)(VALUE recv, krypt_asn1_template *t, krypt_asn1_definition *def);
-    int (*parse)(VALUE recv, krypt_asn1_template *t, krypt_asn1_definition *def);
-    int (*decode)(VALUE recv, krypt_asn1_template *t, krypt_asn1_definition *def);
-    VALUE (*get_value)(VALUE recv, ID ivname);
-    VALUE (*set_value)(VALUE recv, ID ivname, VALUE value);
-} krypt_asn1_template_ctx;
-
-krypt_asn1_template_ctx * krypt_asn1_template_get_ctx_for_codec(ID codec);
-
 int krypt_asn1_template_error_add(VALUE definition);
 int krypt_asn1_template_get_parse_decode(VALUE self, ID ivname, VALUE *out);
 int krypt_asn1_template_encode(VALUE templ, VALUE *out);

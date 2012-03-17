@@ -14,79 +14,93 @@
 #include "krypt_asn1-internal.h"
 #include "krypt_asn1_template-internal.h"
 
-static int int_match_prim(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
+struct krypt_asn1_template_match_ctx {
+    krypt_asn1_template *t;
+    krypt_asn1_header *header;
+    int free_header;
+};
+
+struct krypt_asn1_template_parse_ctx {
+    int (*match)(VALUE recv, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def);
+    int (*parse)(VALUE recv, krypt_asn1_template *t, krypt_asn1_definition *def);
+    int (*decode)(VALUE recv, krypt_asn1_template *t, krypt_asn1_definition *def);
+    VALUE (*get_value)(VALUE recv, ID ivname);
+    VALUE (*set_value)(VALUE recv, ID ivname, VALUE value);
+};
+
+static int int_match_prim(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def);
 static int int_parse_assign(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
 static int int_decode_prim(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
 
-static int int_match_sequence(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
-static int int_match_set(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
+static int int_match_sequence(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def);
+static int int_match_set(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def);
 static int int_parse_cons(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
 
-static int int_match_template(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
+static int int_match_template(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def);
 static int int_parse_template(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
 
-static int int_match_seq_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
-static int int_match_set_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
+static int int_match_seq_of(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def);
+static int int_match_set_of(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def);
 static int int_decode_cons_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
 
-static int int_match_any(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
+static int int_match_any(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def);
 static int int_decode_any(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
 
-static int int_match_choice(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
+static int int_match_choice(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def);
 static int int_parse_choice(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def);
 
 static int krypt_asn1_template_parse_stream(krypt_instream *in, VALUE klass, VALUE *out);
 
-static krypt_asn1_template_ctx krypt_template_primitive_ctx= {
+static struct krypt_asn1_template_parse_ctx krypt_template_primitive_ctx= {
     int_match_prim,
     int_parse_assign,
     int_decode_prim
 };
 
-static krypt_asn1_template_ctx krypt_template_sequence_ctx= {
+static struct krypt_asn1_template_parse_ctx krypt_template_sequence_ctx= {
     int_match_sequence,
     int_parse_cons,
     NULL
 };
 
-static krypt_asn1_template_ctx krypt_template_set_ctx= {
+static struct krypt_asn1_template_parse_ctx krypt_template_set_ctx= {
     int_match_set,
     int_parse_cons,
     NULL
 };
 
-static krypt_asn1_template_ctx krypt_template_template_ctx= {
+static struct krypt_asn1_template_parse_ctx krypt_template_template_ctx= {
     int_match_template,
     int_parse_template,
     NULL
 };
 
-static krypt_asn1_template_ctx krypt_template_seq_of_ctx= {
+static struct krypt_asn1_template_parse_ctx krypt_template_seq_of_ctx= {
     int_match_seq_of,
     int_parse_assign,
     int_decode_cons_of
 };
 
-static krypt_asn1_template_ctx krypt_template_set_of_ctx= {
+static struct krypt_asn1_template_parse_ctx krypt_template_set_of_ctx= {
     int_match_set_of,
     int_parse_assign,
     int_decode_cons_of
 };
 
-static krypt_asn1_template_ctx krypt_template_any_ctx= {
+static struct krypt_asn1_template_parse_ctx krypt_template_any_ctx= {
     int_match_any,
     int_parse_assign,
     int_decode_any
 };
 
-static krypt_asn1_template_ctx krypt_template_choice_ctx= {
+static struct krypt_asn1_template_parse_ctx krypt_template_choice_ctx= {
     int_match_choice,
     int_parse_choice,
     NULL
 };
 
-krypt_asn1_template_ctx *
-krypt_asn1_template_get_ctx_for_codec(ID codec) {
+static struct krypt_asn1_template_parse_ctx *
+int_get_parse_ctx_for_codec(ID codec) {
     if (codec == sKrypt_ID_PRIMITIVE)
 	return &krypt_template_primitive_ctx;
     else if (codec == sKrypt_ID_SEQUENCE)
@@ -107,6 +121,33 @@ krypt_asn1_template_get_ctx_for_codec(ID codec) {
 	krypt_error_add("Unknown codec: %s", rb_id2name(codec));
 	return NULL;
     }
+}
+
+static void
+int_match_ctx_init(struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_template *t)
+{
+    ctx->t = t;
+    ctx->header = t->object->header;
+    ctx->free_header = 0;
+}
+
+static int
+int_match_ctx_skip_header(struct krypt_asn1_template_match_ctx *ctx)
+{
+    krypt_asn1_header *next;
+    krypt_instream *in = krypt_instream_new_bytes(ctx->t->object->bytes, ctx->t->object->bytes_len);
+    if (krypt_asn1_next_header(in, &next) != 1)
+	return 0;
+    ctx->header = next;
+    ctx->free_header = 1;
+    return 1;
+}
+
+static void
+int_match_ctx_cleanup(struct krypt_asn1_template_match_ctx *ctx)
+{
+    if (ctx->free_header)
+	xfree(ctx->header);
 }
 
 static int
@@ -267,9 +308,9 @@ int_ensure_stream_is_consumed(krypt_instream *in)
 }
 
 static int
-int_try_match_cons(krypt_asn1_template *t, krypt_asn1_definition *def, int default_tag)
+int_try_match_cons(struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def, int default_tag)
 {
-    krypt_asn1_header *header = t->object->header;
+    krypt_asn1_header *header = ctx->header;
     VALUE tag = krypt_definition_get_tag(def);
     VALUE tagging = krypt_definition_get_tagging(def);
 
@@ -309,9 +350,9 @@ int_set_default_value(VALUE self, krypt_asn1_definition *def)
 }
 
 static int
-int_check_optional_or_default(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def, int default_tag)
+int_check_optional_or_default(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def, int default_tag)
 {
-    krypt_asn1_header *header = t->object->header;
+    krypt_asn1_header *header = ctx->header;
     VALUE tag = krypt_definition_get_tag(def);
     VALUE tagging = krypt_definition_get_tagging(def);
 
@@ -332,10 +373,10 @@ int_check_optional_or_default(VALUE self, krypt_asn1_template *t, krypt_asn1_def
 }
 
 static int
-int_match_prim(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
+int_match_prim(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def)
 {
     VALUE tag, tagging, vdef_tag;
-    krypt_asn1_header *header = t->object->header;
+    krypt_asn1_header *header = ctx->header;
     int default_tag;
 
     get_or_raise(vdef_tag, krypt_definition_get_type(def), "'type is missing in ASN.1 definition");
@@ -345,7 +386,7 @@ int_match_prim(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 
     if (int_match_tag_and_class(header, tag, tagging, default_tag)) return 1;
 
-    return int_check_optional_or_default(self, t, def, default_tag);
+    return int_check_optional_or_default(self, ctx, def, default_tag);
 }
 
 static int
@@ -359,6 +400,7 @@ int_parse_assign(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
     krypt_asn1_template_set(cKryptASN1TemplateValue, obj, t);
     rb_ivar_set(self, name, obj);
     krypt_asn1_template_set_parsed(t, 1);
+    krypt_asn1_template_set_decoded(t, 0);
     return 1;
 }
 
@@ -424,9 +466,9 @@ error: {
 }
 
 static int
-int_match_cons(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def, int default_tag)
+int_match_cons(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def, int default_tag)
 {
-    int match = int_try_match_cons(t, def, default_tag);
+    int match = int_try_match_cons(ctx, def, default_tag);
 
     if (match == 1 || match == 0) return match;
 
@@ -434,21 +476,21 @@ int_match_cons(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def, i
 	VALUE tag = krypt_definition_get_tag(def);
 	VALUE tagging = krypt_definition_get_tagging(def);
 	krypt_error_add("Mandatory sequence value not found");
-	return int_tag_and_class_mismatch(t->object->header, tag, tagging, default_tag, "Constructive");
+	return int_tag_and_class_mismatch(ctx->header, tag, tagging, default_tag, "Constructive");
     }
     return -1;
 }
 
 static int
-int_match_sequence(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
+int_match_sequence(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def)
 {
-    return int_match_cons(self, t, def, TAGS_SEQUENCE);
+    return int_match_cons(self, ctx, def, TAGS_SEQUENCE);
 }
 
 static int
-int_match_set(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
+int_match_set(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def)
 {
-    return int_match_cons(self, t, def, TAGS_SET);
+    return int_match_cons(self, ctx, def, TAGS_SET);
 }
 
 static int
@@ -508,7 +550,8 @@ int_parse_cons(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 	ID codec;
 	int result;
 	krypt_asn1_definition inner_def;
-	krypt_asn1_template_ctx *ctx;
+	struct krypt_asn1_template_parse_ctx *parser;
+	struct krypt_asn1_template_match_ctx ctx;
 	VALUE cur_def = rb_ary_entry(layout, i);
 
 	krypt_error_clear();
@@ -516,11 +559,12 @@ int_parse_cons(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 	krypt_asn1_template_set_options(cur_template, krypt_hash_get_options(cur_def));
 	krypt_definition_init(&inner_def, cur_def, krypt_asn1_template_get_options(cur_template));
 	codec = SYM2ID(krypt_hash_get_codec(cur_def));
-	ctx = krypt_asn1_template_get_ctx_for_codec(codec);
+	parser = int_get_parse_ctx_for_codec(codec);
+	int_match_ctx_init(&ctx, cur_template);
 
-	if ((result = ctx->match(self, cur_template, &inner_def)) != 0) {
+	if ((result = parser->match(self, &ctx, &inner_def)) != 0) {
 	    if (result == 1) {
-		if (!ctx->parse(self, cur_template, &inner_def)) goto error;
+		if (!parser->parse(self, cur_template, &inner_def)) goto error;
 		template_consumed = 1;
 		num_parsed++;
 		if (i < layout_size - 1) {
@@ -567,12 +611,12 @@ error:
 } 
 
 static int
-int_match_template(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
+int_match_template(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def)
 {
     ID codec;
     VALUE type, type_def;
     krypt_asn1_definition new_def;
-    krypt_asn1_template_ctx *ctx;
+    struct krypt_asn1_template_parse_ctx *parser;
     int match;
     
     get_or_raise(type, krypt_definition_get_type(def), "'type' missing in ASN.1 definition");
@@ -582,8 +626,8 @@ int_match_template(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *de
     }
     krypt_definition_init(&new_def, type_def, krypt_definition_get_options(def));
     codec = SYM2ID(krypt_hash_get_codec(type_def));
-    ctx = krypt_asn1_template_get_ctx_for_codec(codec);
-    match = ctx->match(self, t, &new_def);
+    parser = int_get_parse_ctx_for_codec(codec);
+    match = parser->match(self, ctx, &new_def);
     if (match == -1) {
 	if (krypt_definition_has_default(def)) {
 	    if (!int_set_default_value(self, def)) return 0;
@@ -632,24 +676,24 @@ int_parse_template(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *de
 }
 
 static int
-int_match_cons_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def, int default_tag)
+int_match_cons_of(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def, int default_tag)
 {
-    int match = int_try_match_cons(t, def, default_tag);
+    int match = int_try_match_cons(ctx, def, default_tag);
 
     if (match == 1 || match == 0) return match;
-    return int_check_optional_or_default(self, t, def, default_tag);
+    return int_check_optional_or_default(self, ctx, def, default_tag);
 }
 
 static int
-int_match_seq_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
+int_match_seq_of(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def)
 {
-    return int_match_cons_of(self, t, def, TAGS_SEQUENCE);
+    return int_match_cons_of(self, ctx, def, TAGS_SEQUENCE);
 }
 
 static int
-int_match_set_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
+int_match_set_of(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def)
 {
-    return int_match_cons_of(self, t, def, TAGS_SET);
+    return int_match_cons_of(self, ctx, def, TAGS_SET);
 }
 
 static int
@@ -750,7 +794,7 @@ error:
 }
 
 static int
-int_match_any(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
+int_match_any(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def)
 {
     if (krypt_definition_is_optional(def)) {
 	ID name;
@@ -765,7 +809,7 @@ int_match_any(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 	    return 0;
 	}
 	tagging = krypt_definition_get_tagging(def);
-	header = t->object->header;
+	header = ctx->header;
 	pseudo_default = NUM2INT(tag);
 	if (!int_match_tag_and_class(header, tag, tagging, pseudo_default)) {
 	    if (krypt_definition_has_default(def)) {
@@ -821,37 +865,64 @@ error: {
 }
 
 static int
-int_match_choice(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
+int_enforce_explicit_tagging(krypt_asn1_definition *def, VALUE *tagging)
 {
-    VALUE layout;
+    VALUE tc = krypt_definition_get_tagging(def);
+    if (!(NIL_P(tc) || SYM2ID(tc) == sKrypt_TC_EXPLICIT)) {
+        krypt_error_add("Only explicit tagging is allowed for CHOICEs");
+        return 0;
+    }
+    *tagging = tc;
+    return 1;
+}
+
+static int
+int_match_choice(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def)
+{
+    VALUE layout, tagging;
     long i, layout_size, first_any = -1;
+    struct krypt_asn1_template_match_ctx inner_ctx;
     
     get_or_raise(layout, krypt_definition_get_layout(def), "'layout' missing in ASN.1 definition");
+    if (!(int_enforce_explicit_tagging(def, &tagging))) return 0;
+    int_match_ctx_init(&inner_ctx, ctx->t);
+    if (!(NIL_P(tagging) || int_match_ctx_skip_header(&inner_ctx))) /* No match if tagging was explicit but we can't skip the header */
+        return -1; 
+    
     layout_size = RARRAY_LEN(layout);
     for (i=0; i < layout_size; ++i) {
 	ID codec;
 	int result;
 	krypt_asn1_definition inner_def;
-	krypt_asn1_template_ctx *ctx;
+	struct krypt_asn1_template_parse_ctx *parser;
+	VALUE options;
 	VALUE cur_def = rb_ary_entry(layout, i);
 
 	krypt_error_clear();
-	krypt_definition_init(&inner_def, cur_def, krypt_hash_get_options(cur_def));
+        options = krypt_hash_get_options(cur_def);
+	krypt_definition_init(&inner_def, cur_def, options);
 	codec = SYM2ID(krypt_hash_get_codec(cur_def));
-	ctx = krypt_asn1_template_get_ctx_for_codec(codec);
+	parser = int_get_parse_ctx_for_codec(codec);
 	if (codec == sKrypt_ID_ANY && first_any == -1) {
 	    first_any = i;
 	}
-
-	if ((result = ctx->match(self, t, &inner_def)) == 1) {
+	
+	if ((result = parser->match(self, &inner_ctx, &inner_def)) == 1) {
+            int_match_ctx_cleanup(&inner_ctx);
 	    krypt_definition_set_matched_layout(def, i);
 	    return 1;
 	}
 	
-        if (result == -2) return -2;
+        
+        if (result == -2) {
+            int_match_ctx_cleanup(&inner_ctx);
+            return -2;
+        }
 	/* else -> didn't match */
     }
 
+    int_match_ctx_cleanup(&inner_ctx);
+    
     if (first_any != -1) {
         krypt_definition_set_matched_layout(def, first_any); /*the first ANY value matches if no other will */
         return 1;
@@ -868,15 +939,16 @@ static int
 int_parse_choice(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
     ID codec;
-    krypt_asn1_template_ctx *ctx;
-    VALUE layout, matched_def, matched_opts, old_def, type, obj;
+    struct krypt_asn1_template_parse_ctx *parser;
+    VALUE layout, matched_def, matched_opts, old_def, tagging, type, obj;
     krypt_asn1_definition inner_def;
     krypt_asn1_template *choice_template;
     long matched_index = krypt_definition_get_matched_layout(def);
     
     get_or_raise(layout, krypt_definition_get_layout(def), "'layout' missing in ASN.1 definition");
+    if (!(int_enforce_explicit_tagging(def, &tagging))) return 0;
     matched_def = rb_ary_entry(layout, matched_index);
-    matched_opts = krypt_hash_get_options(matched_def);
+    matched_opts = NIL_P(tagging) ? krypt_hash_get_options(matched_def) : krypt_definition_get_options(def);
     krypt_definition_init(&inner_def, matched_def, matched_opts);
     get_or_raise(type, krypt_definition_get_type(&inner_def), "'type' missing in inner choice definition");
     old_def = krypt_asn1_template_get_definition(t);
@@ -889,8 +961,9 @@ int_parse_choice(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
     krypt_asn1_template_set_definition(t, matched_def);
     krypt_asn1_template_set_options(t, matched_opts);
     codec = SYM2ID(krypt_hash_get_codec(matched_def));
-    ctx = krypt_asn1_template_get_ctx_for_codec(codec);
-    if (!ctx->parse(self, t, &inner_def)) return 0;
+    parser = int_get_parse_ctx_for_codec(codec);
+    if (!parser->parse(self, t, &inner_def)) return 0;
+
     obj = rb_ivar_get(self, sKrypt_IV_VALUE);
     choice_template = krypt_asn1_template_new_value(obj);
     krypt_asn1_template_set_definition(choice_template, old_def);
@@ -905,11 +978,13 @@ int_parse_choice(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
  }
 
 static int
-int_do_parse(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def, krypt_asn1_template_ctx *ctx)
+int_do_parse(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def, struct krypt_asn1_template_parse_ctx *parser)
 {
-    if (!ctx->match(self, t, def)) return 0;
+    struct krypt_asn1_template_match_ctx ctx;
+    int_match_ctx_init(&ctx, t);
+    if (!parser->match(self, &ctx, def)) return 0;
     if (!krypt_asn1_template_is_parsed(t))
-        if (!ctx->parse(self, t, def)) return 0;
+        if (!parser->parse(self, t, def)) return 0;
     return 1;
 }
 
@@ -919,13 +994,13 @@ int_parse(VALUE self, krypt_asn1_template *t)
     ID codec;
     VALUE definition;
     krypt_asn1_definition def;
-    krypt_asn1_template_ctx *ctx;
+    struct krypt_asn1_template_parse_ctx *parser;
 
     definition = krypt_asn1_template_get_definition(t);
     krypt_definition_init(&def, definition, krypt_asn1_template_get_options(t));
     codec = SYM2ID(krypt_hash_get_codec(definition));
-    ctx = krypt_asn1_template_get_ctx_for_codec(codec);
-    return int_do_parse(self, t, &def, ctx);
+    parser = int_get_parse_ctx_for_codec(codec);
+    return int_do_parse(self, t, &def, parser);
 }
 
 static int
@@ -934,15 +1009,15 @@ int_parse_decode(VALUE self, krypt_asn1_template *t)
     ID codec;
     VALUE definition;
     krypt_asn1_definition def;
-    krypt_asn1_template_ctx *ctx;
+    struct krypt_asn1_template_parse_ctx *parser;
     
     definition = krypt_asn1_template_get_definition(t);
     krypt_definition_init(&def, definition, krypt_asn1_template_get_options(t));
     codec = SYM2ID(krypt_hash_get_codec(definition));
-    ctx = krypt_asn1_template_get_ctx_for_codec(codec);
-    if (!int_do_parse(self, t, &def, ctx)) return 0;
+    parser = int_get_parse_ctx_for_codec(codec);
+    if (!int_do_parse(self, t, &def, parser)) return 0;
     if (!krypt_asn1_template_is_decoded(t))
-	if (ctx->decode && !ctx->decode(self, t, &def)) return 0;
+	if (parser->decode && !parser->decode(self, t, &def)) return 0;
     return 1;
 }
 
