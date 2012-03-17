@@ -128,16 +128,6 @@ krypt_asn1_template_new_value(VALUE value)
     return ret;
 }
 
-krypt_asn1_template *
-krypt_asn1_template_new_object(krypt_asn1_object *object)
-{
-    krypt_asn1_template *ret;
-
-    ret = krypt_asn1_template_new(object, Qnil, Qnil);
-    ret->object = object;
-    return ret;
-}
-
 void
 krypt_asn1_template_free(krypt_asn1_template *template)
 {
@@ -153,34 +143,6 @@ krypt_asn1_template_mark(krypt_asn1_template *template)
     if (!template) return;
     if (!NIL_P(template->value))
 	rb_gc_mark(template->value);
-}
-
-static void
-int_get_name_codec(VALUE definition, const char **codec, const char **name)
-{
-    VALUE vcodec;
-    VALUE vname;
-
-    vcodec = krypt_hash_get_codec(definition);
-    vname = krypt_hash_get_name(definition);
-    *codec = rb_id2name(SYM2ID(vcodec));
-    if (!NIL_P(vname)) {
-	*name = rb_id2name(SYM2ID(vname));
-	(*name)++; /* skip the leading '@' */
-    } else {
-	*name = "none";
-    }
-}
-
-int
-krypt_asn1_template_error_add(VALUE definition)
-{
-    const char *codec;
-    const char *name;
-
-    int_get_name_codec(definition, &codec, &name);
-    krypt_error_add("Error while processing (%s|%s)", codec, name);
-    return 0;
 }
 
 static VALUE
