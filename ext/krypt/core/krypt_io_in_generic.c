@@ -15,7 +15,6 @@
 typedef struct krypt_instream_io_st {
     krypt_instream_interface *methods;
     VALUE io;
-    VALUE vbuf;
 } krypt_instream_io;
 
 #define int_safe_cast(out, in)		krypt_safe_cast_instream((out), (in), KRYPT_INSTREAM_TYPE_IO_GENERIC, krypt_instream_io)
@@ -44,8 +43,6 @@ krypt_instream_new_io_generic(VALUE io)
 
     in = int_io_alloc();
     in->io = io;
-    in->vbuf = rb_str_new_cstr("");
-    rb_enc_associate(in->vbuf, rb_ascii8bit_encoding());
     return (krypt_instream *) in;
 }
 
@@ -84,7 +81,7 @@ int_io_rb_read_impl(krypt_instream_io *in, VALUE vlen, VALUE vbuf, VALUE *out)
 static ssize_t
 int_io_read(krypt_instream *instream, unsigned char *buf, size_t len)
 {
-    VALUE read, vlen;
+    VALUE read, vlen, vbuf;
     krypt_instream_io *in;
 
     int_safe_cast(in, instream);
@@ -92,7 +89,10 @@ int_io_read(krypt_instream *instream, unsigned char *buf, size_t len)
     if (!buf) return -2;
 
     vlen = LONG2NUM(len);
-    if (!int_io_rb_read_impl(in, vlen, in->vbuf, &read)) {
+    vbuf = rb_str_new2("");
+    rb_enc_associate(vbuf, rb_ascii8bit_encoding());
+
+    if (!int_io_rb_read_impl(in, vlen, vbuf, &read)) {
 	krypt_error_add("Error while reading from IO");
 	return -2;
     }
@@ -157,7 +157,6 @@ int_io_mark(krypt_instream *instream)
     int_safe_cast(in, instream);
 
     rb_gc_mark(in->io);
-    rb_gc_mark(in->vbuf);
 }
 
 static void

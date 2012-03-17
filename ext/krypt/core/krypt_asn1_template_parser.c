@@ -705,7 +705,7 @@ int_decode_cons_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *de
     krypt_asn1_header *header = object->header;
 
     get_or_raise(type, krypt_definition_get_type(def), "'type' missing in ASN.1 definition");
-    get_or_raise(name, krypt_definition_get_name(def), "'name' is missing in primitive ASN.1 definition");
+    name = krypt_definition_get_name(def);
     tagging = krypt_definition_get_tagging(def);
 
     if (!NIL_P(tagging) && SYM2ID(tagging) == sKrypt_TC_EXPLICIT) {
@@ -727,13 +727,19 @@ int_decode_cons_of(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *de
     }
 
     if (RARRAY_LEN(val_ary) == 0 && !krypt_definition_is_optional(def)) {
-	krypt_error_add("Mandatory value %s could not be parsed. Sequence is empty", rb_id2name(SYM2ID(name)));
+	if (!NIL_P(name))
+	    krypt_error_add("Mandatory value %s could not be parsed. Sequence is empty", rb_id2name(SYM2ID(name)));
+	else
+	    krypt_error_add("Mandatory value could not be parsed. Sequence is empty");
 	goto error;
     }
 
     if (header->is_infinite) {
 	if(!int_parse_eoc(in)) {
-	    krypt_error_add("No closing END OF CONTENTS found for %s", rb_id2name(SYM2ID(name)));
+	    if (!NIL_P(name))
+		krypt_error_add("No closing END OF CONTENTS found for %s", rb_id2name(SYM2ID(name)));
+	    else
+		krypt_error_add("No closing END OF CONTENTS found");
 	    goto error;
 	}
     }
@@ -843,7 +849,7 @@ int_match_choice(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 	VALUE cur_def = rb_ary_entry(layout, i);
 
 	krypt_error_clear();
-	krypt_definition_init(&inner_def, cur_def, krypt_asn1_template_get_options(t));
+	krypt_definition_init(&inner_def, cur_def, krypt_hash_get_options(cur_def));
 	codec = SYM2ID(krypt_hash_get_codec(cur_def));
 	ctx = krypt_asn1_template_get_ctx_for_codec(codec);
 	if (codec == sKrypt_ID_ANY && first_any == -1) {
@@ -873,16 +879,16 @@ int_parse_choice(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
 {
     ID codec;
     krypt_asn1_template_ctx *ctx;
-    VALUE layout, matched_def, old_def, type, tag, obj;
+    VALUE layout, matched_def, matched_opts, old_def, type, obj;
     krypt_asn1_definition inner_def;
     krypt_asn1_template *choice_template;
     long matched_index = krypt_definition_get_matched_layout(def);
     
     get_or_raise(layout, krypt_definition_get_layout(def), "'layout' missing in ASN.1 definition");
     matched_def = rb_ary_entry(layout, matched_index);
-    krypt_definition_init(&inner_def, matched_def, krypt_asn1_template_get_options(t));
+    matched_opts = krypt_hash_get_options(matched_def);
+    krypt_definition_init(&inner_def, matched_def, matched_opts);
     get_or_raise(type, krypt_definition_get_type(&inner_def), "'type' missing in inner choice definition");
-    tag = krypt_definition_get_tag(&inner_def);
     old_def = krypt_asn1_template_get_definition(t);
     
     /* replace the template with the data by a dummy template
@@ -891,6 +897,7 @@ int_parse_choice(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
        to the matching one and parse by recursion.  */
     
     krypt_asn1_template_set_definition(t, matched_def);
+    krypt_asn1_template_set_options(t, matched_opts);
     codec = SYM2ID(krypt_hash_get_codec(matched_def));
     ctx = krypt_asn1_template_get_ctx_for_codec(codec);
     if (!ctx->parse(self, t, &inner_def)) return 0;
@@ -901,7 +908,7 @@ int_parse_choice(VALUE self, krypt_asn1_template *t, krypt_asn1_definition *def)
     krypt_asn1_template_set_matched_layout(choice_template, matched_index);
     
     rb_ivar_set(self, sKrypt_IV_TYPE, type);
-    rb_ivar_set(self, sKrypt_IV_TAG, tag);
+    rb_ivar_set(self, sKrypt_IV_TAG, INT2NUM(t->object->header->tag));
     rb_ivar_set(self, sKrypt_IV_VALUE, obj);
     DATA_PTR(self) = choice_template;
     

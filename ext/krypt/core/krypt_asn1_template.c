@@ -221,13 +221,28 @@ krypt_asn1_template_mod_included_callback(VALUE self, VALUE klass)
     return Qnil;
 }
 
+static VALUE
+int_return_choice_attr(VALUE self, ID ivname)
+{
+    VALUE dummy;
+
+    if (!krypt_asn1_template_get_parse_decode(self, sKrypt_IV_VALUE, &dummy)) {
+	krypt_error_raise(eKryptASN1Error, "Could not access %s", rb_id2name(ivname));
+    }
+    return rb_ivar_get(self, ivname);
+}
+
 VALUE
-krypt_asn1_template_get_callback(VALUE self, VALUE ivname)
+krypt_asn1_template_get_callback(VALUE self, VALUE name)
 {
     VALUE ret = Qnil;
-    ID symiv = SYM2ID(ivname);
-    if (!krypt_asn1_template_get_parse_decode(self, symiv, &ret))
-	krypt_error_raise(eKryptASN1Error, "Could not access %s", rb_id2name(symiv));
+    ID ivname = SYM2ID(name);
+
+    if (ivname == sKrypt_IV_TAG || ivname == sKrypt_IV_TYPE)
+	return int_return_choice_attr(self, ivname);
+
+    if (!krypt_asn1_template_get_parse_decode(self, ivname, &ret))
+	krypt_error_raise(eKryptASN1Error, "Could not access %s", rb_id2name(ivname));
     return ret;
 }
 
@@ -239,6 +254,10 @@ krypt_asn1_template_set_callback(VALUE self, VALUE name, VALUE value)
     krypt_asn1_template *template, *value_template;
 
     ivname = SYM2ID(name);
+
+    if (ivname == sKrypt_IV_TAG || ivname == sKrypt_IV_TYPE)
+	return rb_ivar_set(self, ivname, value);
+
     container = rb_ivar_get(self, ivname);
     krypt_asn1_template_get(self, template);
 
