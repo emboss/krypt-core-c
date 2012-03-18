@@ -1780,6 +1780,20 @@ Init_krypt_asn1(void)
      * * +:APPLICATION+
      * * +:PRIVATE+
      *
+     * Additionally the following two may be used:
+     * * +:IMPLICIT+
+     * * +:EXPLICIT+
+     *
+     * where +:IMPLICIT+ is simply a synonym for +:CONTEXT_SPECIFIC+, and
+     * exists mostly for convenience reasons to match real ASN.1 definitions
+     * more closely. +:EXPLICIT+ on the other hand can be thought of as a
+     * hint for encoding an ASN1Data from scratch. Neither +:IMPLICIT+ nor
+     * +:EXPLICIT+ will ever be assigned during parsing. Both translate to
+     * +:CONTEXT_SPECIFIC+ eventually when being encoded. The difference is
+     * that +:EXPLICIT+ will force the corresponding value to be encoded
+     * with explicit tagging, whereas +:IMPLICIT+, you guessed right, enforces
+     * implicit tagging, in the same way that +:CONTEXT_SPECIFIC+ does.
+     *
      * == Tag constants
      *
      * There is a constant defined for each universal tag:
