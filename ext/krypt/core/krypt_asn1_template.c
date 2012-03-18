@@ -312,10 +312,10 @@ Init_krypt_asn1_template(void)
     sKrypt_ID_MERGE = rb_intern("merge");
 
     mKryptASN1Template = rb_define_module_under(mKryptASN1, "Template");
-    rb_define_module_function(mKryptASN1Template, "mod_included_callback", krypt_asn1_template_mod_included_callback, 1);
+    rb_define_module_function(mKryptASN1Template, "_mod_included_callback", krypt_asn1_template_mod_included_callback, 1);
     rb_define_method(mKryptASN1Template, "initialize", krypt_asn1_template_initialize, 0);
-    rb_define_method(mKryptASN1Template, "get_callback", krypt_asn1_template_get_callback, 1);
-    rb_define_method(mKryptASN1Template, "set_callback", krypt_asn1_template_set_callback, 2);
+    rb_define_method(mKryptASN1Template, "_get_callback", krypt_asn1_template_get_callback, 1);
+    rb_define_method(mKryptASN1Template, "_set_callback", krypt_asn1_template_set_callback, 2);
     rb_define_method(mKryptASN1Template, "to_der", krypt_asn1_template_to_der, 0);
     rb_define_method(mKryptASN1Template, "<=>", krypt_asn1_template_cmp, 1);
 
