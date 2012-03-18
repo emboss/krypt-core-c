@@ -95,6 +95,8 @@ krypt_instream *krypt_asn1_get_value_stream(krypt_instream *in, krypt_asn1_heade
 int krypt_asn1_header_encode(krypt_outstream *out, krypt_asn1_header *header);
 int krypt_asn1_object_encode(krypt_outstream *out, krypt_asn1_object *object);
 
+int krypt_asn1_cmp_set_of(unsigned char *s1, size_t len1, unsigned char *s2, size_t len2, int *result);
+
 #endif /* _KRYPT_ASN1_INTERNAL_H_ */
 
 

@@ -306,6 +306,65 @@ krypt_asn1_object_free(krypt_asn1_object *object)
     xfree(object);
 }
 
+int
+krypt_asn1_cmp_set_of(unsigned char *s1, size_t len1, 
+	              unsigned char *s2, size_t len2, int *result)
+{
+    size_t min, i;
+    krypt_asn1_header *h1 = NULL, *h2 = NULL;
+    krypt_instream *in1, *in2;
+
+    in1 = krypt_instream_new_bytes(s1, len1);
+    in2 = krypt_instream_new_bytes(s2, len2);
+    if (krypt_asn1_next_header(in1, &h1) != 1) goto error;
+    if (krypt_asn1_next_header(in2, &h2) != 1) goto error;
+
+    if (h1->tag == TAGS_END_OF_CONTENTS && h1->tag_class == TAG_CLASS_UNIVERSAL) {
+	*result = 1;
+	goto cleanup;
+    }
+    if (h2->tag == TAGS_END_OF_CONTENTS && h2->tag_class == TAG_CLASS_UNIVERSAL) {
+	*result = -1;
+	goto cleanup;
+    }
+    if (h1->tag < h2->tag) {
+	*result = -1;
+	goto cleanup;
+    }
+    if (h1->tag > h2->tag) {
+	*result = 1;
+	goto cleanup;
+    }
+
+    min = len1 < len2 ? len1 : len2;
+
+    for (i=0; i<min; ++i) {
+	if (s1[i] != s2[i]) {
+	    *result = s1[i] < s2[i] ? -1 : 1;
+	    goto cleanup;
+	}
+    }
+
+    if (len1 == len2) 
+	*result = 0;
+    else
+    	*result = len1 < len2 ? -1 : 1;
+
+cleanup:
+    krypt_instream_free(in1);
+    krypt_instream_free(in2);
+    krypt_asn1_header_free(h1);
+    krypt_asn1_header_free(h2);
+    return 1;
+error:
+    krypt_instream_free(in1);
+    krypt_instream_free(in2);
+    if (h1) krypt_asn1_header_free(h1);
+    if (h2) krypt_asn1_header_free(h2);
+    krypt_error_add("Error while comparing values");
+    return 0;
+}
+
 static int
 int_parse_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out)
 {
@@ -316,7 +375,6 @@ int_parse_tag(unsigned char b, krypt_instream *in, krypt_asn1_header *out)
 	return 1;
     }
 }
-
 
 static void
 int_parse_primitive_tag(unsigned char b, krypt_asn1_header *out)

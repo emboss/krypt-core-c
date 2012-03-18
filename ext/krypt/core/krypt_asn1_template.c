@@ -237,6 +237,23 @@ krypt_asn1_template_set_callback(VALUE self, VALUE name, VALUE value)
     return value;
 }
 
+VALUE
+krypt_asn1_template_cmp(VALUE self, VALUE other)
+{
+    VALUE vs1, vs2;
+    int result;
+
+    vs1 = krypt_asn1_template_to_der(self);
+    if (!rb_respond_to(other, sKrypt_ID_TO_DER)) return Qnil;
+    vs2 = krypt_to_der(other);
+
+    if (!krypt_asn1_cmp_set_of((unsigned char *) RSTRING_PTR(vs1), (size_t) RSTRING_LEN(vs1),
+		                         (unsigned char *) RSTRING_PTR(vs2), (size_t) RSTRING_LEN(vs2), &result)) {
+	krypt_error_raise(eKryptASN1Error, "Error while comparing values");
+    }
+    return INT2NUM(result);
+}
+
 /*
  * call-seq:
  *    asn1.to_der -> DER-/BER-encoded String
@@ -300,6 +317,7 @@ Init_krypt_asn1_template(void)
     rb_define_method(mKryptASN1Template, "get_callback", krypt_asn1_template_get_callback, 1);
     rb_define_method(mKryptASN1Template, "set_callback", krypt_asn1_template_set_callback, 2);
     rb_define_method(mKryptASN1Template, "to_der", krypt_asn1_template_to_der, 0);
+    rb_define_method(mKryptASN1Template, "<=>", krypt_asn1_template_cmp, 1);
 
     cKryptASN1TemplateValue = rb_define_class_under(mKryptASN1Template, "Value", rb_cObject);
     rb_define_method(cKryptASN1TemplateValue, "to_s", krypt_asn1_template_value_to_s, 0);

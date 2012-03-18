@@ -1033,29 +1033,6 @@ krypt_asn1_data_to_der(VALUE self)
 	return int_asn1_data_to_der_non_cached(data, self);
 }
 
-static VALUE
-int_asn1_data_cmp_set_of(VALUE a, VALUE b)
-{
-    long len1, len2, min, i;
-    unsigned char *s1, *s2;
-
-
-    len1 = RSTRING_LEN(a);
-    len2 = RSTRING_LEN(b);
-    s1 = (unsigned char *) RSTRING_PTR(a);
-    s2 = (unsigned char *) RSTRING_PTR(b);
-
-    min = len1 < len2 ? len1 : len2;
-
-    for (i=0; i<min; ++i) {
-	if (s1[i] != s2[i])
-	    return s1[i] < s2[i] ? INT2NUM(-1) : INT2NUM(1);
-    }
-
-    if (len1 == len2) return INT2NUM(0);
-    return len1 < len2 ? INT2NUM(-1) : INT2NUM(1);
-}
-
 /*
  * call-seq:
  *    a <=> b -> -1 | 0 | +1 
@@ -1100,26 +1077,20 @@ int_asn1_data_cmp_set_of(VALUE a, VALUE b)
  *   [ "\x04\x01b", "\x04\x04aaab", "\x04\x06aaabaa", "\x04\x06aaabba" ] 
  */
 static VALUE
-krypt_asn1_data_cmp(VALUE a, VALUE b, VALUE args)
+krypt_asn1_data_cmp(VALUE a, VALUE b)
 {
-    krypt_asn1_data *a_data, *b_data;
-    krypt_asn1_header *h1, *h2;
+    VALUE vs1, vs2;
+    int result;
 
-    int_asn1_data_get(a, a_data);
-    int_asn1_data_get(b, b_data);
-    h1 = a_data->object->header;
-    h2 = b_data->object->header;
+    vs1 = krypt_asn1_data_to_der(a);
+    if (!rb_respond_to(b, sKrypt_ID_TO_DER)) return Qnil;
+    vs2 = krypt_to_der(b);
 
-    if (h1->tag == TAGS_END_OF_CONTENTS && h1->tag_class == TAG_CLASS_UNIVERSAL)
-	return INT2NUM(1);
-    if (h2->tag == TAGS_END_OF_CONTENTS && h2->tag_class == TAG_CLASS_UNIVERSAL)
-	return INT2NUM(-1);
-    if (h1->tag < h2->tag)
-	return INT2NUM(-1);
-    if (h1->tag > h2->tag)
-	return INT2NUM(1);
-
-    return int_asn1_data_cmp_set_of(krypt_asn1_data_to_der(a), krypt_asn1_data_to_der(b));
+    if(!krypt_asn1_cmp_set_of((unsigned char *) RSTRING_PTR(vs1), (size_t) RSTRING_LEN(vs1),
+	                      (unsigned char *) RSTRING_PTR(vs2), (size_t) RSTRING_LEN(vs2), &result)) {
+	krypt_error_raise(eKryptASN1Error, "Error while comparing values");
+    }
+    return INT2NUM(result);
 }
 /* End ASN1Data methods */
 
