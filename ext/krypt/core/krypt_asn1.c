@@ -1033,24 +1033,6 @@ krypt_asn1_data_to_der(VALUE self)
 	return int_asn1_data_to_der_non_cached(data, self);
 }
 
-/*
- * call-seq:
- *    a == b -> true | false 
- *
- * Equality of two ASN1Data is determined by equality of their DER encoding.
- */
-static VALUE
-krypt_asn1_data_equals(VALUE self, VALUE other)
-{
-    VALUE der1, der2;
-
-    if (!rb_obj_is_kind_of(other, cKryptASN1Data)) return Qfalse;
-
-    der1 = krypt_asn1_data_to_der(self);
-    der2 = krypt_asn1_data_to_der(other);
-    return rb_funcall(der1, sKrypt_ID_EQUALS, 1, der2);
-}
-
 static VALUE
 int_asn1_data_cmp_set_of(VALUE a, VALUE b)
 {
@@ -1078,11 +1060,13 @@ int_asn1_data_cmp_set_of(VALUE a, VALUE b)
  * call-seq:
  *    a <=> b -> -1 | 0 | +1 
  *
- * Compares two instances of ASN1Data by comparing the bytes of their encoding.
- * The order applied is SET order, i.e. a < b iff tag of a < tag of b. If tags
- * are equal, SET OF order is applied, a lexicographical byte order. Element
- * order is decided based on the first byte where two elements differ, the
- * lower byte indicates the lower element.
+ * ASN1Data includes the Comparable module.
+ *
+ * +<=>+ compares two instances of ASN1Data by comparing the bytes of their
+ * encoding. The order applied is SET order, i.e. a < b iff tag of a < tag
+ * of b. If tags are equal, SET OF order is applied, a lexicographical byte
+ * order. Element order is decided based on the first byte where two elements
+ * differ, the lower byte indicates the lower element.
  *
  * If two elements differ in length, but are equal up to the last byte of the
  * smaller element, the smaller element is the lower one.
@@ -1965,6 +1949,7 @@ Init_krypt_asn1(void)
      *   puts int2.value # => 1
      */
     cKryptASN1Data = rb_define_class_under(mKryptASN1, "ASN1Data", rb_cObject);
+    rb_include_module(cKryptASN1Data, rb_mComparable);
     rb_define_alloc_func(cKryptASN1Data, krypt_asn1_data_alloc);
     rb_define_method(cKryptASN1Data, "initialize", krypt_asn1_data_initialize, 3);
     rb_define_method(cKryptASN1Data, "tag", krypt_asn1_data_get_tag, 0);
@@ -1977,7 +1962,6 @@ Init_krypt_asn1(void)
     rb_define_method(cKryptASN1Data, "value=", krypt_asn1_data_set_value, 1);
     rb_define_method(cKryptASN1Data, "to_der", krypt_asn1_data_to_der, 0);
     rb_define_method(cKryptASN1Data, "encode_to", krypt_asn1_data_encode_to, 1);
-    rb_define_method(cKryptASN1Data, "==", krypt_asn1_data_equals, 1);
     rb_define_method(cKryptASN1Data, "<=>", krypt_asn1_data_cmp, 1);
 
     /* Document-class: Krypt::ASN1::Primitive
