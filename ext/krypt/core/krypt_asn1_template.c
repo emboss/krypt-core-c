@@ -99,7 +99,6 @@ krypt_asn1_template_new(krypt_asn1_object *object, VALUE definition, VALUE optio
     ret->options = options;
     ret->value = Qnil;
     ret->flags = 0;
-    ret->matched_layout = 0;
     return ret;
 }
 
@@ -188,7 +187,7 @@ int_return_choice_attr(VALUE self, ID ivname)
 {
     VALUE dummy;
 
-    if (!krypt_asn1_template_get_parse_decode(self, sKrypt_IV_VALUE, &dummy)) {
+    if (!krypt_asn1_template_get_cb_value(self, sKrypt_IV_VALUE, &dummy)) {
 	krypt_error_raise(eKryptASN1Error, "Could not access %s", rb_id2name(ivname));
     }
     return rb_ivar_get(self, ivname);
@@ -203,7 +202,7 @@ krypt_asn1_template_get_callback(VALUE self, VALUE name)
     if (ivname == sKrypt_IV_TAG || ivname == sKrypt_IV_TYPE)
 	return int_return_choice_attr(self, ivname);
 
-    if (!krypt_asn1_template_get_parse_decode(self, ivname, &ret))
+    if (!krypt_asn1_template_get_cb_value(self, ivname, &ret))
 	krypt_error_raise(eKryptASN1Error, "Could not access %s", rb_id2name(ivname));
     return ret;
 }
@@ -211,29 +210,12 @@ krypt_asn1_template_get_callback(VALUE self, VALUE name)
 VALUE
 krypt_asn1_template_set_callback(VALUE self, VALUE name, VALUE value)
 {
-    ID ivname;
-    VALUE container;
-    krypt_asn1_template *template, *value_template;
-
-    ivname = SYM2ID(name);
+    ID ivname = SYM2ID(name);
 
     if (ivname == sKrypt_IV_TAG || ivname == sKrypt_IV_TYPE)
 	return rb_ivar_set(self, ivname, value);
 
-    container = rb_ivar_get(self, ivname);
-    krypt_asn1_template_get(self, template);
-
-    if (NIL_P(container)) {
-	VALUE obj;
-	value_template = krypt_asn1_template_new_value(value);
-	krypt_asn1_template_set(cKryptASN1TemplateValue, obj, value_template);
-	rb_ivar_set(self, ivname, obj); 
-    } else {
-	krypt_asn1_template_get(container, value_template);
-    }
-
-    krypt_asn1_template_set_modified(template, 1);
-    krypt_asn1_template_set_value(value_template, value);
+    krypt_asn1_template_set_cb_value(self, ivname, value);
     return value;
 }
 

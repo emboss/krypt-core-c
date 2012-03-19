@@ -27,9 +27,9 @@ extern ID sKrypt_ID_MERGE;
 
 extern VALUE cKryptASN1TemplateValue;
 
-#define KRYPT_TEMPLATE_PARSED   (1 << 0)
-#define KRYPT_TEMPLATE_DECODED  (1 << 1)
-#define KRYPT_TEMPLATE_MODIFIED (1 << 2)
+#define KRYPT_TEMPLATE_PARSED    (1 << 0)
+#define KRYPT_TEMPLATE_DECODED   (1 << 1)
+#define KRYPT_TEMPLATE_MODIFIED  (1 << 2)
 
 typedef struct krypt_asn1_template_st {
     int flags;
@@ -37,7 +37,6 @@ typedef struct krypt_asn1_template_st {
     VALUE definition;
     VALUE options;
     VALUE value;
-    long matched_layout; /* this information is only used by CHOICEs */
 } krypt_asn1_template;
 
 krypt_asn1_template *krypt_asn1_template_new(krypt_asn1_object *object, VALUE definition, VALUE options);
@@ -71,8 +70,6 @@ do { 									\
 #define krypt_asn1_template_set_object(o, v)		((o)->object = (v))
 #define krypt_asn1_template_get_value(o)		((o)->value)
 #define krypt_asn1_template_set_value(o, v)		((o)->value = (v))
-#define krypt_asn1_template_get_matched_layout(o)	((o)->matched_layout)
-#define krypt_asn1_template_set_matched_layout(o, v)	((o)->matched_layout = (v))
 #define krypt_asn1_template_is_parsed(o)		(((o)->flags & KRYPT_TEMPLATE_PARSED) == KRYPT_TEMPLATE_PARSED)
 #define krypt_asn1_template_is_decoded(o)		(((o)->flags & KRYPT_TEMPLATE_DECODED) == KRYPT_TEMPLATE_DECODED)
 #define krypt_asn1_template_is_modified(o)		(((o)->flags & KRYPT_TEMPLATE_MODIFIED) == KRYPT_TEMPLATE_MODIFIED)
@@ -162,7 +159,8 @@ int krypt_definition_is_optional(krypt_asn1_definition *def);
 int krypt_definition_has_default(krypt_asn1_definition *def);
 
 int krypt_asn1_template_error_add(VALUE definition);
-int krypt_asn1_template_get_parse_decode(VALUE self, ID ivname, VALUE *out);
+int krypt_asn1_template_get_cb_value(VALUE self, ID ivname, VALUE *out);
+void krypt_asn1_template_set_cb_value(VALUE self, ID ivname, VALUE value);
 int krypt_asn1_template_encode(VALUE templ, VALUE *out);
 
 void Init_krypt_asn1_template_parser(void);

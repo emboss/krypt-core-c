@@ -45,11 +45,15 @@ krypt_asn1_template_encode(VALUE self, VALUE *out)
 {
     krypt_asn1_template *template;
     krypt_asn1_object *object;
+    int has_cached_encoding;
 
     krypt_asn1_template_get(self, template);
     object = template->object;
 
-    if (object && object->bytes && object->header->tag_bytes && object->header->length_bytes)
+    has_cached_encoding = object && (object->bytes || object->bytes_len == 0)
+                                 && object->header->tag_bytes && object->header->length_bytes;
+    
+    if (has_cached_encoding)
 	return int_template_encode_cached(object, out);
     else
 	return int_template_encode_non_cached(self, template, out);
