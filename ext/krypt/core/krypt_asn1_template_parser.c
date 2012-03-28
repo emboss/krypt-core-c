@@ -624,7 +624,7 @@ int_parse_template(VALUE self, krypt_asn1_object *object, krypt_asn1_definition 
 {
     ID name;
     VALUE container, instance;
-    VALUE type, type_def;
+    VALUE type, type_def, options;
     krypt_asn1_template *container_template, *value_template;
 
     get_or_raise(type, krypt_definition_get_type(def), "'type' missing in ASN.1 definition");
@@ -634,10 +634,13 @@ int_parse_template(VALUE self, krypt_asn1_object *object, krypt_asn1_definition 
 	return 0;
     }
 
-    value_template = krypt_asn1_template_new(object, type_def, krypt_definition_get_options(def));
+    options = krypt_definition_get_options(def);
+    value_template = krypt_asn1_template_new(object, type_def, options);
     krypt_asn1_template_set(type, instance, value_template);
 
     container_template = krypt_asn1_template_new_value(instance);
+    krypt_asn1_template_set_definition(container_template, krypt_definition_get_definition(def));
+    krypt_asn1_template_set_options(container_template, options);
     krypt_asn1_template_set(cKryptASN1TemplateValue, container, container_template);
 
     rb_ivar_set(self, name, container);
@@ -759,16 +762,13 @@ static int
 int_match_any(VALUE self, struct krypt_asn1_template_match_ctx *ctx, krypt_asn1_definition *def)
 {
     if (krypt_definition_is_optional(def)) {
-	ID name;
 	VALUE tagging;
 	krypt_asn1_header *header;
 	int pseudo_default;
 	VALUE tag = krypt_definition_get_tag(def);
 
-	name = int_determine_name(krypt_definition_get_name(def));
 	if (NIL_P(tag)) {
-	    krypt_error_add("Cannot unambiguously assign ANY value %s", rb_id2name(name));
-	    return 0;
+	    return 1;
 	}
 	tagging = krypt_definition_get_tagging(def);
 	header = ctx->header;
@@ -981,6 +981,7 @@ int_template_parse(VALUE self, krypt_asn1_template *t)
 
     if (!parser->parse(self, t->object, &def, &dont_free)) return 0;
     krypt_asn1_template_set_parsed(t, 1);
+    krypt_asn1_template_set_decoded(t, 1);
 
     /* Invalidate the cached template encoding */
     /* If dont_free is 0 this means that the encoding bytes were copied and
@@ -1017,7 +1018,7 @@ int_get_inner_value(VALUE self, ID ivname, VALUE *out)
     krypt_asn1_template *template;
 
     krypt_asn1_template_get(self, template);
-
+    printf(rb_id2name(ivname));
     if (!(krypt_asn1_template_is_parsed(template))) {
 	if (!int_template_parse(self, template)) return 0;
     }
@@ -1144,5 +1145,6 @@ Init_krypt_asn1_template_parser(void)
 {
     VALUE mParser = rb_define_module_under(mKryptASN1Template, "Parser");
     rb_define_method(mParser, "parse_der", krypt_asn1_template_parse_der, 1);
+    rb_define_alias(mParser, "decode_der", "parse_der");
 }
 

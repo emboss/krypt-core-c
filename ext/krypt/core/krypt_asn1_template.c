@@ -175,6 +175,70 @@ krypt_asn1_template_alloc(VALUE klass)
     return Data_Wrap_Struct(klass, krypt_asn1_template_mark, krypt_asn1_template_free, 0);
 }
 
+/* traverse_cb muss auf template arbeiten.
+ * Dann immer die Werte in Paaren abarbeiten - Container plus Value */
+
+static VALUE
+int_traverse_template(VALUE vt, 
+		      VALUE name, 
+		      void (*traverse_cb) (VALUE, VALUE, void *), 
+		      void *args)
+{
+    ID codec;
+    VALUE vcodec, definition;
+    krypt_asn1_template *t;
+
+    traverse_cb(vt, name, args);
+
+    if (NIL_P(vt)) {
+	/* base case 1 */
+	return Qnil;
+    }
+
+    krypt_asn1_template_get(vt, t);
+
+    definition = krypt_asn1_template_get_definition(t);
+    if (NIL_P(definition)) {
+	/* base case 2 */
+	return Qnil;
+    }
+
+    get_or_raise(vcodec, krypt_hash_get_codec(definition), "No codec found in definition");
+    codec = SYM2ID(vcodec);
+    if (codec == sKrypt_ID_PRIMITIVE) {
+	/* base case 3 */
+	return Qnil;
+    }
+    if (codec == sKrypt_ID_ANY ||
+	codec == sKrypt_ID_CHOICE ||
+	codec == sKrypt_ID_SET_OF ||
+	codec == sKrypt_ID_SEQUENCE_OF) {
+	VALUE name = krypt_hash_get_name(definition);
+	VALUE value = rb_ivar_get(vt, sKrypt_IV_VALUE);
+	return int_traverse_template(value, name, traverse_cb, args);
+    }
+    if (codec == sKrypt_ID_SET || codec == sKrypt_ID_SEQUENCE) {
+	long i;
+	VALUE dummy = Qnil;
+	VALUE layout = krypt_hash_get_layout(definition);
+	for (i=0; i < RARRAY_LEN(layout); ++i) {
+	    VALUE name, value;
+	    VALUE cur_def = rb_ary_entry(layout, i);
+
+	    get_or_raise(name, krypt_hash_get_name(cur_def), "SEQ/SET value without name found");
+	    value = rb_ivar_get(vt, SYM2ID(name));
+	    dummy = int_traverse_template(value, name, traverse_cb, args);
+	}
+	return dummy;
+    }
+    if (codec == sKrypt_ID_TEMPLATE) {
+	return int_traverse_template(t->value, name, traverse_cb, args);
+    }
+
+    rb_raise(eKryptASN1Error, "Unknown codec encountered: %s", rb_id2name(codec));
+    return Qnil;
+}
+
 static VALUE
 krypt_asn1_template_mod_included_callback(VALUE self, VALUE klass)
 {
@@ -234,6 +298,64 @@ krypt_asn1_template_cmp(VALUE self, VALUE other)
 	krypt_error_raise(eKryptASN1Error, "Error while comparing values");
     }
     return INT2NUM(result);
+}
+
+static void
+int_inspect_i(VALUE template_value, VALUE name, void *args)
+{
+    krypt_asn1_template *t;
+    krypt_asn1_object *object;
+    VALUE definition, codec, str;
+    ID puts = rb_intern("puts");
+    ID to_s = rb_intern("to_s");
+    VALUE yes = rb_str_new2("y"), no = rb_str_new2("n");
+
+    str = rb_str_new2("Name: ");
+    rb_str_append(str, rb_funcall(name, to_s, 0));
+    if (NIL_P(template_value)) {
+	rb_str_append(str, rb_str_new2(" @value"));
+	rb_funcall(rb_mKernel, puts, 1, str);
+	return;
+    }
+
+    krypt_asn1_template_get(template_value, t);
+
+    definition = krypt_asn1_template_get_definition(t);
+    codec = NIL_P(definition) ? rb_str_new2("") : krypt_hash_get_codec(definition);
+
+    rb_str_append(str, rb_str_new2(" Codec: "));
+    rb_str_append(str, rb_funcall(codec, to_s, 0));
+    rb_str_append(str, rb_str_new2(" Parsed: "));
+    rb_str_append(str, krypt_asn1_template_is_parsed(t) ? yes : no);
+    rb_str_append(str, rb_str_new2(" Decoded: "));
+    rb_str_append(str, krypt_asn1_template_is_decoded(t) ? yes : no);
+    rb_str_append(str, rb_str_new2(" Modified: "));
+    rb_str_append(str, krypt_asn1_template_is_modified(t) ? yes : no);
+    rb_str_append(str, rb_str_new2(" Object: "));
+    object = krypt_asn1_template_get_object(t);
+    rb_str_append(str, object ? yes : no);
+    rb_str_append(str, rb_str_new2(" Bytes: "));
+    rb_str_append(str, (object && object->bytes) ? yes : no);
+    rb_funcall(rb_mKernel, puts, 1, str);
+
+    str = rb_str_new2("Value: ");
+    rb_str_append(str, rb_funcall(krypt_asn1_template_get_value(t), to_s, 0));
+    rb_funcall(rb_mKernel, puts, 1, str);
+
+    str = rb_str_new2("Definition: ");
+    rb_str_append(str, rb_funcall(krypt_asn1_template_get_definition(t), to_s, 0));
+    rb_funcall(rb_mKernel, puts, 1, str);
+
+    str = rb_str_new2("Options: ");
+    rb_str_append(str, rb_funcall(krypt_asn1_template_get_options(t), to_s, 0));
+    rb_funcall(rb_mKernel, puts, 1, str);
+}
+
+static VALUE
+krypt_asn1_template_inspect(VALUE self)
+{
+    VALUE name = rb_str_new2("ROOT");
+    return int_traverse_template(self, name, int_inspect_i, NULL);
 }
 
 /*
@@ -300,6 +422,7 @@ Init_krypt_asn1_template(void)
     rb_define_method(mKryptASN1Template, "_set_callback", krypt_asn1_template_set_callback, 2);
     rb_define_method(mKryptASN1Template, "to_der", krypt_asn1_template_to_der, 0);
     rb_define_method(mKryptASN1Template, "<=>", krypt_asn1_template_cmp, 1);
+    rb_define_method(mKryptASN1Template, "__inspect__", krypt_asn1_template_inspect, 0);
 
     cKryptASN1TemplateValue = rb_define_class_under(mKryptASN1Template, "Value", rb_cObject);
     rb_define_method(cKryptASN1TemplateValue, "to_s", krypt_asn1_template_value_to_s, 0);
