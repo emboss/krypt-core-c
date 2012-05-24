@@ -1018,7 +1018,6 @@ int_get_inner_value(VALUE self, ID ivname, VALUE *out)
     krypt_asn1_template *template;
 
     krypt_asn1_template_get(self, template);
-    printf(rb_id2name(ivname));
     if (!(krypt_asn1_template_is_parsed(template))) {
 	if (!int_template_parse(self, template)) return 0;
     }
