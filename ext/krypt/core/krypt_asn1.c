@@ -11,6 +11,7 @@
 */
 
 #include "krypt-core.h"
+#include "krypt_asn1-shared.h"
 #include "krypt_asn1-internal.h"
 
 VALUE mKryptASN1;
@@ -41,7 +42,8 @@ VALUE cKryptASN1Sequence, cKryptASN1Set;
 ID sKrypt_TC_UNIVERSAL, sKrypt_TC_APPLICATION, sKrypt_TC_CONTEXT_SPECIFIC, sKrypt_TC_PRIVATE;
 ID sKrypt_TC_EXPLICIT, sKrypt_TC_IMPLICIT;
 
-ID sKrypt_IV_TAG, sKrypt_IV_TAG_CLASS, sKrypt_IV_INF_LEN, sKrypt_IV_VALUE, sKrypt_IV_UNUSED_BITS;
+ID sKrypt_IV_TAG, sKrypt_IV_TAG_CLASS, sKrypt_IV_INF_LEN, sKrypt_IV_UNUSED_BITS;
+ID sKrypt_IV_VALUE;
 
 typedef struct krypt_asn1_info_st {
     const char *name;
@@ -1662,8 +1664,9 @@ Init_krypt_asn1(void)
     sKrypt_IV_TAG = rb_intern("@tag");
     sKrypt_IV_TAG_CLASS = rb_intern("@tag_class");
     sKrypt_IV_INF_LEN = rb_intern("@infinite_length");
-    sKrypt_IV_VALUE = rb_intern("@value");
     sKrypt_IV_UNUSED_BITS = rb_intern("@unused_bits");
+
+    sKrypt_IV_VALUE = rb_intern("@value");
 
     /*
      * Document-module: Krypt::ASN1

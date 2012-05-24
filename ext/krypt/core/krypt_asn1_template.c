@@ -11,6 +11,7 @@
 */
 
 #include "krypt-core.h"
+#include "krypt_asn1-shared.h"
 #include "krypt_asn1-internal.h"
 #include "krypt_asn1_template-internal.h"
 
@@ -22,7 +23,7 @@ ID sKrypt_ID_DEFAULT,  sKrypt_ID_OPTIONAL, sKrypt_ID_TAG, sKrypt_ID_TAGGING;
 ID sKrypt_ID_PRIMITIVE, sKrypt_ID_SEQUENCE, sKrypt_ID_SET, sKrypt_ID_TEMPLATE,
    sKrypt_ID_SEQUENCE_OF, sKrypt_ID_SET_OF, sKrypt_ID_CHOICE, sKrypt_ID_ANY;
 
-ID sKrypt_IV_VALUE, sKrypt_IV_TYPE, sKrypt_IV_DEFINITION, sKrypt_IV_OPTIONS;
+ID sKrypt_IV_TYPE, sKrypt_IV_DEFINITION, sKrypt_IV_OPTIONS;
 
 ID sKrypt_ID_MERGE;
 
@@ -408,7 +409,6 @@ Init_krypt_asn1_template(void)
     sKrypt_ID_CHOICE = rb_intern("CHOICE");
     sKrypt_ID_ANY = rb_intern("ANY");
     
-    sKrypt_IV_VALUE = rb_intern("@value");
     sKrypt_IV_TYPE = rb_intern("@type");
     sKrypt_IV_DEFINITION = rb_intern("@definition");
     sKrypt_IV_OPTIONS = rb_intern("@options");
