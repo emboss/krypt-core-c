@@ -132,9 +132,7 @@ krypt_base64_buffer_encode_to(krypt_outstream *out, unsigned char *bytes, size_t
 	if (!int_write_update_cols(out, bytes, off, len - remainder, cols)) return 0;
     }
 
-    if (remainder) {
-	if (!int_write_final(out, bytes + len - remainder, remainder, cols > 0)) return 0;
-    }
+    if (!int_write_final(out, bytes + len - remainder, remainder, cols > 0)) return 0;
     return 1;
 }
 

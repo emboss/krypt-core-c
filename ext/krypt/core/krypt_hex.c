@@ -206,8 +206,10 @@ int_hex_get_io_adapter(VALUE self, VALUE(*init_func)(VALUE))
 {
     krypt_io_adapter *adapter;
     VALUE io_adapter = rb_ivar_get(self, sKrypt_IV_IO_ADAPTER);
-    if (NIL_P(io_adapter))
-	io_adapter = init_func(self);
+    if (NIL_P(io_adapter)) {
+	if (NIL_P(io_adapter = init_func(self)))
+	    krypt_error_raise(eKryptHexError, "Initialization failed");
+    }
     krypt_io_adapter_get(io_adapter, adapter);
     return adapter;
 }
@@ -346,6 +348,7 @@ krypt_hex_decoder_write(VALUE self, VALUE string)
     int off = 0, prefix = 0;
 
     adapter = int_hex_get_write_io_adaper((self));
+    StringValue(string);
     len = (size_t) RSTRING_LEN((string));
     bytes = (unsigned char *) RSTRING_PTR((string));
     int_hex_preprocess_decode(adapter, bytes, off, len, prefix);
@@ -427,6 +430,7 @@ krypt_hex_encoder_write(VALUE self, VALUE string)
     size_t len;
 
     adapter = int_hex_get_write_io_adaper(self);
+    StringValue(string);
     len = (size_t) RSTRING_LEN((string));
     bytes = (unsigned char *) RSTRING_PTR((string));
     int_hex_process(bytes, len, KRYPT_HEX_ENCODE, data);
