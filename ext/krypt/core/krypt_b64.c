@@ -12,6 +12,11 @@
 
 #include "krypt-core.h"
 
+VALUE mKryptBase64;
+VALUE cKryptBase64Encoder;
+VALUE cKryptBase64Decoder;
+VALUE eKryptBase64Error;
+
 static const char krypt_b64_table[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 static const char krypt_b64_table_inv[] = {
 -1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,-1,
@@ -25,26 +30,35 @@ static unsigned char krypt_b64_separator[] = { '\r', '\n' };
 static unsigned char krypt_b64_out_buf[4];
 static unsigned char krypt_b64_in_buf[3];
 
+#define KRYPT_BASE64_INV_MAX 123
+#define KRYPT_BASE64_DECODE 0
+#define KRYPT_BASE64_ENCODE 1
 
 #define int_compute_int(res, b, i)					\
 do {									\
     (res) = ((b)[(i)] << 16) | ((b)[(i)+1] << 8) | ((b)[(i)+2]);	\
 } while(0)
 
-static int
-int_write_int(krypt_outstream *out, int n)
+static inline void
+int_encode_int(int n)
 {
     krypt_b64_out_buf[0] = krypt_b64_table[(n >> 18) & 0x3f];
     krypt_b64_out_buf[1] = krypt_b64_table[(n >> 12) & 0x3f];
-    krypt_b64_out_buf[2] = krypt_b64_table[(n >> 16) & 0x3f];
+    krypt_b64_out_buf[2] = krypt_b64_table[(n >> 6) & 0x3f];
     krypt_b64_out_buf[3] = krypt_b64_table[n & 0x3f];
+}
+
+static int
+int_write_int(krypt_outstream *out, int n)
+{
+    int_encode_int(n);
     if (krypt_outstream_write(out, krypt_b64_out_buf, 4) < 0)
 	return 0;
     return 1;
 }
 
 static int
-int_encode_update(krypt_outstream *out, unsigned char *bytes, size_t off, size_t len)
+int_write_update(krypt_outstream *out, unsigned char *bytes, size_t off, size_t len)
 {
     size_t i;
     int n;
@@ -58,7 +72,7 @@ int_encode_update(krypt_outstream *out, unsigned char *bytes, size_t off, size_t
 }
 
 static int
-int_encode_update_cols(krypt_outstream *out, unsigned char *bytes, size_t off, size_t len, int cols)
+int_write_update_cols(krypt_outstream *out, unsigned char *bytes, size_t off, size_t len, int cols)
 {
     size_t i;
     int n, linepos = 0;
@@ -77,18 +91,23 @@ int_encode_update_cols(krypt_outstream *out, unsigned char *bytes, size_t off, s
     return 1;
 }
 
-static int
-int_encode_final(krypt_outstream *out, unsigned char *bytes, size_t off, size_t len, int remainder, int crlf)
+static inline void
+int_encode_final(unsigned char *bytes, int remainder)
 {
-    off = off + len - remainder;
+    int n;
+    
+    n = (bytes[0] << 16) | (remainder == 2 ? bytes[1] << 8 : 0);
+    krypt_b64_out_buf[0] = krypt_b64_table[(n >> 18) & 0x3f];
+    krypt_b64_out_buf[1] = krypt_b64_table[(n >> 12) & 0x3f];
+    krypt_b64_out_buf[2] = remainder == 2 ? krypt_b64_table[(n >> 6) & 0x3f] : '=';
+    krypt_b64_out_buf[3] = '=';
+}
+
+static int
+int_write_final(krypt_outstream *out, unsigned char *bytes, int remainder, int crlf)
+{
     if (remainder) {
-	int n;
-	
-	n = (bytes[off] << 16) | (remainder == 2 ? bytes[off + 1] << 8 : 0);
-	krypt_b64_out_buf[0] = krypt_b64_table[(n >> 18) & 0x3f];
-	krypt_b64_out_buf[1] = krypt_b64_table[(n >> 12) & 0x3f];
-	krypt_b64_out_buf[2] = remainder == 2 ? krypt_b64_table[(n >> 6) & 0x3f] : '=';
-	krypt_b64_out_buf[3] = '=';
+	int_encode_final(bytes, remainder);
 	if (krypt_outstream_write(out, krypt_b64_out_buf, 4) < 0)
 	    return 0;
     }
@@ -108,12 +127,14 @@ krypt_base64_buffer_encode_to(krypt_outstream *out, unsigned char *bytes, size_t
 
     remainder = len % 3;
     if (cols < 0) {
-	if (!int_encode_update(out, bytes, off, len - remainder)) return 0;
+	if (!int_write_update(out, bytes, off, len - remainder)) return 0;
     } else {
-	if (!int_encode_update_cols(out, bytes, off, len - remainder, cols)) return 0;
+	if (!int_write_update_cols(out, bytes, off, len - remainder, cols)) return 0;
     }
 
-    if (!int_encode_final(out, bytes, off, len, remainder, cols > 0)) return 0;
+    if (remainder) {
+	if (!int_write_final(out, bytes + len - remainder, remainder, cols > 0)) return 0;
+    }
     return 1;
 }
 
@@ -130,7 +151,7 @@ krypt_base64_encode(unsigned char *bytes, size_t len, int cols, unsigned char **
     }
 
     /* this is the maximum value, no exactness needed, we'll resize anyway */
-    retlen = 4.0 * (len / 3 + 1); 
+    retlen = 4 * (len / 3 + 1); 
 
     /* Add the number of new line characters */
     if (cols > 0) {
@@ -150,31 +171,37 @@ krypt_base64_encode(unsigned char *bytes, size_t len, int cols, unsigned char **
     if (retlen > SSIZE_MAX) {
 	krypt_error_add("Return value too large");
 	xfree(*out);
+	*out = NULL;
        	return -1;
     }
     return (ssize_t) retlen;
 }
 
-static int
-int_decode_int(krypt_outstream *out, int n)
+static inline void
+int_decode_int(int n)
 {
     krypt_b64_in_buf[0] = (n >> 16) & 0xff;
     krypt_b64_in_buf[1] = (n >> 8) & 0xff;
     krypt_b64_in_buf[2] = n & 0xff;
+}
+
+static int
+int_read_int(krypt_outstream *out, int n)
+{
+    int_decode_int(n);
     if (krypt_outstream_write(out, krypt_b64_in_buf, 3) < 0)
 	return 0;
     return 1;
 }
 
-static int
-int_decode_final_int(krypt_outstream *out, int n, int remainder)
+static inline void
+int_decode_final(int n, int remainder)
 {
     switch (remainder) {
 	/* 2 of 4 bytes are to be discarded. 
 	 * 2 bytes represent 12 bits of meaningful data -> 1 byte plus 4 bits to be dropped */ 
 	case 2:
 	    krypt_b64_in_buf[0] = (n >> 4) & 0xff;
-	    if (krypt_outstream_write(out, krypt_b64_in_buf, 1) < 0) return 0;
 	    break;
 	/* 1 of 4 bytes are to be discarded.
 	 * 3 bytes represent 18 bits of meaningful data -> 2 bytes plus 2 bits to be dropped */
@@ -182,8 +209,16 @@ int_decode_final_int(krypt_outstream *out, int n, int remainder)
 	    n >>= 2;
 	    krypt_b64_in_buf[0] = (n >> 8) & 0xff;
 	    krypt_b64_in_buf[1] = n & 0xff;
-	    if (krypt_outstream_write(out, krypt_b64_in_buf, 2) < 0) return 0;
 	    break;
+    }
+}
+
+static int
+int_read_final(krypt_outstream *out, int n, int remainder)
+{
+    int_decode_final(n, remainder);
+    if (remainder > 1) {
+	if (krypt_outstream_write(out, krypt_b64_in_buf, remainder - 1) < 0) return 0;
     }
     return 1;
 }
@@ -205,7 +240,7 @@ krypt_base64_buffer_decode_to(krypt_outstream *out, unsigned char *bytes, size_t
 	unsigned char b = bytes[off + i];
 	if (b == '=')
 	   break;
-	if (b >= 123)
+	if (b > KRYPT_BASE64_INV_MAX)
 	   continue;
 	inv = krypt_b64_table_inv[b];
 	if (inv < 0)
@@ -213,11 +248,11 @@ krypt_base64_buffer_decode_to(krypt_outstream *out, unsigned char *bytes, size_t
 	n = (n << 6) | inv;
 	remainder = (remainder + 1) % 4;
 	if (remainder == 0) {
-	    if (!int_decode_int(out, n)) return 0;
+	    if (!int_read_int(out, n)) return 0;
 	}
     }
 
-    if (!int_decode_final_int(out, n, remainder)) return 0;
+    if (remainder && !int_read_final(out, n, remainder)) return 0;
     return 1;
 }
 	
@@ -240,8 +275,199 @@ krypt_base64_decode(unsigned char *bytes, size_t len, unsigned char **out)
     retlen = krypt_outstream_bytes_get_bytes_free(outstream, out);
     if (retlen > SSIZE_MAX) {
 	xfree(*out);
+	*out = NULL;
        	return -1;
     }
     return retlen;
+}
+
+/* Krypt::Base64 */
+
+/**
+ * call-seq:
+ *    Krypt::Base64.decode(data) -> String
+ *
+ * Decodes a Base64-encoded string of +data+, which need not necessarily be
+ * a String, but must allow a conversion with to_str.
+ */
+static VALUE
+krypt_base64_module_decode(VALUE self, VALUE data)
+{
+    VALUE ret;
+    size_t len;
+    ssize_t result_len;
+    unsigned char *bytes;
+    unsigned char *result = NULL;
+
+    StringValue(data);
+    len = (size_t) RSTRING_LEN(data);
+    bytes = (unsigned char *) RSTRING_PTR(data);
+
+    result_len = krypt_base64_decode(bytes, len, &result);
+
+    if (result_len == -1)
+	krypt_error_raise(eKryptBase64Error, "Processing the value failed.");
+
+    ret = rb_str_new((const char *) result, result_len);
+    xfree(result);
+    return ret;
+}
+
+/**
+ * call-seq:
+ *    Krypt::Base64.encode(data, [cols=nil]) -> String
+ *
+ * Encodes a String, or an object allowing conversion with to_str, in Base64
+ * encoding. The optional +cols+ is an Integer parameter that may be used to
+ * specify the line length of the resulting Base64 string. As the result is
+ * being constructed in chunks of 4 characters at a time, a value of +cols+
+ * that is not a multiple of 4 will result in line feeds after the next higher
+ * multiple of 4 - for example, if +cols+ is specified as 22, then the result
+ * will have line feeds after every 24 characters of output.
+ */
+static VALUE
+krypt_base64_module_encode(int argc, VALUE *argv, VALUE self)
+{
+    VALUE data;
+    VALUE cols = Qnil;
+    VALUE ret;
+    int c;
+    size_t len;
+    ssize_t result_len;
+    unsigned char *bytes;
+    unsigned char *result = NULL;
+
+    rb_scan_args(argc, argv, "11", &data, &cols);
+
+    if (NIL_P(data))
+	rb_raise(eKryptBase64Error, "Data must not be nil");
+    if (NIL_P(cols))
+	c = -1;
+    else
+	c = NUM2INT(cols);
+
+    StringValue(data);
+    len = (size_t) RSTRING_LEN(data);
+    bytes = (unsigned char *) RSTRING_PTR(data);
+
+    result_len = krypt_base64_encode(bytes, len, c, &result);
+
+    if (result_len == -1)
+	krypt_error_raise(eKryptBase64Error, "Processing the value failed.");
+
+    ret = rb_str_new((const char *) result, result_len);
+    xfree(result);
+    return ret;
+}
+
+/* End Krypt::Base64 */
+
+/* Krypt::Base64::Decoder */
+
+static VALUE
+krypt_base64_decoder_initialize(VALUE self, VALUE io)
+{
+    return self; /* TODO */
+}
+
+/**
+ * call-seq:
+ *    in.read([len=nil], [buf=nil]) -> String or nil
+ *
+ * Please see IO#read for details.
+ */
+static VALUE
+krypt_base64_decoder_read(int argc, VALUE *argv, VALUE self)
+{
+    return Qnil; /* TODO */
+}
+
+/**
+ * call-seq:
+ *    out.write(string) -> Integer
+ *
+ * Please see IO#write for details.
+ */
+static VALUE
+krypt_base64_decoder_write(VALUE self, VALUE string)
+{
+    return Qnil; /* TODO */
+}
+
+static VALUE
+krypt_base64_decoder_close(VALUE self)
+{
+    return Qnil; /* TODO */
+}
+
+/* End Krypt::Base64::Decoder */
+
+/* Krypt::Base64::Encoder */
+
+static VALUE
+krypt_base64_encoder_initialize(VALUE self, VALUE io)
+{
+    return self; /* TODO */
+}
+
+/**
+ * call-seq:
+ *    in.read([len=nil], [buf=nil]) -> String or nil
+ *
+ * Please see IO#read for details.
+ */
+static VALUE
+krypt_base64_encoder_read(int argc, VALUE *argv, VALUE self)
+{
+    return Qnil; /* TODO */
+}
+
+/**
+ * call-seq:
+ *    out.write(string) -> Integer
+ *
+ * Please see IO#write for details.
+ */
+static VALUE
+krypt_base64_encoder_write(VALUE self, VALUE string)
+{
+    return Qnil; /* TODO */
+}
+
+static VALUE
+krypt_base64_encoder_close(VALUE self)
+{
+    return Qnil; /* TODO */
+}
+
+/* End Krypt::Base64IO */
+
+void
+Init_krypt_base64(void)
+{
+#if 0
+    mKrypt = rb_define_module("Krypt"); /* Let RDoc know */
+#endif
+
+    mKryptBase64 = rb_define_module_under(mKrypt, "Base64");
+
+    eKryptBase64Error = rb_define_class_under(mKryptBase64, "Base64Error", eKryptError);
+
+    rb_define_module_function(mKryptBase64, "decode", krypt_base64_module_decode, 1);
+    rb_define_module_function(mKryptBase64, "encode", krypt_base64_module_encode, -1);
+
+    cKryptBase64Decoder = rb_define_class_under(mKryptBase64, "Decoder", rb_cObject);
+    rb_define_method(cKryptBase64Decoder, "close", krypt_base64_decoder_close, 0);
+    rb_define_method(cKryptBase64Decoder, "initialize", krypt_base64_decoder_initialize, 1);
+    rb_define_method(cKryptBase64Decoder, "read", krypt_base64_decoder_read, -1);
+    rb_define_method(cKryptBase64Decoder, "write", krypt_base64_decoder_write, 1);
+    rb_define_alias(cKryptBase64Decoder, "<<", "write");
+
+    cKryptBase64Encoder = rb_define_class_under(mKryptBase64, "Encoder", rb_cObject);
+    rb_define_method(cKryptBase64Encoder, "close", krypt_base64_encoder_close, 0);
+    rb_define_method(cKryptBase64Encoder, "initialize", krypt_base64_encoder_initialize, 1);
+    rb_define_method(cKryptBase64Encoder, "read", krypt_base64_encoder_read, -1);
+    rb_define_method(cKryptBase64Encoder, "write", krypt_base64_encoder_write, 1);
+    rb_define_alias(cKryptBase64Encoder, "<<", "write");
 }
 

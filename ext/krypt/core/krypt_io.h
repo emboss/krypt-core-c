@@ -14,8 +14,12 @@
 #define _KRYPT_IO_H_
 
 #include "krypt_io_buffer.h"
+#include "krypt_hex.h"
+#include "krypt_b64.h"
 
-extern ID sKrypt_ID_READ, sKrypt_ID_SEEK, sKrypt_ID_WRITE;
+extern ID sKrypt_ID_READ, sKrypt_ID_SEEK, sKrypt_ID_WRITE, sKrypt_ID_CLOSE;
+extern ID sKrypt_IV_IO, sKrypt_IV_IO_ADAPTER;
+
 extern VALUE sKrypt_ID_SEEK_CUR, sKrypt_ID_SEEK_SET, sKrypt_ID_SEEK_END;
 
 #define KRYPT_IO_BUF_SIZE 8192
@@ -81,6 +85,36 @@ struct krypt_outstream_interface_st {
 #define krypt_safe_cast_outstream(out, in, type, ptrtype)	krypt_safe_cast_stream((out), (in), (type), ptrtype, krypt_outstream)
 #define krypt_safe_cast_instream(out, in, type, ptrtype)	krypt_safe_cast_stream((out), (in), (type), ptrtype, krypt_instream)
 
+typedef struct krypt_io_adapter_st {
+    krypt_instream *in;
+    krypt_outstream *out;
+    unsigned char *buf;
+    size_t offset;
+} krypt_io_adapter;
+
+#define krypt_io_adapter_set(klass, obj, adapter) 		\
+do { 							    	\
+    if (!(adapter)) { 					    	\
+	rb_raise(eKryptError, "Uninitialized Adapter"); 	\
+    } 								\
+    (obj) = Data_Wrap_Struct((klass), krypt_io_adapter_mark, krypt_io_adapter_free, (adapter)); \
+} while (0)
+
+#define krypt_io_adapter_get(obj, adapter) 			\
+do { 								\
+    Data_Get_Struct((obj), krypt_io_adapter, (adapter));  	\
+    if (!(adapter)) { 						\
+	rb_raise(eKryptError, "Uninitialized Adapter");		\
+    } 								\
+} while (0)
+
+void krypt_io_adapter_mark(krypt_io_adapter *adapter);
+void krypt_io_adapter_free(krypt_io_adapter *adapter);
+VALUE krypt_io_adapter_new_instream(krypt_instream *in);
+VALUE krypt_io_adapter_new_outstream(krypt_outstream *out);
+VALUE krypt_io_adapter_new_instream_with_buffer(krypt_instream *in, size_t bufsize);
+VALUE krypt_io_adapter_new_outstream_with_buffer(krypt_outstream *out, size_t bufsize);
+
 void krypt_add_io_error(void);
 void krypt_instream_rb_size_buffer(VALUE *str, size_t len);
 
@@ -96,6 +130,7 @@ krypt_instream *krypt_instream_new_fd(int fd);
 krypt_instream *krypt_instream_new_fd_io(VALUE io);
 krypt_instream *krypt_instream_new_bytes(unsigned char *bytes, size_t len);
 krypt_instream *krypt_instream_new_io_generic(VALUE io);
+krypt_instream *krypt_instream_new_value(VALUE value);
 krypt_instream *krypt_instream_new_value_der(VALUE value);
 krypt_instream *krypt_instream_new_value_pem(VALUE value);
 krypt_instream *krypt_instream_new_chunked(krypt_instream *in, int values_only);

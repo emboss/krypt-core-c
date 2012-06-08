@@ -8,39 +8,31 @@ require 'openssl'
 require 'base64'
 require 'benchmark'
 
-def s(string)
-  Krypt::ASN1::OctetString.new(string)
-end
+data = "test"
+enc = Krypt::Hex.encode(data)
+puts enc
+puts Krypt::Hex.decode(enc)
 
-def i(int)
-  Krypt::ASN1::Integer.new(int)
-end
+io = StringIO.new
+hex = Krypt::Hex::Encoder.new(io)
+hex << "t"
+hex << "e"
+hex << "s"
+hex << "t"
+hex.close
 
-def eoc
-  Krypt::ASN1::EndOfContents.new
-end
+result = io.string
+puts result
+puts result == enc
 
-puts "-PAUSE: Attach debugger-"
-gets
+io = StringIO.new("74657374")
+hex = Krypt::Hex::Decoder.new(io)
+res = ""
+res << hex.read(1)
+res << hex.read(1)
+res << hex.read(1)
+res << hex.read(1)
 
-B = Class.new do
-  include Krypt::ASN1::Template::Sequence
-  asn1_integer :a
-end
-
-C = Class.new do
-  include Krypt::ASN1::Template::Sequence
-  asn1_boolean :a
-end
-
-A = Class.new do
-  include Krypt::ASN1::Template::Choice 
-  asn1_template B, tag: 0, tagging: :IMPLICIT
-  asn1_template C, tag: 1, tagging: :EXPLICIT
-end
-
-der = "\xA1\x05\x30\x03\x01\x01\xFF"
-asn1 = A.parse_der der
-p asn1.value
-p asn1.value.a
-
+puts res
+p hex.read(1)
+hex.close

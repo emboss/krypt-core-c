@@ -12,6 +12,83 @@
 
 #include "krypt-core.h"
 
+void
+krypt_io_adapter_mark(krypt_io_adapter *adapter)
+{
+    if (!adapter) return;
+
+    if (adapter->in)
+	krypt_instream_mark(adapter->in);
+    if (adapter->out)
+	krypt_outstream_mark(adapter->out);
+}
+
+void
+krypt_io_adapter_free(krypt_io_adapter *adapter)
+{
+    if (!adapter) return;
+
+    if (adapter->in)
+	krypt_instream_free(adapter->in);
+    if (adapter->out)
+	krypt_outstream_free(adapter->out);
+    if (adapter->buf)
+	xfree(adapter->buf);
+    xfree(adapter);
+}
+
+static krypt_io_adapter *
+krypt_io_adapter_alloc()
+{
+    krypt_io_adapter *adapter;
+
+    adapter = ALLOC(krypt_io_adapter);
+    memset(adapter, 0, sizeof(krypt_io_adapter));
+    return adapter;
+}
+
+VALUE
+krypt_io_adapter_new_instream(krypt_instream *in)
+{
+    VALUE obj;
+    krypt_io_adapter *adapter = krypt_io_adapter_alloc();
+    adapter->in = in;
+    krypt_io_adapter_set(cKryptASN1Instream, obj, adapter);
+    return obj;
+}
+
+VALUE
+krypt_io_adapter_new_outstream(krypt_outstream *out)
+{
+    VALUE obj;
+    krypt_io_adapter *adapter = krypt_io_adapter_alloc();
+    adapter->out = out;
+    krypt_io_adapter_set(cKryptASN1Instream, obj, adapter);
+    return obj;
+}
+
+VALUE
+krypt_io_adapter_new_instream_with_buffer(krypt_instream *in, size_t bufsize)
+{
+    VALUE obj;
+    krypt_io_adapter *adapter = krypt_io_adapter_alloc();
+    adapter->in = in;
+    adapter->buf = ALLOC_N(unsigned char, bufsize);
+    krypt_io_adapter_set(cKryptASN1Instream, obj, adapter);
+    return obj;
+}
+
+VALUE
+krypt_io_adapter_new_outstream_with_buffer(krypt_outstream *out, size_t bufsize)
+{
+    VALUE obj;
+    krypt_io_adapter *adapter = krypt_io_adapter_alloc();
+    adapter->out = out;
+    adapter->buf = ALLOC_N(unsigned char, bufsize);
+    krypt_io_adapter_set(cKryptASN1Instream, obj, adapter);
+    return obj;
+}
+
 #define int_check_stream(io) 		if (!(io) || !(io)->methods) \
 						    rb_raise(eKryptASN1ParseError, "Stream not initialized properly")
 
@@ -19,7 +96,8 @@
 						    rb_raise(eKryptASN1ParseError, "Stream not initialized properly")
 
 VALUE sKrypt_ID_SEEK_CUR, sKrypt_ID_SEEK_SET, sKrypt_ID_SEEK_END;
-ID sKrypt_ID_READ, sKrypt_ID_SEEK, sKrypt_ID_WRITE;
+ID sKrypt_ID_READ, sKrypt_ID_SEEK, sKrypt_ID_WRITE, sKrypt_ID_CLOSE;
+ID sKrypt_IV_IO, sKrypt_IV_IO_ADAPTER;
 
 void
 krypt_add_io_error(void)
@@ -223,6 +301,12 @@ int_instream_common_new(VALUE value)
 }
 
 krypt_instream *
+krypt_instream_new_value(VALUE value)
+{
+    return int_instream_common_new(value);
+}
+
+krypt_instream *
 krypt_instream_new_value_der(VALUE value)
 {
     krypt_instream *in;
@@ -324,6 +408,10 @@ Init_krypt_io(void)
     sKrypt_ID_SEEK = rb_intern("seek");
     sKrypt_ID_READ = rb_intern("read");
     sKrypt_ID_WRITE = rb_intern("write");
+    sKrypt_ID_CLOSE = rb_intern("close");
+
+    sKrypt_IV_IO = rb_intern("@io");
+    sKrypt_IV_IO_ADAPTER = rb_intern("@io_adapter");
 }
 
 void
@@ -332,5 +420,8 @@ InitVM_krypt_io(void)
     sKrypt_ID_SEEK_CUR = rb_const_get(rb_cIO, rb_intern("SEEK_CUR"));
     sKrypt_ID_SEEK_SET = rb_const_get(rb_cIO, rb_intern("SEEK_SET"));
     sKrypt_ID_SEEK_END = rb_const_get(rb_cIO, rb_intern("SEEK_END"));
+
+    Init_krypt_base64();
+    Init_krypt_hex();
 }
 
