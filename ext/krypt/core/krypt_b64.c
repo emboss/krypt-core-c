@@ -281,49 +281,6 @@ krypt_base64_decode(unsigned char *bytes, size_t len, unsigned char **out)
 
 /* Krypt::Base64 */
 
-static inline krypt_io_adapter *
-int_base64_get_io_adapter(VALUE self, VALUE(*init_func)(VALUE))
-{
-    krypt_io_adapter *adapter;
-    VALUE io_adapter = rb_ivar_get(self, sKrypt_IV_IO_ADAPTER);
-    if (NIL_P(io_adapter))
-	io_adapter = init_func(self);
-    krypt_io_adapter_get(io_adapter, adapter);
-    return adapter;
-}
-
-static VALUE int_base64_init_read_adapter(VALUE self)
-{
-    VALUE io = rb_ivar_get(self, sKrypt_IV_IO);
-    krypt_instream *in;
-    VALUE adapter;
-   
-    if (!(in = krypt_instream_new_value(io)))
-	return Qnil;
-    if (NIL_P(adapter = krypt_io_adapter_new_instream_with_buffer(in, 4)))
-	return Qnil;
-    rb_ivar_set(self, sKrypt_IV_IO_ADAPTER, adapter);
-    return adapter;
-}
-
-static VALUE
-int_base64_init_write_adapter(VALUE self)
-{
-    VALUE io = rb_ivar_get(self, sKrypt_IV_IO);
-    krypt_outstream *in;
-    VALUE adapter;
-   
-    if (!(in = krypt_outstream_new_value(io)))
-	return Qnil;
-    if (NIL_P(adapter = krypt_io_adapter_new_outstream_with_buffer(in, 4)))
-	return Qnil;
-    rb_ivar_set(self, sKrypt_IV_IO_ADAPTER, adapter);
-    return adapter;
-}
-
-#define int_base64_get_read_io_adaper(self)	int_base64_get_io_adapter((self), int_base64_init_read_adapter)
-#define int_base64_get_write_io_adaper(self)	int_base64_get_io_adapter((self), int_base64_init_write_adapter)
-
 /**
  * call-seq:
  *    Krypt::Base64.decode(data) -> String
@@ -403,88 +360,6 @@ krypt_base64_module_encode(int argc, VALUE *argv, VALUE self)
 
 /* End Krypt::Base64 */
 
-/* Krypt::Base64::Decoder */
-
-static VALUE
-krypt_base64_decoder_initialize(VALUE self, VALUE io)
-{
-    rb_ivar_set(self, sKrypt_IV_IO, io);
-    return self;
-}
-
-/**
- * call-seq:
- *    in.read([len=nil], [buf=nil]) -> String or nil
- *
- * Please see IO#read for details.
- */
-static VALUE
-krypt_base64_decoder_read(int argc, VALUE *argv, VALUE self)
-{
-    return Qnil; /* TODO */
-}
-
-/**
- * call-seq:
- *    out.write(string) -> Integer
- *
- * Please see IO#write for details.
- */
-static VALUE
-krypt_base64_decoder_write(VALUE self, VALUE string)
-{
-    return Qnil; /* TODO */
-}
-
-static VALUE
-krypt_base64_decoder_close(VALUE self)
-{
-    return Qnil; /* TODO */
-}
-
-/* End Krypt::Base64::Decoder */
-
-/* Krypt::Base64::Encoder */
-
-static VALUE
-krypt_base64_encoder_initialize(VALUE self, VALUE io)
-{
-    rb_ivar_set(self, sKrypt_IV_IO, io);
-    return self;
-}
-
-/**
- * call-seq:
- *    in.read([len=nil], [buf=nil]) -> String or nil
- *
- * Please see IO#read for details.
- */
-static VALUE
-krypt_base64_encoder_read(int argc, VALUE *argv, VALUE self)
-{
-    return Qnil; /* TODO */
-}
-
-/**
- * call-seq:
- *    out.write(string) -> Integer
- *
- * Please see IO#write for details.
- */
-static VALUE
-krypt_base64_encoder_write(VALUE self, VALUE string)
-{
-    return Qnil; /* TODO */
-}
-
-static VALUE
-krypt_base64_encoder_close(VALUE self)
-{
-    return Qnil; /* TODO */
-}
-
-/* End Krypt::Base64IO */
-
 void
 Init_krypt_base64(void)
 {
@@ -498,19 +373,5 @@ Init_krypt_base64(void)
 
     rb_define_module_function(mKryptBase64, "decode", krypt_base64_module_decode, 1);
     rb_define_module_function(mKryptBase64, "encode", krypt_base64_module_encode, -1);
-
-    cKryptBase64Decoder = rb_define_class_under(mKryptBase64, "Decoder", rb_cObject);
-    rb_define_method(cKryptBase64Decoder, "close", krypt_base64_decoder_close, 0);
-    rb_define_method(cKryptBase64Decoder, "initialize", krypt_base64_decoder_initialize, 1);
-    rb_define_method(cKryptBase64Decoder, "read", krypt_base64_decoder_read, -1);
-    rb_define_method(cKryptBase64Decoder, "write", krypt_base64_decoder_write, 1);
-    rb_define_alias(cKryptBase64Decoder, "<<", "write");
-
-    cKryptBase64Encoder = rb_define_class_under(mKryptBase64, "Encoder", rb_cObject);
-    rb_define_method(cKryptBase64Encoder, "close", krypt_base64_encoder_close, 0);
-    rb_define_method(cKryptBase64Encoder, "initialize", krypt_base64_encoder_initialize, 1);
-    rb_define_method(cKryptBase64Encoder, "read", krypt_base64_encoder_read, -1);
-    rb_define_method(cKryptBase64Encoder, "write", krypt_base64_encoder_write, 1);
-    rb_define_alias(cKryptBase64Encoder, "<<", "write");
 }
 
