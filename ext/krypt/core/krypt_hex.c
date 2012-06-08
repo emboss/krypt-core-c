@@ -314,7 +314,7 @@ krypt_hex_decoder_read(int argc, VALUE *argv, VALUE self)
     }
 	    
     if (!krypt_instream_rb_read(adapter->in, vlen, vbuf, &ret))
-	krypt_error_raise(eKryptError, "Error reading from IO");
+	krypt_error_raise(eKryptHexError, "Decoding failed");
     if (NIL_P(ret))
 	return ret;
     len = (size_t) RSTRING_LEN(ret);
@@ -355,7 +355,7 @@ krypt_hex_decoder_write(VALUE self, VALUE string)
 	    krypt_error_raise(eKryptHexError, "Decoding failed");
     }
     if ((ret = krypt_outstream_write(adapter->out, bytes + off, len)) == -1) {
-	krypt_error_raise(eKryptError, "Decoding failed");
+	krypt_error_raise(eKryptHexError, "Decoding failed");
     }
     return LONG2NUM(ret);
 }
@@ -402,7 +402,7 @@ krypt_hex_encoder_read(int argc, VALUE *argv, VALUE self)
     rb_scan_args(argc, argv, "02", &vlen, &vbuf);
     adapter = int_get_read_io_adaper(self);
     if (!krypt_instream_rb_read(adapter->in, vlen, vbuf, &ret))
-	krypt_error_raise(eKryptError, "Error reading from IO");
+	krypt_error_raise(eKryptHexError, "Encoding failed");
 
     if (NIL_P(ret))
 	return ret;
@@ -432,7 +432,7 @@ krypt_hex_encoder_write(VALUE self, VALUE string)
     bytes = (unsigned char *) RSTRING_PTR((string));
     int_hex_process(bytes, len, KRYPT_HEX_ENCODE, data);
     if (!krypt_outstream_rb_write(adapter->out, data, &ret)) 
-	krypt_error_raise(eKryptError, "Error writing to IO");
+	krypt_error_raise(eKryptHexError, "Encoding failed");
     return ret;
 }
 
