@@ -104,7 +104,7 @@ Init_kryptcore(void)
     InitVM(kryptcore);
 }
 
-/* This is just a precaution to take remind us of thread safety
+/* This is just a precaution to remind us of thread safety
  * issues in case there would be no GVL */ 
 void
 InitVM_kryptcore(void)
