@@ -283,6 +283,49 @@ krypt_base64_decode(unsigned char *bytes, size_t len, unsigned char **out)
 
 /* Krypt::Base64 */
 
+static inline krypt_io_adapter *
+int_base64_get_io_adapter(VALUE self, VALUE(*init_func)(VALUE))
+{
+    krypt_io_adapter *adapter;
+    VALUE io_adapter = rb_ivar_get(self, sKrypt_IV_IO_ADAPTER);
+    if (NIL_P(io_adapter))
+	io_adapter = init_func(self);
+    krypt_io_adapter_get(io_adapter, adapter);
+    return adapter;
+}
+
+static VALUE int_base64_init_read_adapter(VALUE self)
+{
+    VALUE io = rb_ivar_get(self, sKrypt_IV_IO);
+    krypt_instream *in;
+    VALUE adapter;
+   
+    if (!(in = krypt_instream_new_value(io)))
+	return Qnil;
+    if (NIL_P(adapter = krypt_io_adapter_new_instream_with_buffer(in, 4)))
+	return Qnil;
+    rb_ivar_set(self, sKrypt_IV_IO_ADAPTER, adapter);
+    return adapter;
+}
+
+static VALUE
+int_base64_init_write_adapter(VALUE self)
+{
+    VALUE io = rb_ivar_get(self, sKrypt_IV_IO);
+    krypt_outstream *in;
+    VALUE adapter;
+   
+    if (!(in = krypt_outstream_new_value(io)))
+	return Qnil;
+    if (NIL_P(adapter = krypt_io_adapter_new_outstream_with_buffer(in, 4)))
+	return Qnil;
+    rb_ivar_set(self, sKrypt_IV_IO_ADAPTER, adapter);
+    return adapter;
+}
+
+#define int_base64_get_read_io_adaper(self)	int_base64_get_io_adapter((self), int_base64_init_read_adapter)
+#define int_base64_get_write_io_adaper(self)	int_base64_get_io_adapter((self), int_base64_init_write_adapter)
+
 /**
  * call-seq:
  *    Krypt::Base64.decode(data) -> String
@@ -367,7 +410,8 @@ krypt_base64_module_encode(int argc, VALUE *argv, VALUE self)
 static VALUE
 krypt_base64_decoder_initialize(VALUE self, VALUE io)
 {
-    return self; /* TODO */
+    rb_ivar_set(self, sKrypt_IV_IO, io);
+    return self;
 }
 
 /**
@@ -407,7 +451,8 @@ krypt_base64_decoder_close(VALUE self)
 static VALUE
 krypt_base64_encoder_initialize(VALUE self, VALUE io)
 {
-    return self; /* TODO */
+    rb_ivar_set(self, sKrypt_IV_IO, io);
+    return self;
 }
 
 /**

@@ -202,7 +202,7 @@ krypt_hex_module_encode(VALUE self, VALUE data)
 }
 
 static inline krypt_io_adapter *
-int_get_io_adapter(VALUE self, VALUE(*init_func)(VALUE))
+int_hex_get_io_adapter(VALUE self, VALUE(*init_func)(VALUE))
 {
     krypt_io_adapter *adapter;
     VALUE io_adapter = rb_ivar_get(self, sKrypt_IV_IO_ADAPTER);
@@ -241,14 +241,14 @@ int_hex_init_write_adapter(VALUE self)
     return adapter;
 }
 
-#define int_get_read_io_adaper(self)	int_get_io_adapter((self), int_hex_init_read_adapter)
-#define int_get_write_io_adaper(self)	int_get_io_adapter((self), int_hex_init_write_adapter)
+#define int_hex_get_read_io_adaper(self)	int_hex_get_io_adapter((self), int_hex_init_read_adapter)
+#define int_hex_get_write_io_adaper(self)	int_hex_get_io_adapter((self), int_hex_init_write_adapter)
 
 #define int_generic_read(self, vlen, vbuf, ret)				\
 do {									\
     krypt_io_adapter *adapter;						\
     rb_scan_args(argc, argv, "02", &(vlen), &(vbuf));			\
-    adapter = int_get_read_io_adaper((self));				\
+    adapter = int_hex_get_read_io_adaper((self));			\
     if (!krypt_instream_rb_read(adapter->in, (vlen), (vbuf), &ret)) {	\
 	krypt_add_io_error();						\
 	krypt_error_raise(eKryptError, "Error reading from IO");	\
@@ -303,7 +303,7 @@ krypt_hex_decoder_read(int argc, VALUE *argv, VALUE self)
     int off = 0, prefix = 0;
 
     rb_scan_args(argc, argv, "02", &vlen, &vbuf);
-    adapter = int_get_read_io_adaper(self);
+    adapter = int_hex_get_read_io_adaper(self);
 
     if (!NIL_P(vlen)) {
 	long l = NUM2LONG(vlen);
@@ -319,7 +319,6 @@ krypt_hex_decoder_read(int argc, VALUE *argv, VALUE self)
 	return ret;
     len = (size_t) RSTRING_LEN(ret);
     bytes = (unsigned char *) RSTRING_PTR(ret);
-    adapter = int_get_read_io_adaper(self);
     int_hex_preprocess_decode(adapter, bytes, off, len, prefix);
     int_hex_process(bytes + off, len, KRYPT_HEX_DECODE, ret);
     if (prefix) {
@@ -346,7 +345,7 @@ krypt_hex_decoder_write(VALUE self, VALUE string)
     ssize_t ret;
     int off = 0, prefix = 0;
 
-    adapter = int_get_write_io_adaper((self));
+    adapter = int_hex_get_write_io_adaper((self));
     len = (size_t) RSTRING_LEN((string));
     bytes = (unsigned char *) RSTRING_PTR((string));
     int_hex_preprocess_decode(adapter, bytes, off, len, prefix);
@@ -400,7 +399,7 @@ krypt_hex_encoder_read(int argc, VALUE *argv, VALUE self)
     size_t len;
 
     rb_scan_args(argc, argv, "02", &vlen, &vbuf);
-    adapter = int_get_read_io_adaper(self);
+    adapter = int_hex_get_read_io_adaper(self);
     if (!krypt_instream_rb_read(adapter->in, vlen, vbuf, &ret))
 	krypt_error_raise(eKryptHexError, "Encoding failed");
 
@@ -427,7 +426,7 @@ krypt_hex_encoder_write(VALUE self, VALUE string)
     unsigned char *bytes;
     size_t len;
 
-    adapter = int_get_write_io_adaper(self);
+    adapter = int_hex_get_write_io_adaper(self);
     len = (size_t) RSTRING_LEN((string));
     bytes = (unsigned char *) RSTRING_PTR((string));
     int_hex_process(bytes, len, KRYPT_HEX_ENCODE, data);
