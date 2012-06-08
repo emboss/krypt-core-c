@@ -471,4 +471,3 @@ Init_krypt_hex(void)
     rb_define_alias(cKryptHexEncoder, "<<", "write");
     rb_define_method(cKryptHexEncoder, "close", krypt_hex_encoder_close, 0);
 }
-
