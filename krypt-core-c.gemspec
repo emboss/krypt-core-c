@@ -3,7 +3,7 @@ Gem::Specification.new do |s|
   s.version = '0.0.1'
   s.author = 'Hiroshi Nakamura, Martin Bosslet'
   s.email = 'Martin.Bosslet@googlemail.com'
-  s.homepage = 'https://github.com/emboss/krypt-core-c'
+  s.homepage = 'https://github.com/krypt/krypt-core-c'
   s.summary = 'C implementation of the krypt-core API'
   s.extensions << 'ext/krypt/core/extconf.rb'
   s.files = %w(LICENSE) + Dir.glob('{bin,ext,lib,spec,test}/**/*')
