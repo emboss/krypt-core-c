@@ -11,7 +11,6 @@
 */
 
 #include "krypt-core.h"
-#include "krypt_asn1-shared.h"
 #include "krypt_asn1-internal.h"
 
 VALUE mKryptASN1;

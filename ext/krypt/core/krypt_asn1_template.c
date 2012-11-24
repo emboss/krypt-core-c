@@ -11,7 +11,6 @@
 */
 
 #include "krypt-core.h"
-#include "krypt_asn1-shared.h"
 #include "krypt_asn1-internal.h"
 #include "krypt_asn1_template-internal.h"
 
