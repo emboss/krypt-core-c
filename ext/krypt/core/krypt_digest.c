@@ -265,7 +265,7 @@ krypt_digest_hexdigest(int argc, VALUE *args, VALUE self)
     ssize_t len;
 
     digest = krypt_digest_digest(argc, args, self);
-    len = krypt_hex_encode((unsigned char *) RSTRING_PTR(digest), RSTRING_LEN(digest), &bytes);
+    len = krypt_hex_encode((uint8_t *) RSTRING_PTR(digest), RSTRING_LEN(digest), &bytes);
     if (len == -1)
 	rb_raise(eKryptDigestError, "Error while hex-encoding digest");
     ret = rb_str_new((const char *) bytes, len);
