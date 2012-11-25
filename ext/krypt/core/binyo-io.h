@@ -60,14 +60,6 @@ struct binyo_outstream_interface_st {
     void (*free)(binyo_outstream*);
 };
 
-#ifdef _WIN32
-#define binyo_last_sys_error()	GetLastError()
-#define binyo_clear_sys_error()	SetLastError(0)
-#else
-#define binyo_last_sys_error()	errno
-#define binyo_clear_sys_error()	errno=0
-#endif
-
 #define binyo_safe_cast_stream(out, in, t, ptype, stype)	        \
     do {	                					\
         if (!(in))		                       			\
@@ -83,10 +75,6 @@ struct binyo_outstream_interface_st {
 
 #define binyo_safe_cast_outstream(out, in, type, ptrtype)	binyo_safe_cast_stream((out), (in), (type), ptrtype, binyo_outstream)
 #define binyo_safe_cast_instream(out, in, type, ptrtype)	binyo_safe_cast_stream((out), (in), (type), ptrtype, binyo_instream)
-
-void binyo_add_io_error(void);
-int binyo_has_errors(void);
-int binyo_error_message(char *buf, int buf_len);
 
 ssize_t binyo_instream_read(binyo_instream *in, uint8_t *buf, size_t len);
 int binyo_instream_rb_read(binyo_instream *in, VALUE vlen, VALUE vbuf, VALUE *out);
