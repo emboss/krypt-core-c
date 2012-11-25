@@ -113,7 +113,6 @@ void binyo_outstream_mark(binyo_outstream *in);
 void binyo_outstream_free(binyo_outstream *out);
 
 size_t binyo_outstream_bytes_get_bytes_free(binyo_outstream *outstream, uint8_t **bytes);
-VALUE binyo_outstream_string_build(binyo_outstream *outstream);
 
 binyo_outstream *binyo_outstream_new_fd(int fd);
 binyo_outstream *binyo_outstream_new_fd_io(VALUE io);
@@ -122,8 +121,6 @@ binyo_outstream *binyo_outstream_new_bytes_size(size_t size);
 binyo_outstream *binyo_outstream_new_bytes_prealloc(uint8_t *b, size_t len);
 binyo_outstream *binyo_outstream_new_io_generic(VALUE io);
 binyo_outstream *binyo_outstream_new_value(VALUE value);
-binyo_outstream *binyo_outstream_new_string(void);
-binyo_outstream *binyo_outstream_new_string_size(size_t size);
 
 #endif /* _BINYO_IO_H_ */
 
