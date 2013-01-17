@@ -1,7 +1,7 @@
 /*
  * krypt-core API - C implementation
  *
- * Copyright (c) 2012-2013
+ * Copyright (c) 2011-2013
  * Hiroshi Nakamura <nahi@ruby-lang.org>
  * Martin Bosslet <martin.bosslet@gmail.com>
  * All rights reserved.

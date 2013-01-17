@@ -2,7 +2,6 @@
  * binyo - Fast binary IO for Ruby
  *
  * Copyright (c) 2012-2013
- * Hiroshi Nakamura <nahi@ruby-lang.org>
  * Martin Bosslet <martin.bosslet@gmail.com>
  * All rights reserved.
  *
