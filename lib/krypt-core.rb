@@ -30,7 +30,13 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 =end
 
+# The order is important - kryptcore.so depends on binyo
 require 'binyo'
+require 'kryptcore.so'
 require 'krypt-provider-openssl'
 
-require 'kryptcore.so'
+begin
+  ossl = Krypt::Provider::OpenSSL.new
+  Krypt::Provider.register(ossl)
+end
+
